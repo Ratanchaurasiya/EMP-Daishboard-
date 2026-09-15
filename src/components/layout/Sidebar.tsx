@@ -56,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     weeklyPhotoRecords,
     purchases,
     assetRequests,
+    simCards,
     userRole,
     currentUser,
     selectedEmployeeId,
@@ -195,6 +196,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           badge: `${phoneCount}`,
         },
         {
+          id: 'sim-management',
+          label: 'SIM & Mobile Fleet',
+          shortLabel: 'SIM Fleet',
+          icon: Smartphone,
+          badge: simCards.length > 0 ? `${simCards.length}` : null,
+          badgeColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+        },
+        {
           id: 'assets',
           label: 'Peripherals & Gear',
           shortLabel: 'Assets',
@@ -265,6 +274,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     },
   ];
 
+  const mySimCardsCount = loggedEmployee
+    ? simCards.filter(
+        s =>
+          s.assignedEmployeeId === loggedEmployee.id ||
+          s.assignedEmployeeId === loggedEmployee.employeeId ||
+          (s.assignedEmployeeName && s.assignedEmployeeName.toLowerCase() === loggedEmployee.name.toLowerCase())
+      ).length
+    : 0;
+
   const employeeNavItems = [
     {
       id: 'dashboard',
@@ -292,6 +310,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       badge: myAssignedAssetsCount > 0 ? `${myAssignedAssetsCount}` : null,
     },
     {
+      id: 'sim-management',
+      label: 'My SIM Cards & Recharges',
+      icon: Smartphone,
+      badge: mySimCardsCount > 0 ? `${mySimCardsCount}` : null,
+    },
+    {
       id: 'services',
       label: 'My Service Requests',
       icon: Wrench,
@@ -302,12 +326,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'My Weekly Photo Audits',
       icon: Camera,
       badge: weeklyPhotoRecords.length > 0 ? `${weeklyPhotoRecords.length}` : null,
-    },
-    {
-      id: 'service-flowchart',
-      label: 'Support Flowchart SOP',
-      icon: GitBranch,
-      badge: 'SOP',
     },
   ];
 

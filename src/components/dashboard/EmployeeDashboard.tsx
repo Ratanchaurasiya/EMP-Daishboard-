@@ -61,6 +61,9 @@ import {
 } from '../../utils/emailService';
 import { getEmployeeAssignedCompanyAssets } from '../../utils/assetUtils';
 import { SubmitAssetRequestModal } from '../requests/SubmitAssetRequestModal';
+import { RequestSimModal } from '../sim/RequestSimModal';
+import { getSimStatusStyle, getSimPurposeStyle, generateSimSuspensionWhatsAppUrl } from '../../utils/simUtils';
+import { SimCard } from '../../types';
 
 interface EmployeeDashboardProps {
   onOpenReportIssue?: () => void;
@@ -74,7 +77,12 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     serviceRecords,
     allocationRecords,
     assetRequests,
+    simCards,
+    simRequests,
+    simRecharges,
     currentUser,
+    userRole,
+    updateEmployee,
     addServiceRecord,
     showToast,
     activeTab,
@@ -84,11 +92,15 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
   } = useApp();
 
   // Active sub-tab in employee dashboard for fast navigation
-  const [activeSection, setActiveSection] = useState<'all' | 'workstation' | 'assets' | 'photos' | 'maintenance' | 'requests' | 'updates'>('all');
+  const [activeSection, setActiveSection] = useState<'all' | 'workstation' | 'assets' | 'photos' | 'maintenance' | 'requests' | 'updates' | 'sim-cards'>('all');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Multi-asset equipment request modal state
   const [showAssetRequestModal, setShowAssetRequestModal] = useState<boolean>(false);
+
+  // SIM Modal States
+  const [showSimRequestModal, setShowSimRequestModal] = useState<boolean>(false);
+  const [simModalDefaultType, setSimModalDefaultType] = useState<'Additional SIM' | 'Suspend SIM'>('Additional SIM');
 
   // Sync activeSection whenever activeTab changes from Sidebar or URL
   useEffect(() => {
@@ -102,6 +114,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       setActiveSection('requests');
     } else if (activeTab === 'weekly-photos') {
       setActiveSection('photos');
+    } else if (activeTab === 'sim-management' || activeTab === 'sim-cards') {
+      setActiveSection('sim-cards');
     } else if (activeTab === 'dashboard' || !activeTab) {
       setActiveSection('all');
     }
@@ -179,6 +193,39 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     return getEmployeeAssignedCompanyAssets(employee, assignedComputer, assets);
   }, [employee, assignedComputer, assets]);
 
+  const isSelfOrAdmin = useMemo(() => {
+    return Boolean(
+      userRole === 'admin' ||
+      (currentUser?.role === 'employee' &&
+        employee &&
+        (currentUser.id === employee.id ||
+          currentUser.employeeId === employee.employeeId ||
+          (currentUser.email && employee.email && currentUser.email.toLowerCase() === employee.email.toLowerCase())))
+    );
+  }, [userRole, currentUser, employee]);
+
+  const handlePhotoChange = (newPhotoUrl: string) => {
+    if (!isSelfOrAdmin) {
+      showToast('Unauthorized: You can only update your own profile photo.', 'error');
+      return;
+    }
+    if (employee) {
+      updateEmployee(employee.id, { photoUrl: newPhotoUrl });
+      showToast(`Profile photo & biometric face reference updated successfully!`, 'success');
+    }
+  };
+
+  const handlePhotoRemove = () => {
+    if (!isSelfOrAdmin) {
+      showToast('Unauthorized: You can only update your own profile photo.', 'error');
+      return;
+    }
+    if (employee) {
+      updateEmployee(employee.id, { photoUrl: undefined });
+      showToast(`Removed custom profile photo for ${employee.name}`, 'info');
+    }
+  };
+
   // Service records for this employee's assigned workstation or matching employee identifier
   const myServiceRecords = useMemo(() => {
     if (!employee) return [];
@@ -219,6 +266,30 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [assetRequests, employee]);
+
+  // Assigned SIM cards for this employee
+  const mySimCards = useMemo(() => {
+    if (!employee) return [];
+    return simCards.filter(
+      s =>
+        s.assignedEmployeeId === employee.id ||
+        s.assignedEmployeeId === employee.employeeId ||
+        (s.assignedEmployeeName && s.assignedEmployeeName.toLowerCase() === employee.name.toLowerCase())
+    );
+  }, [simCards, employee]);
+
+  // SIM Requests & Suspension requisitions submitted by this employee
+  const mySimRequests = useMemo(() => {
+    if (!employee) return [];
+    return simRequests
+      .filter(
+        r =>
+          r.employeeId === employee.employeeId ||
+          r.employeeId === employee.id ||
+          (r.employeeEmail && r.employeeEmail.toLowerCase() === employee.email.toLowerCase())
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [simRequests, employee]);
 
   // Calculate service & maintenance summary for workstation
   const serviceSummary = useMemo(() => {
@@ -786,6 +857,9 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                 photoUrl={employee.photoUrl}
                 size="xl"
                 className="ring-3 ring-white/20 shadow-xl"
+                editable={isSelfOrAdmin}
+                onPhotoChange={handlePhotoChange}
+                onPhotoRemove={handlePhotoRemove}
               />
               <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full" />
             </div>
@@ -959,6 +1033,20 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
         >
           <Wrench className="w-3.5 h-3.5" />
           <span>Repair & Service History ({myServiceRecords.length})</span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveSection('sim-cards');
+            setActiveTab('sim-management');
+          }}
+          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            activeSection === 'sim-cards'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'bg-white dark:bg-[#101726] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
+          <span>My SIM Cards & Recharges ({mySimCards.length})</span>
         </button>
         <button
           onClick={() => setActiveSection('updates')}
@@ -2576,6 +2664,216 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
         </div>
       )}
 
+      {/* 7.8. MY ASSIGNED SIM CARDS & TELECOM FLEET */}
+      {(activeSection === 'all' || activeSection === 'sim-cards') && (
+        <div className="bg-white dark:bg-[#101726] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Smartphone className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>My Assigned SIM Cards &amp; Mobile Numbers</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                    {mySimCards.length} {mySimCards.length === 1 ? 'SIM' : 'SIMs'}
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Track allocated corporate numbers, project assignments, and submit new SIM or suspension requests
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setSimModalDefaultType('Suspend SIM');
+                  setShowSimRequestModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                <span>Request Suspension</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSimModalDefaultType('Additional SIM');
+                  setShowSimRequestModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Request Additional SIM</span>
+              </button>
+            </div>
+          </div>
+
+          {/* SIM Table */}
+          {mySimCards.length === 0 ? (
+            <div className="p-8 text-center bg-slate-50/60 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 space-y-2.5">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 flex items-center justify-center mx-auto">
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                No corporate SIM cards currently assigned
+              </div>
+              <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
+                Need a dedicated calling, WhatsApp, or field operations SIM for a project? Submit a requisition directly to Admin.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSimModalDefaultType('Additional SIM');
+                  setShowSimRequestModal(true);
+                }}
+                className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Request New SIM</span>
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/70 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200/80 dark:border-slate-800 text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-4 font-semibold">Contact / Mobile No.</th>
+                    <th className="py-2.5 px-4 font-semibold">Purpose</th>
+                    <th className="py-2.5 px-4 font-semibold">Project</th>
+                    <th className="py-2.5 px-4 font-semibold">Status</th>
+                    <th className="py-2.5 px-4 font-semibold">Carrier / Plan</th>
+                    <th className="py-2.5 px-4 font-semibold">Remarks / Notes</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                  {mySimCards.map(sim => (
+                    <tr key={sim.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">📱</span>
+                          <span>{sim.contactNumber}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getSimPurposeStyle(sim.purpose)}`}>
+                          {sim.purpose === 'Other' && sim.customPurpose ? `Other (${sim.customPurpose})` : sim.purpose}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {sim.project ? (
+                          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            📁 {sim.project}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${getSimStatusStyle(sim.status)}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${sim.status === 'Active' ? 'bg-emerald-500' : sim.status === 'Suspended' ? 'bg-rose-500' : 'bg-blue-500'}`} />
+                          <span>{sim.status}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-[11px]">
+                        <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
+                      </td>
+                      <td className="py-3 px-4 text-[11px] text-slate-500 dark:text-slate-400 max-w-xs truncate">
+                        {sim.status === 'Suspended' && sim.suspensionReason ? (
+                          <span className="text-rose-600 dark:text-rose-400 font-medium">
+                            Reason: {sim.suspensionReason}
+                          </span>
+                        ) : (
+                          sim.remarks || '—'
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {sim.status === 'Active' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSimModalDefaultType('Suspend SIM');
+                              setShowSimRequestModal(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
+                            title="Request suspension of this SIM"
+                          >
+                            <span>Request Suspension</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* SIM Requests tracking */}
+          {mySimRequests.length > 0 && (
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                My SIM Requisition &amp; Suspension History ({mySimRequests.length})
+              </h4>
+              <div className="space-y-2">
+                {mySimRequests.map(req => (
+                  <div
+                    key={req.id}
+                    className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">#{req.id}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          req.requestType === 'Suspend SIM'
+                            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                            : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                        }`}>
+                          {req.requestType}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          req.status === 'Pending'
+                            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 animate-pulse'
+                            : req.status === 'Approved'
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                            : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                        }`}>
+                          {req.status}
+                        </span>
+                        {req.project && (
+                          <span className="text-[11px] text-slate-500 font-medium">📁 {req.project}</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 italic">
+                        &ldquo;{req.reason}&rdquo;
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const waUrl = req.requestType === 'Suspend SIM' && req.simId
+                          ? generateSimSuspensionWhatsAppUrl({ contactNumber: req.contactNumber || '', purpose: (req.purpose as any) || 'General' } as SimCard, req.reason, req.employeeName)
+                          : generateSimSuspensionWhatsAppUrl({ contactNumber: 'New Requisition', purpose: (req.purpose as any) || 'General' } as SimCard, req.reason, req.employeeName);
+                        window.open(waUrl, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-md transition-colors shrink-0"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>WhatsApp Notify</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 8. SELF-SERVICE WORKSTATION & ASSET ISSUE REPORTING MODAL */}
       {showReportModal && (assignedComputer || assignedAssets.length > 0) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
@@ -2909,6 +3207,14 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       <SubmitAssetRequestModal
         isOpen={showAssetRequestModal}
         onClose={() => setShowAssetRequestModal(false)}
+      />
+
+      {/* 10. SIM REQUISITION & SUSPENSION MODAL */}
+      <RequestSimModal
+        isOpen={showSimRequestModal}
+        onClose={() => setShowSimRequestModal(false)}
+        defaultType={simModalDefaultType}
+        preselectedEmployeeId={employee?.id}
       />
     </div>
   );

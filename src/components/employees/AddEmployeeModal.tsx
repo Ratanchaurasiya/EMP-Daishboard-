@@ -22,7 +22,19 @@ interface AddEmployeeModalProps {
 }
 
 export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose }) => {
-  const { addEmployee, showToast } = useApp();
+  const { employees, addEmployee, showToast } = useApp();
+
+  // Auto-calculate next sequential Employee ID (e.g. EMP009)
+  const nextSuggestedId = React.useMemo(() => {
+    const nums = employees
+      .map(e => {
+        const match = (e.employeeId || '').match(/\d+/);
+        return match ? parseInt(match[0], 10) : 0;
+      })
+      .filter(n => !isNaN(n));
+    const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
+    return `EMP${String(maxNum + 1).padStart(3, '0')}`;
+  }, [employees]);
 
   // Scroll lock and Escape listener
   useEffect(() => {
@@ -48,12 +60,20 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
   const [department, setDepartment] = useState('Engineering');
   const [designation, setDesignation] = useState('');
   const [team, setTeam] = useState('');
-  const [joiningDate, setJoiningDate] = useState('2026-09-01');
+  const [joiningDate, setJoiningDate] = useState(() => new Date().toISOString().substring(0, 10));
   const [status, setStatus] = useState<EmployeeStatus>('Active');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [remarks, setRemarks] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+
+  // Pre-fill smart sequential defaults when opened
+  useEffect(() => {
+    if (isOpen) {
+      setEmployeeId(prev => (prev ? prev : nextSuggestedId));
+      setCompanyEmployeeNumber(prev => (prev ? prev : `CORP-${8820 + employees.length}`));
+    }
+  }, [isOpen, nextSuggestedId, employees.length]);
 
   // Step 2: Computer Details (Optional provisioning)
   const [includeComputer, setIncludeComputer] = useState(true);
@@ -570,16 +590,26 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Employee ID *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                      Employee ID *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeId(nextSuggestedId)}
+                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-mono cursor-pointer"
+                    >
+                      <Sparkles className="w-2.5 h-2.5" />
+                      Next: {nextSuggestedId}
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
                     placeholder="e.g. EMP009"
                     value={employeeId}
                     onChange={e => setEmployeeId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono font-bold focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
                   />
                 </div>
 

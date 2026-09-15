@@ -183,6 +183,50 @@ if (DATABASE_URL && (DATABASE_URL.startsWith('mysql://') || DATABASE_URL.startsW
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS sim_cards (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        contact_number VARCHAR(100) NULL,
+        assigned_employee_id VARCHAR(100) NULL,
+        status VARCHAR(100) NULL,
+        purpose VARCHAR(100) NULL,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_sim_contact (contact_number),
+        INDEX idx_sim_assigned_emp (assigned_employee_id),
+        INDEX idx_sim_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS sim_recharges (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        sim_id VARCHAR(100) NULL,
+        employee_id VARCHAR(100) NULL,
+        recharge_date VARCHAR(50) NULL,
+        recharge_amount DECIMAL(12,2) DEFAULT 0,
+        total_amount DECIMAL(12,2) DEFAULT 0,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_rec_sim (sim_id),
+        INDEX idx_rec_emp (employee_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS sim_requests (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        request_type VARCHAR(100) NULL,
+        status VARCHAR(100) NULL,
+        urgency VARCHAR(100) NULL,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_simreq_emp (employee_id),
+        INDEX idx_simreq_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     console.log('[Database] Cloud MySQL / MariaDB tables & indices verified.');
   } catch (err) {
     console.error('[Database Error] Failed to connect to MySQL from DATABASE_URL:', err.message);
@@ -303,6 +347,34 @@ if (!mysqlPool && !isProduction) {
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS sim_cards (
+          id TEXT PRIMARY KEY,
+          contactNumber TEXT,
+          assignedEmployeeId TEXT,
+          status TEXT,
+          purpose TEXT,
+          data TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS sim_recharges (
+          id TEXT PRIMARY KEY,
+          simId TEXT,
+          employeeId TEXT,
+          rechargeDate TEXT,
+          data TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS sim_requests (
+          id TEXT PRIMARY KEY,
+          employeeId TEXT,
+          requestType TEXT,
+          status TEXT,
+          data TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
       `);
     } else {
       useFallback = true;
@@ -324,6 +396,9 @@ let fallbackState = {
   weekly_photos: [],
   purchases: [],
   asset_requests: [],
+  sim_cards: [],
+  sim_recharges: [],
+  sim_requests: [],
   system_settings: {},
 };
 
@@ -605,6 +680,68 @@ export const db = {
             item.status || 'Pending',
             dataStr,
           ]);
+        } else if (collection === 'sim_cards') {
+          const q = `
+            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              contact_number = VALUES(contact_number),
+              assigned_employee_id = VALUES(assigned_employee_id),
+              status = VALUES(status),
+              purpose = VALUES(purpose),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await mysqlPool.query(q, [
+            item.id,
+            item.contactNumber || '',
+            item.assignedEmployeeId || null,
+            item.status || 'Available',
+            item.purpose || 'Holding',
+            dataStr,
+          ]);
+        } else if (collection === 'sim_recharges') {
+          const q = `
+            INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              sim_id = VALUES(sim_id),
+              employee_id = VALUES(employee_id),
+              recharge_date = VALUES(recharge_date),
+              recharge_amount = VALUES(recharge_amount),
+              total_amount = VALUES(total_amount),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await mysqlPool.query(q, [
+            item.id,
+            item.simId || '',
+            item.employeeId || null,
+            item.rechargeDate || '',
+            Number(item.rechargeAmount) || 0,
+            Number(item.totalAmount) || 0,
+            dataStr,
+          ]);
+        } else if (collection === 'sim_requests') {
+          const q = `
+            INSERT INTO sim_requests (id, employee_id, request_type, status, urgency, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              employee_id = VALUES(employee_id),
+              request_type = VALUES(request_type),
+              status = VALUES(status),
+              urgency = VALUES(urgency),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await mysqlPool.query(q, [
+            item.id,
+            item.employeeId || '',
+            item.requestType || 'Additional SIM',
+            item.status || 'Pending',
+            item.urgency || 'Normal',
+            dataStr,
+          ]);
         } else if (collection === 'system_settings') {
           const q = `
             INSERT INTO system_settings (\`key\`, \`value\`, updated_at)
@@ -626,43 +763,73 @@ export const db = {
     if (sqliteDB) {
       try {
         if (collection === 'employees') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO employees (id, employeeId, name, department, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              name = excluded.name,
-              department = excluded.department,
-              status = excluded.status,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(item.id, item.employeeId, item.name || '', item.department || '', item.status || 'Active', dataStr, now);
+          try {
+            const stmt = sqliteDB.prepare(`
+              INSERT INTO employees (id, employeeId, name, department, status, data, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                employeeId = excluded.employeeId,
+                name = excluded.name,
+                department = excluded.department,
+                status = excluded.status,
+                data = excluded.data,
+                updated_at = excluded.updated_at
+            `);
+            stmt.run(item.id, item.employeeId || item.id, item.name || '', item.department || '', item.status || 'Active', dataStr, now);
+          } catch {
+            const delStmt = sqliteDB.prepare('DELETE FROM employees WHERE id = ? OR employeeId = ?');
+            delStmt.run(item.id, item.employeeId || item.id);
+            const stmt2 = sqliteDB.prepare(`
+              INSERT INTO employees (id, employeeId, name, department, status, data, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `);
+            stmt2.run(item.id, item.employeeId || item.id, item.name || '', item.department || '', item.status || 'Active', dataStr, now);
+          }
         } else if (collection === 'computers') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO computers (id, assetNumber, assignedEmployeeId, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              assetNumber = excluded.assetNumber,
-              assignedEmployeeId = excluded.assignedEmployeeId,
-              status = excluded.status,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(item.id, item.assetNumber, item.assignedEmployeeId || null, item.status || 'Available', dataStr, now);
+          try {
+            const stmt = sqliteDB.prepare(`
+              INSERT INTO computers (id, assetNumber, assignedEmployeeId, status, data, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                assetNumber = excluded.assetNumber,
+                assignedEmployeeId = excluded.assignedEmployeeId,
+                status = excluded.status,
+                data = excluded.data,
+                updated_at = excluded.updated_at
+            `);
+            stmt.run(item.id, item.assetNumber || item.id, item.assignedEmployeeId || null, item.status || 'Assigned', dataStr, now);
+          } catch {
+            const delStmt = sqliteDB.prepare('DELETE FROM computers WHERE id = ? OR assetNumber = ?');
+            delStmt.run(item.id, item.assetNumber || item.id);
+            const stmt2 = sqliteDB.prepare(`
+              INSERT INTO computers (id, assetNumber, assignedEmployeeId, status, data, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?)
+            `);
+            stmt2.run(item.id, item.assetNumber || item.id, item.assignedEmployeeId || null, item.status || 'Assigned', dataStr, now);
+          }
         } else if (collection === 'assets') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO assets (id, assetNumber, assetType, assignedEmployeeId, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              assetNumber = excluded.assetNumber,
-              assetType = excluded.assetType,
-              assignedEmployeeId = excluded.assignedEmployeeId,
-              status = excluded.status,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(item.id, item.assetNumber, item.assetType || '', item.assignedEmployeeId || null, item.status || 'Available', dataStr, now);
+          try {
+            const stmt = sqliteDB.prepare(`
+              INSERT INTO assets (id, assetNumber, assetType, assignedEmployeeId, status, data, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                assetNumber = excluded.assetNumber,
+                assetType = excluded.assetType,
+                assignedEmployeeId = excluded.assignedEmployeeId,
+                status = excluded.status,
+                data = excluded.data,
+                updated_at = excluded.updated_at
+            `);
+            stmt.run(item.id, item.assetNumber || item.id, item.assetType || 'Other', item.assignedEmployeeId || null, item.status || 'In Stock', dataStr, now);
+          } catch {
+            const delStmt = sqliteDB.prepare('DELETE FROM assets WHERE id = ? OR assetNumber = ?');
+            delStmt.run(item.id, item.assetNumber || item.id);
+            const stmt2 = sqliteDB.prepare(`
+              INSERT INTO assets (id, assetNumber, assetType, assignedEmployeeId, status, data, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `);
+            stmt2.run(item.id, item.assetNumber || item.id, item.assetType || 'Other', item.assignedEmployeeId || null, item.status || 'In Stock', dataStr, now);
+          }
         } else if (collection === 'service_records') {
           const stmt = sqliteDB.prepare(`
             INSERT INTO service_records (id, computerId, employeeId, data, updated_at)
@@ -765,6 +932,65 @@ export const db = {
             dataStr,
             now
           );
+        } else if (collection === 'sim_cards') {
+          const stmt = sqliteDB.prepare(`
+            INSERT INTO sim_cards (id, contactNumber, assignedEmployeeId, status, purpose, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              contactNumber = excluded.contactNumber,
+              assignedEmployeeId = excluded.assignedEmployeeId,
+              status = excluded.status,
+              purpose = excluded.purpose,
+              data = excluded.data,
+              updated_at = excluded.updated_at
+          `);
+          stmt.run(
+            item.id,
+            item.contactNumber || '',
+            item.assignedEmployeeId || null,
+            item.status || 'Available',
+            item.purpose || 'Holding',
+            dataStr,
+            now
+          );
+        } else if (collection === 'sim_recharges') {
+          const stmt = sqliteDB.prepare(`
+            INSERT INTO sim_recharges (id, simId, employeeId, rechargeDate, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              simId = excluded.simId,
+              employeeId = excluded.employeeId,
+              rechargeDate = excluded.rechargeDate,
+              data = excluded.data,
+              updated_at = excluded.updated_at
+          `);
+          stmt.run(
+            item.id,
+            item.simId || '',
+            item.employeeId || null,
+            item.rechargeDate || '',
+            dataStr,
+            now
+          );
+        } else if (collection === 'sim_requests') {
+          const stmt = sqliteDB.prepare(`
+            INSERT INTO sim_requests (id, employeeId, requestType, status, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              employeeId = excluded.employeeId,
+              requestType = excluded.requestType,
+              status = excluded.status,
+              data = excluded.data,
+              updated_at = excluded.updated_at
+          `);
+          stmt.run(
+            item.id,
+            item.employeeId || '',
+            item.requestType || 'Additional SIM',
+            item.status || 'Pending',
+            dataStr,
+            now
+          );
         }
         return item;
       } catch (err) {
@@ -852,7 +1078,20 @@ export const db = {
 
   // System stats & telemetry
   async getStats() {
-    const collections = ['employees', 'computers', 'assets', 'service_records', 'allocations', 'audit_logs', 'weekly_photos', 'purchases', 'asset_requests'];
+    const collections = [
+      'employees',
+      'computers',
+      'assets',
+      'service_records',
+      'allocations',
+      'audit_logs',
+      'weekly_photos',
+      'purchases',
+      'asset_requests',
+      'sim_cards',
+      'sim_recharges',
+      'sim_requests',
+    ];
     const counts = {};
     let total = 0;
 

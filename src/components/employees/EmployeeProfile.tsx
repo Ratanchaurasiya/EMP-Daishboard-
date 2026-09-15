@@ -46,6 +46,12 @@ import { UnassignCustodianModal } from '../common/UnassignCustodianModal';
 import { ShareEmployeeModal } from './ShareEmployeeModal';
 import { EmployeeWeeklyPhotoSection } from '../documentation/EmployeeWeeklyPhotoSection';
 import { getEmployeeAssignedCompanyAssets, UnifiedAssignedAsset } from '../../utils/assetUtils';
+import { SimCard } from '../../types';
+import { getSimStatusStyle, getSimPurposeStyle } from '../../utils/simUtils';
+import { AddEditSimModal } from '../sim/AddEditSimModal';
+import { SuspendSimModal } from '../sim/SuspendSimModal';
+import { RequestSimModal } from '../sim/RequestSimModal';
+import { AddRechargeModal } from '../sim/AddRechargeModal';
 
 interface EmployeeProfileProps {
   employeeId: string;
@@ -67,12 +73,15 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
     computers,
     assets,
     serviceRecords,
+    simCards,
     userRole,
+    currentUser,
     showToast,
     updateEmployee,
     reactivateEmployee,
     assignComputerToEmployee,
     returnAsset,
+    reactivateSimCard,
   } = useApp();
 
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -83,6 +92,13 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
   const [showRemoveModal, setShowRemoveModal] = useState<boolean>(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState<boolean>(false);
+
+  // SIM Modal States
+  const [showAddSimModal, setShowAddSimModal] = useState<boolean>(false);
+  const [editingSim, setEditingSim] = useState<SimCard | null>(null);
+  const [suspendingSim, setSuspendingSim] = useState<SimCard | null>(null);
+  const [showRequestSimModal, setShowRequestSimModal] = useState<boolean>(false);
+  const [rechargeSim, setRechargeSim] = useState<SimCard | null>(null);
   const [unassignTarget, setUnassignTarget] = useState<{
     id: string;
     entityType: 'Computer' | 'Mobile Phone' | 'Peripheral Asset';
@@ -119,14 +135,31 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
 
   const employee = employees.find(e => e.id === employeeId || e.employeeId === employeeId);
 
+  const isSelfOrAdmin = Boolean(
+    userRole === 'admin' ||
+    (currentUser?.role === 'employee' &&
+      employee &&
+      (currentUser.id === employee.id ||
+        currentUser.employeeId === employee.employeeId ||
+        (currentUser.email && employee.email && currentUser.email.toLowerCase() === employee.email.toLowerCase())))
+  );
+
   const handlePhotoChange = (newPhotoUrl: string) => {
+    if (!isSelfOrAdmin) {
+      showToast('Unauthorized: You can only update your own profile photo.', 'error');
+      return;
+    }
     if (employee) {
       updateEmployee(employee.id, { photoUrl: newPhotoUrl });
-      showToast(`Updated photo for ${employee.name}`, 'success');
+      showToast(`Updated profile photo & biometric face reference for ${employee.name}`, 'success');
     }
   };
 
   const handlePhotoRemove = () => {
+    if (!isSelfOrAdmin) {
+      showToast('Unauthorized: You can only update your own profile photo.', 'error');
+      return;
+    }
     if (employee) {
       updateEmployee(employee.id, { photoUrl: undefined });
       showToast(`Removed custom photo for ${employee.name}`, 'info');
@@ -152,6 +185,12 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
   );
   const assignedAssets = assets.filter(
     a => a.assignedEmployeeId === employee.id || a.assignedEmployeeId === employee.employeeId
+  );
+  const employeeSims = simCards.filter(
+    s =>
+      s.assignedEmployeeId === employee.id ||
+      s.assignedEmployeeId === employee.employeeId ||
+      (s.assignedEmployeeName && s.assignedEmployeeName.trim().toLowerCase() === employee.name.trim().toLowerCase())
   );
   const unifiedCompanyAssets = getEmployeeAssignedCompanyAssets(employee, assignedComputer, assets);
   const assignedPhones = assignedAssets.filter(a => a.assetType === 'Mobile Phone');
@@ -317,7 +356,7 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
               size="2xl"
               status={employee.status}
               showStatusDot={true}
-              editable={true}
+              editable={isSelfOrAdmin}
               onPhotoChange={handlePhotoChange}
               onPhotoRemove={handlePhotoRemove}
             />
@@ -670,6 +709,216 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
                           <span>View-only</span>
                         </span>
                       )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 2.5 ASSIGNED SIM CARDS & CONTACT NUMBERS (Requirement 2) */}
+      <div className="bg-white dark:bg-[#101726] rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-emerald-500/5 to-transparent">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Smartphone className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                  Assigned SIM Cards & Mobile Numbers
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono border border-emerald-500/20">
+                  {employeeSims.length} {employeeSims.length === 1 ? 'SIM' : 'SIMs'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                {employee.name} — {employeeSims.length} {employeeSims.length === 1 ? 'SIM Card' : 'SIM Cards'} assigned
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSim(null);
+                  setShowAddSimModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-xs transition-colors cursor-pointer"
+                title="Assign a new SIM card to this employee"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Assign SIM Card</span>
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => setShowRequestSimModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
+              title="Request an additional SIM card or submit a SIM requisition"
+            >
+              <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Request Additional SIM</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/70 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200/80 dark:border-slate-800 text-[11px] uppercase tracking-wider">
+              <tr>
+                <th className="py-2.5 px-4 font-semibold">Contact / Mobile No.</th>
+                <th className="py-2.5 px-4 font-semibold">Purpose</th>
+                <th className="py-2.5 px-4 font-semibold">Project</th>
+                <th className="py-2.5 px-4 font-semibold">Status</th>
+                <th className="py-2.5 px-4 font-semibold">SIM / ICCID</th>
+                <th className="py-2.5 px-4 font-semibold">Issue Date</th>
+                <th className="py-2.5 px-4 font-semibold">Carrier / Plan</th>
+                <th className="py-2.5 px-4 font-semibold">Remarks</th>
+                <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+              {employeeSims.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Smartphone className="w-8 h-8 text-slate-300 dark:text-slate-700 stroke-1" />
+                      <p className="text-xs">No SIM cards or contact numbers currently assigned to {employee.name}.</p>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSim(null);
+                            setShowAddSimModal(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Assign First SIM (Admin)</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowRequestSimModal(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Submit Additional SIM Request</span>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                employeeSims.map(sim => (
+                  <tr key={sim.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">📱</span>
+                        <span>{sim.contactNumber}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getSimPurposeStyle(sim.purpose)}`}>
+                        {sim.purpose === 'Other' && sim.customPurpose ? `Other (${sim.customPurpose})` : sim.purpose}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {sim.project ? (
+                        <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                          📁 {sim.project}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${getSimStatusStyle(sim.status)}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${sim.status === 'Active' ? 'bg-emerald-500' : sim.status === 'Suspended' ? 'bg-rose-500' : 'bg-blue-500'}`} />
+                        <span>{sim.status}</span>
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                      {sim.simNumber || '—'}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300 text-[11px]">
+                      {sim.issueDate ? formatDateDisplay(sim.issueDate) : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-[11px]">
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
+                    </td>
+                    <td className="py-3 px-4 text-[11px] text-slate-500 dark:text-slate-400 max-w-xs truncate">
+                      {sim.status === 'Suspended' && sim.suspensionReason ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-medium">
+                          Reason: {sim.suspensionReason}
+                        </span>
+                      ) : (
+                        sim.remarks || '—'
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {isAdmin ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setRechargeSim(sim)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-md transition-colors cursor-pointer"
+                              title="Add Recharge record for this SIM"
+                            >
+                              <span>+ Recharge</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSim(sim);
+                                setShowAddSimModal(true);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-md transition-colors cursor-pointer"
+                              title="Edit SIM details and purpose"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            {sim.status === 'Active' ? (
+                              <button
+                                type="button"
+                                onClick={() => setSuspendingSim(sim)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
+                                title="Suspend this SIM (Mandatory reason required)"
+                              >
+                                <span>Suspend</span>
+                              </button>
+                            ) : sim.status === 'Suspended' ? (
+                              <button
+                                type="button"
+                                onClick={() => reactivateSimCard(sim.id)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-md transition-colors cursor-pointer"
+                                title="Reactivate this SIM"
+                              >
+                                <span>Reactivate</span>
+                              </button>
+                            ) : null}
+                          </>
+                        ) : (
+                          sim.status === 'Active' && (
+                            <button
+                              type="button"
+                              onClick={() => setSuspendingSim(sim)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
+                              title="Submit Suspension Request for this SIM"
+                            >
+                              <span>Request Suspension</span>
+                            </button>
+                          )
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1111,6 +1360,43 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
           employeeName={unassignTarget.employeeName}
           employeeId={unassignTarget.employeeId}
           onConfirm={handleConfirmUnassign}
+        />
+      )}
+
+      {/* SIM MODALS */}
+      {showAddSimModal && (
+        <AddEditSimModal
+          isOpen={showAddSimModal}
+          onClose={() => {
+            setShowAddSimModal(false);
+            setEditingSim(null);
+          }}
+          editSim={editingSim}
+          preselectedEmployeeId={employee.id}
+        />
+      )}
+
+      {suspendingSim && (
+        <SuspendSimModal
+          isOpen={!!suspendingSim}
+          onClose={() => setSuspendingSim(null)}
+          sim={suspendingSim}
+        />
+      )}
+
+      {showRequestSimModal && (
+        <RequestSimModal
+          isOpen={showRequestSimModal}
+          onClose={() => setShowRequestSimModal(false)}
+          preselectedEmployeeId={employee.id}
+        />
+      )}
+
+      {rechargeSim && (
+        <AddRechargeModal
+          isOpen={!!rechargeSim}
+          onClose={() => setRechargeSim(null)}
+          preselectedSimId={rechargeSim.id}
         />
       )}
     </div>

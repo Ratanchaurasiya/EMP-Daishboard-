@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Layers,
   ShoppingBag,
+  Phone,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -72,20 +73,26 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     assets,
     serviceRecords,
     purchases,
+    simCards,
+    simRequests,
+    simRecharges,
     globalFilters,
     setGlobalFilters,
     setActiveTab,
     exportFleetCSV,
   } = useApp();
 
-  // Spend Trend Timeframe & Granularity Controls
+  // Spend Trend Timeframe, Stream & Contact Number Controls
   type SpendGranularity = 'weekly' | 'monthly' | 'yearly';
   type SpendTimeScope = string;
   type SpendChartType = 'area' | 'bar';
+  type SpendExpenseStream = 'all' | 'hardware' | 'telecom';
 
   const [granularity, setGranularity] = useState<SpendGranularity>('monthly');
   const [timeScope, setTimeScope] = useState<SpendTimeScope>('all');
   const [chartType, setChartType] = useState<SpendChartType>('area');
+  const [spendStream, setSpendStream] = useState<SpendExpenseStream>('all');
+  const [contactNumberFilter, setContactNumberFilter] = useState<string>('all');
 
   // Workstation Matrix Filters
   const [matrixSearch, setMatrixSearch] = useState('');
@@ -148,6 +155,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const assignedPurchasesCount = useMemo(() => {
     return purchases.filter(p => p.status === 'Assigned').length;
   }, [purchases]);
+
+  // SIM Fleet & Expense Telemetry
+  const totalSims = simCards.length;
+  const activeSims = simCards.filter(s => s.status === 'Active').length;
+  const suspendedSims = simCards.filter(s => s.status === 'Suspended').length;
+  const availableSims = simCards.filter(s => s.status === 'Available').length;
+  const pendingSimRequests = simRequests.filter(r => r.status === 'Pending').length;
+  const pendingSuspensionRequests = simRequests.filter(r => r.status === 'Pending' && r.requestType === 'Suspend SIM').length;
+  const pendingAdditionalSimRequests = simRequests.filter(r => r.status === 'Pending' && r.requestType === 'Additional SIM').length;
+
+  const totalSimRechargeSpend = useMemo(() => {
+    return simRecharges.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0);
+  }, [simRecharges]);
 
   // Fleet Asset Repair & Maintenance Analytics Aggregation
   const fleetAssetRepairStatsData = useMemo(() => {
@@ -523,12 +543,17 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
   interface SpendTicketItem {
     id: string;
-    assetNumber: string;
+    type: 'hardware' | 'telecom';
+    assetNumber?: string;
+    contactNumber?: string;
+    project?: string;
     deviceName: string;
     employeeName: string;
     problem: string;
     category: string;
     cost: number;
+    baseCost?: number;
+    gstAmount?: number;
     date: string;
     technician?: string;
   }
@@ -539,25 +564,113 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     subLabel: string;
     fullTitle: string;
     cost: number;
+    hardwareCost: number;
+    telecomCost: number;
     count: number;
     tickets: SpendTicketItem[];
     year: number;
     yoyGrowth?: number | null;
   }
 
+  // List of unique contact numbers available in system for filtering
+  const availableContactNumbers = useMemo(() => {
+    const list: { contactNumber: string; employeeName: string; project?: string; carrier?: string }[] = [];
+    const seen = new Set<string>();
+
+    simCards.forEach(s => {
+      if (s.contactNumber && !seen.has(s.contactNumber)) {
+        seen.add(s.contactNumber);
+        list.push({
+          contactNumber: s.contactNumber,
+          employeeName: s.assignedEmployeeName || 'Unassigned',
+          project: s.project,
+          carrier: s.carrier,
+        });
+      }
+    });
+
+    simRecharges.forEach(r => {
+      if (r.contactNumber && !seen.has(r.contactNumber)) {
+        seen.add(r.contactNumber);
+        list.push({
+          contactNumber: r.contactNumber,
+          employeeName: r.employeeName || 'Staff Member',
+          project: r.project,
+        });
+      }
+    });
+
+    return list.sort((a, b) => a.contactNumber.localeCompare(b.contactNumber));
+  }, [simCards, simRecharges]);
+
+  // Unified Raw Spend Items combining Hardware Maintenance & Contact Number Recharges
+  const rawSpendItems = useMemo(() => {
+    const items: SpendTicketItem[] = [];
+
+    // 1. Hardware Service Records
+    if (spendStream === 'all' || spendStream === 'hardware') {
+      if (contactNumberFilter === 'all') {
+        serviceRecords.forEach(s => {
+          const cost = Number(s.serviceCost) || 0;
+          items.push({
+            id: s.id,
+            type: 'hardware',
+            assetNumber: s.assetNumber,
+            deviceName: s.deviceName || 'Hardware',
+            employeeName: s.employeeName || 'Staff Member',
+            problem: s.problem || s.problemCategory || 'Hardware Maintenance',
+            category: s.problemCategory || 'Hardware Repair',
+            cost,
+            date: s.serviceDate,
+            technician: s.technician,
+          });
+        });
+      }
+    }
+
+    // 2. Telecom / SIM Contact Number Recharges (GST Included)
+    if (spendStream === 'all' || spendStream === 'telecom') {
+      simRecharges.forEach(r => {
+        if (contactNumberFilter !== 'all' && r.contactNumber !== contactNumberFilter && r.simId !== contactNumberFilter) {
+          return;
+        }
+        const cost = Number(r.totalAmount) || Number(r.rechargeAmount) || 0;
+        const baseCost = Number(r.rechargeAmount) || 0;
+        const gstAmount = Number(r.gstAmount) || 0;
+        items.push({
+          id: r.id,
+          type: 'telecom',
+          contactNumber: r.contactNumber,
+          project: r.project,
+          deviceName: `Contact No: ${r.contactNumber}`,
+          employeeName: r.employeeName || 'Staff Member',
+          problem: `${r.planDescription || 'Telecom Plan'} (${r.project ? r.project + ' • ' : ''}₹${baseCost} + ₹${gstAmount} GST)`,
+          category: 'SIM Recharge',
+          cost,
+          baseCost,
+          gstAmount,
+          date: r.rechargeDate,
+          technician: r.paymentMode || 'UPI',
+        });
+      });
+    }
+
+    return items;
+  }, [serviceRecords, simRecharges, spendStream, contactNumberFilter]);
+
   // 2. Spend Datasets (Weekly, Monthly, Yearly)
   // Weekly Dataset
   const weeklySpendData = useMemo(() => {
     const map: Record<string, SpendAggregatedPoint> = {};
 
-    // Collect all anchor dates (service dates + current date) to ensure surrounding context
+    // Collect all anchor dates (service dates + recharge dates + current date)
     const anchorDates: Date[] = [new Date()];
-    serviceRecords.forEach(s => {
-      const d = parseServiceDate(s.serviceDate);
+    rawSpendItems.forEach(item => {
+      const d = parseServiceDate(item.date);
       if (d) anchorDates.push(d);
     });
 
-    // Populate surrounding baseline weeks (at least +/- 4 weeks) so single-point graphs have a continuous baseline
+    // Populate surrounding baseline weeks
     anchorDates.forEach(anchor => {
       for (let offset = -4; offset <= 4; offset++) {
         const offsetDate = new Date(anchor);
@@ -570,6 +683,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             subLabel: meta.subLabel,
             fullTitle: meta.fullTitle,
             cost: 0,
+            hardwareCost: 0,
+            telecomCost: 0,
             count: 0,
             tickets: [],
             year: meta.year,
@@ -578,22 +693,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       }
     });
 
-    serviceRecords.forEach(s => {
-      const d = parseServiceDate(s.serviceDate);
+    rawSpendItems.forEach(ticket => {
+      const d = parseServiceDate(ticket.date);
       if (!d) return;
       const meta = getWeekMetadata(d);
-      const cost = Number(s.serviceCost) || 0;
-      const ticket: SpendTicketItem = {
-        id: s.id,
-        assetNumber: s.assetNumber,
-        deviceName: s.deviceName,
-        employeeName: s.employeeName,
-        problem: s.problem || s.problemCategory,
-        category: s.problemCategory,
-        cost,
-        date: s.serviceDate,
-        technician: s.technician,
-      };
+      const cost = ticket.cost;
 
       if (!map[meta.weekKey]) {
         map[meta.weekKey] = {
@@ -602,48 +706,47 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           subLabel: meta.subLabel,
           fullTitle: meta.fullTitle,
           cost,
+          hardwareCost: ticket.type === 'hardware' ? cost : 0,
+          telecomCost: ticket.type === 'telecom' ? cost : 0,
           count: 1,
           tickets: [ticket],
           year: meta.year,
         };
       } else {
         map[meta.weekKey].cost += cost;
+        if (ticket.type === 'hardware') map[meta.weekKey].hardwareCost += cost;
+        if (ticket.type === 'telecom') map[meta.weekKey].telecomCost += cost;
         map[meta.weekKey].count += 1;
         map[meta.weekKey].tickets.push(ticket);
       }
     });
 
     return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
-  }, [serviceRecords]);
+  }, [rawSpendItems]);
 
   // Monthly Dataset starting from August 2024 with clean chronological progression
   const monthlySpendData = useMemo(() => {
     const map: Record<string, SpendAggregatedPoint> = {};
 
-    // Determine relevant years: current year + any years present in service records
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     const activeYears = new Set<number>([currentYear]);
-    serviceRecords.forEach(s => {
-      const d = parseServiceDate(s.serviceDate);
+    rawSpendItems.forEach(item => {
+      const d = parseServiceDate(item.date);
       if (d) activeYears.add(d.getFullYear());
     });
 
     const sortedYears = Array.from(activeYears).sort((a, b) => a - b);
     const minYear = sortedYears[0];
 
-    // Populate calendar months: Start from August for earliest year (2024), up to current active month for current year
     sortedYears.forEach(year => {
-      // If earliest year (2024), start from August (month 8) as requested
       const startM = year === minYear && year === 2024 ? 8 : 1;
-
-      // For current year, only populate up to current month unless service records exist later in the year
       let endM = 12;
       if (year === currentYear) {
         let maxRecordMonthInYear = currentMonth;
-        serviceRecords.forEach(s => {
-          const d = parseServiceDate(s.serviceDate);
+        rawSpendItems.forEach(item => {
+          const d = parseServiceDate(item.date);
           if (d && d.getFullYear() === currentYear) {
             maxRecordMonthInYear = Math.max(maxRecordMonthInYear, d.getMonth() + 1);
           }
@@ -663,6 +766,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           subLabel: `${monthFull} ${year}`,
           fullTitle: `${monthFull} ${year}`,
           cost: 0,
+          hardwareCost: 0,
+          telecomCost: 0,
           count: 0,
           tickets: [],
           year,
@@ -670,9 +775,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       }
     });
 
-    // Accumulate actual service record expenses into the timeline
-    serviceRecords.forEach(s => {
-      const d = parseServiceDate(s.serviceDate);
+    rawSpendItems.forEach(ticket => {
+      const d = parseServiceDate(ticket.date);
       if (!d) return;
       const year = d.getFullYear();
       const monthNum = d.getMonth() + 1;
@@ -680,18 +784,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       const monthShort = d.toLocaleString('en-US', { month: 'short' });
       const monthFull = d.toLocaleString('en-US', { month: 'long' });
       const shortYear = String(year).slice(-2);
-      const cost = Number(s.serviceCost) || 0;
-      const ticket: SpendTicketItem = {
-        id: s.id,
-        assetNumber: s.assetNumber,
-        deviceName: s.deviceName,
-        employeeName: s.employeeName,
-        problem: s.problem || s.problemCategory,
-        category: s.problemCategory,
-        cost,
-        date: s.serviceDate,
-        technician: s.technician,
-      };
+      const cost = ticket.cost;
 
       if (!map[monthKey]) {
         map[monthKey] = {
@@ -700,41 +793,34 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           subLabel: `${monthFull} ${year}`,
           fullTitle: `${monthFull} ${year}`,
           cost,
+          hardwareCost: ticket.type === 'hardware' ? cost : 0,
+          telecomCost: ticket.type === 'telecom' ? cost : 0,
           count: 1,
           tickets: [ticket],
           year,
         };
       } else {
         map[monthKey].cost += cost;
+        if (ticket.type === 'hardware') map[monthKey].hardwareCost += cost;
+        if (ticket.type === 'telecom') map[monthKey].telecomCost += cost;
         map[monthKey].count += 1;
         map[monthKey].tickets.push(ticket);
       }
     });
 
     return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
-  }, [serviceRecords]);
+  }, [rawSpendItems]);
 
   // Yearly Dataset
   const yearlySpendData = useMemo(() => {
     const map: Record<string, SpendAggregatedPoint> = {};
 
-    serviceRecords.forEach(s => {
-      const d = parseServiceDate(s.serviceDate);
+    rawSpendItems.forEach(ticket => {
+      const d = parseServiceDate(ticket.date);
       if (!d) return;
       const year = d.getFullYear();
       const yearKey = `${year}`;
-      const cost = Number(s.serviceCost) || 0;
-      const ticket: SpendTicketItem = {
-        id: s.id,
-        assetNumber: s.assetNumber,
-        deviceName: s.deviceName,
-        employeeName: s.employeeName,
-        problem: s.problem || s.problemCategory,
-        category: s.problemCategory,
-        cost,
-        date: s.serviceDate,
-        technician: s.technician,
-      };
+      const cost = ticket.cost;
 
       if (!map[yearKey]) {
         map[yearKey] = {
@@ -743,12 +829,16 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           subLabel: `Fiscal Year ${year}`,
           fullTitle: `Calendar Year ${year}`,
           cost,
+          hardwareCost: ticket.type === 'hardware' ? cost : 0,
+          telecomCost: ticket.type === 'telecom' ? cost : 0,
           count: 1,
           tickets: [ticket],
           year,
         };
       } else {
         map[yearKey].cost += cost;
+        if (ticket.type === 'hardware') map[yearKey].hardwareCost += cost;
+        if (ticket.type === 'telecom') map[yearKey].telecomCost += cost;
         map[yearKey].count += 1;
         map[yearKey].tickets.push(ticket);
       }
@@ -763,18 +853,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       const yoyGrowth = prevCost > 0 ? ((item.cost - prevCost) / prevCost) * 100 : 0;
       return { ...item, yoyGrowth };
     });
-  }, [serviceRecords]);
+  }, [rawSpendItems]);
 
-  // Dynamic available years list from actual service records
+  // Dynamic available years list
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
     const yearsSet = new Set<string>([String(currentYear)]);
-    serviceRecords.forEach(s => {
-      const d = parseServiceDate(s.serviceDate);
+    rawSpendItems.forEach(item => {
+      const d = parseServiceDate(item.date);
       if (d) yearsSet.add(String(d.getFullYear()));
     });
     return Array.from(yearsSet).sort().reverse();
-  }, [serviceRecords]);
+  }, [rawSpendItems]);
 
   // Filtered Dataset based on Selected Granularity & Time Scope
   const currentSpendData = useMemo(() => {
@@ -799,6 +889,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     return currentSpendData.reduce((acc, item) => acc + item.cost, 0);
   }, [currentSpendData]);
 
+  const filteredHardwareSpendTotal = useMemo(() => {
+    return currentSpendData.reduce((acc, item) => acc + (item.hardwareCost || 0), 0);
+  }, [currentSpendData]);
+
+  const filteredTelecomSpendTotal = useMemo(() => {
+    return currentSpendData.reduce((acc, item) => acc + (item.telecomCost || 0), 0);
+  }, [currentSpendData]);
+
   const currentTicketsInView = useMemo(() => {
     return currentSpendData.flatMap(item => item.tickets);
   }, [currentSpendData]);
@@ -814,25 +912,31 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       : 0;
   }, [filteredSpendTotal, currentTicketsInView]);
 
-  // Dynamically aggregate top serviced asset or personnel in current view
+  // Dynamically aggregate top serviced asset, contact number, or personnel in current view
   const topServicedAssetInView = useMemo(() => {
     if (currentTicketsInView.length === 0) return null;
-    const spendByAsset: Record<string, { assetNumber: string; deviceName: string; cost: number; count: number; employeeName: string }> = {};
+    const spendByEntity: Record<
+      string,
+      { label: string; sub: string; cost: number; count: number; type: 'hardware' | 'telecom'; assetNumber?: string; contactNumber?: string }
+    > = {};
+
     currentTicketsInView.forEach(t => {
-      const key = t.assetNumber || t.deviceName || 'General Hardware';
-      if (!spendByAsset[key]) {
-        spendByAsset[key] = {
-          assetNumber: t.assetNumber || 'N/A',
-          deviceName: t.deviceName || 'Hardware',
+      const key = t.type === 'telecom' ? `TEL-${t.contactNumber}` : `HW-${t.assetNumber || t.deviceName || 'General'}`;
+      if (!spendByEntity[key]) {
+        spendByEntity[key] = {
+          label: t.type === 'telecom' ? `${t.contactNumber}` : (t.assetNumber || t.deviceName || 'Hardware'),
+          sub: t.employeeName || 'Staff Member',
           cost: 0,
           count: 0,
-          employeeName: t.employeeName || 'Staff Member',
+          type: t.type,
+          assetNumber: t.assetNumber,
+          contactNumber: t.contactNumber,
         };
       }
-      spendByAsset[key].cost += t.cost;
-      spendByAsset[key].count += 1;
+      spendByEntity[key].cost += t.cost;
+      spendByEntity[key].count += 1;
     });
-    const sorted = Object.values(spendByAsset).sort((a, b) => b.cost - a.cost);
+    const sorted = Object.values(spendByEntity).sort((a, b) => b.cost - a.cost);
     return sorted[0] || null;
   }, [currentTicketsInView]);
 
@@ -1055,6 +1159,56 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
       )}
 
+      {/* SIM CARD SUSPENSION & REQUISITION ACTION ALERT BANNERS */}
+      {pendingSuspensionRequests > 0 && (
+        <div className="p-3.5 rounded-xl bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in cursor-pointer hover:bg-rose-500/15 transition-all" onClick={() => setActiveTab('sim-management')}>
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+            <div>
+              <span className="font-bold text-rose-900 dark:text-rose-200">
+                ⚠️ {pendingSuspensionRequests} SIM Card{pendingSuspensionRequests > 1 ? 's' : ''} Require Suspension Action
+              </span>
+              <p className="text-[11px] text-rose-800/80 dark:text-rose-400 mt-0.5">
+                Employees or administrators have submitted suspension requisitions with mandatory reasons. Review and take action now.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTab('sim-management');
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors shrink-0 shadow-xs cursor-pointer"
+          >
+            <span>Review Suspension Requests</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {pendingAdditionalSimRequests > 0 && (
+        <div className="p-3.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+            <div>
+              <span className="font-bold text-amber-900 dark:text-amber-200">
+                📱 {pendingAdditionalSimRequests} Pending Additional SIM {pendingAdditionalSimRequests === 1 ? 'Requisition' : 'Requisitions'}
+              </span>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-400 mt-0.5">
+                Personnel have requested company SIM allocations for marketing, calling, or holding operations.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('sim-management')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors shrink-0 shadow-xs cursor-pointer"
+          >
+            <span>Process Requisitions</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* 2. HERO EXECUTIVE TELEMETRY RIBBON (5 Precision KPI Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* KPI 1: Fleet Allocation Readiness */}
@@ -1193,9 +1347,148 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
       </div>
 
+      {/* 2.5 SIM CARD FLEET & TELEMETRY MODULE (Requirement 6) */}
+      <div className="p-4 sm:p-5 rounded-xl bg-white dark:bg-[#111726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-[#1e293b]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Smartphone className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  SIM Card Fleet & Recharge Intelligence
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
+                  {totalSims} Numbers
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Centralized monitoring of employee mobile allocations, SIM purposes, suspensions, and GST recharge costs
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setActiveTab('sim-management')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
+          >
+            <span>Manage SIM Fleet →</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 pt-4">
+          {/* Card 1: Total SIMs */}
+          <div
+            onClick={() => setActiveTab('sim-management')}
+            className="p-3.5 rounded-lg bg-slate-50/70 dark:bg-[#0b101b] border border-slate-200/70 dark:border-slate-800/80 hover:border-emerald-500/40 transition-all cursor-pointer group"
+          >
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total SIMs</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+                {totalSims}
+              </span>
+              <span className="text-[10px] text-emerald-500 font-medium">100%</span>
+            </div>
+            <span className="text-[10px] text-slate-400 mt-1 block">In company fleet</span>
+          </div>
+
+          {/* Card 2: Active SIMs */}
+          <div
+            onClick={() => setActiveTab('sim-management')}
+            className="p-3.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 hover:border-emerald-500/60 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 tracking-wider">Active</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-2xl font-black font-mono text-emerald-900 dark:text-emerald-200">
+                {activeSims}
+              </span>
+              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
+                {totalSims > 0 ? Math.round((activeSims / totalSims) * 100) : 0}%
+              </span>
+            </div>
+            <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/70 mt-1 block">Operational numbers</span>
+          </div>
+
+          {/* Card 3: Suspended SIMs */}
+          <div
+            onClick={() => setActiveTab('sim-management')}
+            className={`p-3.5 rounded-lg border transition-all cursor-pointer group ${
+              suspendedSims > 0
+                ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/50 hover:border-rose-500/60'
+                : 'bg-slate-50/70 dark:bg-[#0b101b] border-slate-200/70 dark:border-slate-800/80 hover:border-slate-400'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[10px] uppercase font-bold tracking-wider ${suspendedSims > 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-400'}`}>
+                Suspended
+              </span>
+              {suspendedSims > 0 && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />}
+            </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className={`text-2xl font-black font-mono ${suspendedSims > 0 ? 'text-rose-900 dark:text-rose-200' : 'text-slate-900 dark:text-white'}`}>
+                {suspendedSims}
+              </span>
+              {pendingSuspensionRequests > 0 && (
+                <span className="text-[9px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold font-mono">
+                  {pendingSuspensionRequests} req
+                </span>
+              )}
+            </div>
+            <span className={`text-[10px] mt-1 block ${suspendedSims > 0 ? 'text-rose-600/80 dark:text-rose-400/70 font-medium' : 'text-slate-400'}`}>
+              {suspendedSims > 0 ? 'Action / reason recorded' : 'Zero suspensions'}
+            </span>
+          </div>
+
+          {/* Card 4: Available Spares */}
+          <div
+            onClick={() => setActiveTab('sim-management')}
+            className="p-3.5 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 hover:border-blue-500/60 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-400 tracking-wider">Available Buffer</span>
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+            </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-2xl font-black font-mono text-blue-900 dark:text-blue-200">
+                {availableSims}
+              </span>
+              <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400">
+                {totalSims > 0 ? Math.round((availableSims / totalSims) * 100) : 0}%
+              </span>
+            </div>
+            <span className="text-[10px] text-blue-600/80 dark:text-blue-400/70 mt-1 block">Ready for issuance</span>
+          </div>
+
+          {/* Card 5: Total Recharge Spend */}
+          <div
+            onClick={() => setActiveTab('sim-management')}
+            className="p-3.5 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 hover:border-amber-500/60 transition-all cursor-pointer group col-span-2 sm:col-span-1"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 tracking-wider">Recharge Spend</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono font-semibold">
+                GST Incl.
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl sm:text-2xl font-black font-mono text-amber-900 dark:text-amber-200">
+                ₹{totalSimRechargeSpend.toLocaleString('en-IN')}
+              </span>
+            </div>
+            <span className="text-[10px] text-amber-700/80 dark:text-amber-400/80 mt-1 block">
+              {simRecharges.length} {simRecharges.length === 1 ? 'recharge event' : 'recharge events'}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* 3. CENTERPIECE: SEAMLESSLY INTEGRATED "SPEND TREND" ANALYTICS ENGINE */}
       <div className="p-5 rounded-xl bg-white dark:bg-[#111726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs">
-        {/* Spend Trend Header & Timeframe / Granularity Controls */}
+        {/* Spend Trend Header & Timeframe / Stream / Granularity Controls */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-[#1e293b]">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-500/25">
@@ -1204,30 +1497,97 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Maintenance Expenditure Trend (₹)
+                  Maintenance & Telecom Expenditure Trend (₹)
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/35 shadow-xs">
-                  {formatCurrency(filteredSpendTotal)} Period Total
+                  {formatCurrency(filteredSpendTotal)} Total
                 </span>
+                {spendStream === 'all' && (
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                    <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      🔧 HW: {formatCurrency(filteredHardwareSpendTotal)}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      📱 SIM: {formatCurrency(filteredTelecomSpendTotal)}
+                    </span>
+                  </div>
+                )}
                 <span className="text-[11px] font-mono text-slate-400">
-                  • {currentTicketsInView.length} Invoices
+                  • {currentTicketsInView.length} Events Logged
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                {granularity === 'weekly' && 'Weekly granular breakdown of hardware repairs, component replacements, and servicing costs'}
-                {granularity === 'monthly' && 'Monthly chronological timeline of hardware repairs, component replacements, and servicing costs'}
-                {granularity === 'yearly' && 'Annual year-over-year expenditure comparison and fiscal maintenance trajectory'}
+                {spendStream === 'all' && 'Combined timeline of hardware maintenance, spare replacements, and contact number / SIM telecom recharges'}
+                {spendStream === 'hardware' && 'Hardware repair invoices, preventive servicing, and replacement components only'}
+                {spendStream === 'telecom' && 'Contact number telecom recharges, monthly voice/data plans, and GST expenditures'}
               </p>
             </div>
           </div>
 
-          {/* Granularity, Time Scope, and Chart Type Controls */}
+          {/* Stream, Contact Number Filter, Granularity, Time Scope, and Chart Controls */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Stream Switcher: All | Hardware 🔧 | Contact No. / SIM 📱 */}
+            <div className="inline-flex p-0.5 bg-slate-100 dark:bg-[#0b101b] rounded-lg border border-slate-200/80 dark:border-[#1e293b] text-xs">
+              <button
+                type="button"
+                onClick={() => setSpendStream('all')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  spendStream === 'all'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All (HW + SIM)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpendStream('hardware')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                  spendStream === 'hardware'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Wrench className="w-3 h-3" />
+                Hardware
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpendStream('telecom')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                  spendStream === 'telecom'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Phone className="w-3 h-3" />
+                Contact Numbers
+              </button>
+            </div>
+
+            {/* Contact Number Filter Dropdown (When All or Telecom is active) */}
+            {spendStream !== 'hardware' && availableContactNumbers.length > 0 && (
+              <div className="flex items-center gap-1">
+                <select
+                  value={contactNumberFilter}
+                  onChange={e => setContactNumberFilter(e.target.value)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-[#0b101b] border border-slate-200/80 dark:border-[#1e293b] text-[11px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer max-w-[170px] truncate"
+                >
+                  <option value="all">📱 All Contact Nos ({availableContactNumbers.length})</option>
+                  {availableContactNumbers.map(sim => (
+                    <option key={sim.contactNumber} value={sim.contactNumber}>
+                      {sim.contactNumber} — {sim.employeeName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Granularity Switcher: Weekly | Monthly | Yearly */}
             <div className="inline-flex p-0.5 bg-slate-100 dark:bg-[#0b101b] rounded-lg border border-slate-200/80 dark:border-[#1e293b] text-xs">
               <button
                 onClick={() => setGranularity('weekly')}
-                className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                   granularity === 'weekly'
                     ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/30 font-bold'
                     : 'text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -1238,7 +1598,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </button>
               <button
                 onClick={() => setGranularity('monthly')}
-                className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                   granularity === 'monthly'
                     ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/30 font-bold'
                     : 'text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -1249,7 +1609,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </button>
               <button
                 onClick={() => setGranularity('yearly')}
-                className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                   granularity === 'yearly'
                     ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/30 font-bold'
                     : 'text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -1260,7 +1620,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </button>
             </div>
 
-            {/* Time Scope Filter (Available for Weekly & Monthly) */}
+            {/* Time Scope Filter */}
             {granularity !== 'yearly' && (
               <div className="inline-flex p-0.5 bg-slate-100 dark:bg-[#0b101b] rounded-lg border border-slate-200/80 dark:border-[#1e293b] text-xs">
                 <button
@@ -1326,20 +1686,24 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 <div className="h-full flex flex-col items-center justify-center text-slate-500 p-4 text-center">
                   <AlertTriangle className="w-8 h-8 text-amber-500/70 mb-2" />
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    No maintenance records found for the selected time period ({timeScope === 'all' ? 'All Time' : timeScope}).
+                    No expenditure records found for the selected filter ({timeScope === 'all' ? 'All Time' : timeScope}).
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1 max-w-sm">
-                    {serviceRecords.length === 0
-                      ? 'No maintenance or repair records exist yet. Click below to log your first service ticket.'
-                      : 'Records exist in other timeframes. Switch to "All Time" to view all records.'}
+                    {rawSpendItems.length === 0
+                      ? 'No maintenance tickets or telecom recharges logged yet. Click below to add an entry.'
+                      : 'Records exist in other timeframes or filters. Reset filters to view all entries.'}
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     {timeScope !== 'all' && (
                       <button
-                        onClick={() => setTimeScope('all')}
+                        onClick={() => {
+                          setTimeScope('all');
+                          setContactNumberFilter('all');
+                          setSpendStream('all');
+                        }}
                         className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition-colors cursor-pointer"
                       >
-                        Show All Time
+                        Reset All Filters
                       </button>
                     )}
                     <button
@@ -1348,6 +1712,13 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     >
                       <Wrench className="w-3.5 h-3.5" />
                       <span>Log Service Ticket</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('sim-management')}
+                      className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Manage Contact Numbers</span>
                     </button>
                   </div>
                 </div>
@@ -1360,8 +1731,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     >
                       <defs>
                         <linearGradient id="spendGradientExecutive" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.65} />
-                          <stop offset="95%" stopColor="#ea580c" stopOpacity={0.0} />
+                          <stop offset="5%" stopColor={spendStream === 'telecom' ? '#10b981' : '#f97316'} stopOpacity={0.65} />
+                          <stop offset="95%" stopColor={spendStream === 'telecom' ? '#059669' : '#ea580c'} stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" opacity={0.6} />
@@ -1381,16 +1752,16 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         tickFormatter={val => `₹${val}`}
                       />
                       <Tooltip
-                        cursor={{ stroke: '#f97316', strokeWidth: 1.5, strokeDasharray: '3 3' }}
+                        cursor={{ stroke: spendStream === 'telecom' ? '#10b981' : '#f97316', strokeWidth: 1.5, strokeDasharray: '3 3' }}
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const item = payload[0].payload as SpendAggregatedPoint;
                             return (
-                              <div className="bg-[#0d131f]/95 backdrop-blur-md border border-[#1e293b] p-3.5 rounded-xl text-xs text-white shadow-2xl space-y-2 min-w-[220px] max-w-[300px] pointer-events-none">
+                              <div className="bg-[#0d131f]/95 backdrop-blur-md border border-[#1e293b] p-3.5 rounded-xl text-xs text-white shadow-2xl space-y-2 min-w-[240px] max-w-[340px] pointer-events-none">
                                 <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400">
                                   <span className="font-semibold text-slate-200">{item.fullTitle}</span>
                                   <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
-                                    {item.count} Ticket{item.count > 1 ? 's' : ''}
+                                    {item.count} Event{item.count > 1 ? 's' : ''}
                                   </span>
                                 </div>
                                 <div className="flex items-baseline justify-between">
@@ -1407,18 +1778,38 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                     </span>
                                   )}
                                 </div>
+
+                                {spendStream === 'all' && (
+                                  <div className="flex items-center gap-2 text-[10px] font-mono pt-1">
+                                    <span className="text-blue-400">🔧 HW: {formatCurrency(item.hardwareCost || 0)}</span>
+                                    <span className="text-slate-600">•</span>
+                                    <span className="text-emerald-400">📱 SIM: {formatCurrency(item.telecomCost || 0)}</span>
+                                  </div>
+                                )}
+
                                 {item.tickets && item.tickets.length > 0 && (
                                   <div className="space-y-1 pt-1.5 border-t border-[#1e293b]/70">
                                     <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                                      Repair Log Breakdown
+                                      Expenditure Breakdown ({item.tickets.length})
                                     </span>
-                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    <div className="space-y-1 max-h-36 overflow-y-auto">
                                       {item.tickets.map(t => (
-                                        <div key={t.id} className="text-[10px] bg-slate-900/70 p-1.5 rounded border border-slate-800 flex items-start justify-between gap-1.5">
+                                        <div key={t.id} className="text-[10px] bg-slate-900/80 p-1.5 rounded border border-slate-800 flex items-start justify-between gap-1.5">
                                           <div className="truncate">
-                                            <span className="font-mono font-bold text-slate-300">{t.assetNumber}</span>
-                                            <span className="text-slate-400 ml-1">({t.employeeName})</span>
-                                            <p className="text-[10px] text-slate-400 truncate">{t.problem}</p>
+                                            <div className="flex items-center gap-1">
+                                              <span className={`px-1 py-0.2 rounded text-[9px] font-mono font-bold ${
+                                                t.type === 'telecom'
+                                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                  : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                              }`}>
+                                                {t.type === 'telecom' ? '📱 SIM' : '🔧 HW'}
+                                              </span>
+                                              <span className="font-mono font-bold text-slate-200">
+                                                {t.type === 'telecom' ? t.contactNumber : t.assetNumber}
+                                              </span>
+                                              <span className="text-slate-400 ml-0.5">({t.employeeName})</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{t.problem}</p>
                                           </div>
                                           <span className="font-mono font-semibold text-amber-400 shrink-0">
                                             {formatCurrency(t.cost)}
@@ -1437,7 +1828,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       <Area
                         type="monotone"
                         dataKey="cost"
-                        stroke="#f59e0b"
+                        stroke={spendStream === 'telecom' ? '#10b981' : '#f59e0b'}
                         strokeWidth={2.5}
                         fillOpacity={1}
                         fill="url(#spendGradientExecutive)"
@@ -1446,12 +1837,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                           if (!payload || !payload.cost || payload.cost <= 0) return null;
                           return (
                             <g key={`spend-dot-${payload.key}`}>
-                              <circle cx={cx} cy={cy} r={6} fill="#f97316" fillOpacity={0.3} />
-                              <circle cx={cx} cy={cy} r={4} fill="#f97316" stroke="#ffffff" strokeWidth={2} />
+                              <circle cx={cx} cy={cy} r={6} fill={spendStream === 'telecom' ? '#10b981' : '#f97316'} fillOpacity={0.3} />
+                              <circle cx={cx} cy={cy} r={4} fill={spendStream === 'telecom' ? '#10b981' : '#f97316'} stroke="#ffffff" strokeWidth={2} />
                             </g>
                           );
                         }}
-                        activeDot={{ r: 7, fill: '#ea580c', stroke: '#ffffff', strokeWidth: 2.5 }}
+                        activeDot={{ r: 7, fill: spendStream === 'telecom' ? '#059669' : '#ea580c', stroke: '#ffffff', strokeWidth: 2.5 }}
                       />
                     </AreaChart>
                   ) : (
@@ -1461,8 +1852,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     >
                       <defs>
                         <linearGradient id="spendBarGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f97316" stopOpacity={1} />
-                          <stop offset="100%" stopColor="#ea580c" stopOpacity={0.8} />
+                          <stop offset="0%" stopColor={spendStream === 'telecom' ? '#10b981' : '#f97316'} stopOpacity={1} />
+                          <stop offset="100%" stopColor={spendStream === 'telecom' ? '#059669' : '#ea580c'} stopOpacity={0.8} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" opacity={0.6} />
@@ -1491,7 +1882,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400">
                                   <span className="font-semibold text-slate-200">{item.fullTitle}</span>
                                   <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
-                                    {item.count} Ticket{item.count > 1 ? 's' : ''}
+                                    {item.count} Event{item.count > 1 ? 's' : ''}
                                   </span>
                                 </div>
                                 <div className="flex items-baseline justify-between">
@@ -1517,82 +1908,87 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               )}
             </div>
 
-            <div className="pt-3 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-100 dark:border-[#1e293b]">
+            <div className="pt-3 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-100 dark:border-[#1e293b] flex-wrap gap-2">
               <span>
-                Tracking {currentTicketsInView.length} formal maintenance event{currentTicketsInView.length !== 1 ? 's' : ''}, across {currentSpendData.length} {granularity} interval{currentSpendData.length !== 1 ? 's' : ''}
+                Tracking {currentTicketsInView.length} event{currentTicketsInView.length !== 1 ? 's' : ''} across {currentSpendData.length} {granularity} interval{currentSpendData.length !== 1 ? 's' : ''}
               </span>
-              <span className="font-mono text-amber-400 font-semibold flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block shadow-xs" />
-                Total Invoices Audited
-              </span>
+              <div className="flex items-center gap-3 font-mono text-[11px]">
+                <span className="text-blue-400 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                  Hardware: {formatCurrency(filteredHardwareSpendTotal)}
+                </span>
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                  Contact Nos: {formatCurrency(filteredTelecomSpendTotal)}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Companion Financial Highlights (4 Columns) matching user photo */}
+          {/* Companion Financial Highlights (4 Columns) */}
           <div className="lg:col-span-4 flex flex-col justify-between space-y-3">
             {/* Highlight 1: Highest Single Expense */}
             <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-[#0d131f] border border-slate-200/80 dark:border-[#1e293b] flex items-center gap-3.5 shadow-2xs hover:border-orange-500/40 transition-all cursor-pointer group">
-              <div className="w-10 h-10 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+              <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${
+                currentPeakTicket?.type === 'telecom'
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  : 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+              }`}>
+                {currentPeakTicket?.type === 'telecom' ? <Phone className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Peak Single Repair</span>
+                  <span>{currentPeakTicket?.type === 'telecom' ? 'Peak SIM Recharge' : 'Peak Single Repair'}</span>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-orange-400 transition-colors" />
                 </div>
                 <div className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5">
                   {formatCurrency(currentPeakTicket ? currentPeakTicket.cost : 0)}
                 </div>
                 <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                  Priority: High | {currentPeakTicket ? `${currentPeakTicket.problem} (${currentPeakTicket.assetNumber})` : 'None in view'}
+                  {currentPeakTicket
+                    ? `${currentPeakTicket.problem} (${currentPeakTicket.type === 'telecom' ? currentPeakTicket.contactNumber : currentPeakTicket.assetNumber})`
+                    : 'None in view'}
                 </p>
               </div>
             </div>
 
-            {/* Highlight 2: Avg Repair Benchmark */}
+            {/* Highlight 2: Avg Ticket / Recharge Benchmark */}
             <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-[#0d131f] border border-slate-200/80 dark:border-[#1e293b] flex items-center gap-3.5 shadow-2xs hover:border-blue-500/40 transition-all cursor-pointer group">
               <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
                 <IndianRupee className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Average Ticket Cost</span>
+                  <span>Average Event Cost</span>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-400 transition-colors" />
                 </div>
                 <div className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5">
                   {formatCurrency(currentAvgTicket)}
                 </div>
                 <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                  Calculated across {currentTicketsInView.length} invoices in view
+                  Across {currentTicketsInView.length} events ({spendStream === 'all' ? 'Hardware & Telecom' : spendStream})
                 </p>
               </div>
             </div>
 
-            {/* Highlight 3: Dynamic Top Serviced Entity or Period Subtotal */}
-            <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-[#0d131f] border border-slate-200/80 dark:border-[#1e293b] flex items-center gap-3.5 shadow-2xs hover:border-emerald-500/40 transition-all cursor-pointer group">
+            {/* Highlight 3: Contact Number & SIM Telecom Subtotal */}
+            <div
+              onClick={() => setActiveTab('sim-management')}
+              className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-[#0d131f] border border-slate-200/80 dark:border-[#1e293b] flex items-center gap-3.5 shadow-2xs hover:border-emerald-500/40 transition-all cursor-pointer group"
+            >
               <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <Layers className="w-5 h-5" />
+                <Phone className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <span>
-                    {topServicedAssetInView
-                      ? `${topServicedAssetInView.employeeName.toUpperCase()} SUBTOTAL`
-                      : 'DEV DIHOKRI SUBTOTAL'}
-                  </span>
+                  <span>Contact Number Spend</span>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" />
                 </div>
-                <div className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5">
-                  {formatCurrency(
-                    topServicedAssetInView
-                      ? topServicedAssetInView.cost
-                      : filteredSpendTotal
-                  )}
+                <div className="text-xl font-black font-mono text-emerald-500 dark:text-emerald-400 mt-0.5">
+                  {formatCurrency(filteredTelecomSpendTotal)}
                 </div>
                 <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                  {topServicedAssetInView
-                    ? `${topServicedAssetInView.count} service event on ${topServicedAssetInView.assetNumber}`
-                    : '1 service event on REY-001'}
+                  {simCards.length} Active SIMs • {simRecharges.length} Recharges (18% GST Incl.)
                 </p>
               </div>
             </div>

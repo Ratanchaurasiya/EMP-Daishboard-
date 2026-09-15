@@ -109,6 +109,9 @@ app.get('/api/bootstrap', async (req, res) => {
       weeklyPhotoRecords,
       purchases,
       assetRequests,
+      simCards,
+      simRecharges,
+      simRequests,
       stats,
     ] = await Promise.all([
       db.getAll('employees'),
@@ -120,6 +123,9 @@ app.get('/api/bootstrap', async (req, res) => {
       db.getAll('weekly_photos'),
       db.getAll('purchases'),
       db.getAll('asset_requests'),
+      db.getAll('sim_cards'),
+      db.getAll('sim_recharges'),
+      db.getAll('sim_requests'),
       db.getStats(),
     ]);
 
@@ -135,6 +141,9 @@ app.get('/api/bootstrap', async (req, res) => {
         weeklyPhotoRecords,
         purchases,
         assetRequests,
+        simCards,
+        simRecharges,
+        simRequests,
       },
       stats,
     });
@@ -667,6 +676,293 @@ app.delete('/api/asset-requests/:id', async (req, res) => {
   }
 });
 
+// ==================== SIM CARDS & TELECOM MANAGEMENT CRUD ====================
+app.get('/api/sims', async (req, res) => {
+  try {
+    const sims = await db.getAll('sim_cards');
+    res.json({ success: true, data: sims });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/sims/:id', async (req, res) => {
+  try {
+    const sim = await db.getById('sim_cards', req.params.id);
+    if (!sim) {
+      return res.status(404).json({ success: false, error: 'SIM card not found' });
+    }
+    res.json({ success: true, data: sim });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sims', async (req, res) => {
+  try {
+    const sim = req.body;
+    if (!sim.id) sim.id = `SIM-${Date.now()}`;
+    const now = new Date().toISOString();
+    const saved = await db.upsert('sim_cards', {
+      ...sim,
+      createdAt: sim.createdAt || now,
+      updatedAt: now,
+    });
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/sims/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.getById('sim_cards', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'SIM card not found' });
+    }
+    const updated = {
+      ...existing,
+      ...req.body,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    await db.upsert('sim_cards', updated);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sims/:id/suspend', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, suspendedBy } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, error: 'Mandatory reason is required to suspend a SIM card.' });
+    }
+    const existing = await db.getById('sim_cards', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'SIM card not found' });
+    }
+    const now = new Date().toISOString();
+    const updated = {
+      ...existing,
+      status: 'Suspended',
+      suspensionReason: reason.trim(),
+      suspendedBy: suspendedBy || 'Admin',
+      suspendedAt: now,
+      updatedAt: now,
+    };
+    await db.upsert('sim_cards', updated);
+    res.json({ success: true, data: updated, message: 'SIM card successfully suspended.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/sims/:id/suspend', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, suspendedBy } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, error: 'Mandatory reason is required to suspend a SIM card.' });
+    }
+    const existing = await db.getById('sim_cards', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'SIM card not found' });
+    }
+    const now = new Date().toISOString();
+    const updated = {
+      ...existing,
+      status: 'Suspended',
+      suspensionReason: reason.trim(),
+      suspendedBy: suspendedBy || 'Admin',
+      suspendedAt: now,
+      updatedAt: now,
+    };
+    await db.upsert('sim_cards', updated);
+    res.json({ success: true, data: updated, message: 'SIM card successfully suspended.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sims/:id/reactivate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.getById('sim_cards', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'SIM card not found' });
+    }
+    const now = new Date().toISOString();
+    const updated = {
+      ...existing,
+      status: 'Active',
+      suspensionReason: null,
+      suspendedBy: null,
+      suspendedAt: null,
+      reactivatedAt: now,
+      updatedAt: now,
+    };
+    await db.upsert('sim_cards', updated);
+    res.json({ success: true, data: updated, message: 'SIM card successfully reactivated.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/sims/:id/reactivate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.getById('sim_cards', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'SIM card not found' });
+    }
+    const now = new Date().toISOString();
+    const updated = {
+      ...existing,
+      status: 'Active',
+      suspensionReason: null,
+      suspendedBy: null,
+      suspendedAt: null,
+      reactivatedAt: now,
+      updatedAt: now,
+    };
+    await db.upsert('sim_cards', updated);
+    res.json({ success: true, data: updated, message: 'SIM card successfully reactivated.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/sims/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await db.delete('sim_cards', id);
+    if (success) {
+      res.json({ success: true, message: 'SIM card deleted' });
+    } else {
+      res.status(404).json({ success: false, error: 'SIM card could not be deleted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==================== SIM RECHARGES CRUD ====================
+app.get('/api/sim-recharges', async (req, res) => {
+  try {
+    const recharges = await db.getAll('sim_recharges');
+    res.json({ success: true, data: recharges });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sim-recharges', async (req, res) => {
+  try {
+    const recharge = req.body;
+    if (!recharge.id) recharge.id = `REC-${Date.now()}`;
+    
+    // Auto calculate GST and Total
+    const amount = Number(recharge.rechargeAmount) || 0;
+    const gstPercent = Number(recharge.gstPercentage ?? 18);
+    const gstAmount = Number(((amount * gstPercent) / 100).toFixed(2));
+    const totalAmount = Number((amount + gstAmount).toFixed(2));
+
+    const record = {
+      ...recharge,
+      rechargeAmount: amount,
+      gstPercentage: gstPercent,
+      gstAmount,
+      totalAmount,
+      createdAt: recharge.createdAt || new Date().toISOString(),
+    };
+
+    const saved = await db.upsert('sim_recharges', record);
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/sim-recharges/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await db.delete('sim_recharges', id);
+    if (success) {
+      res.json({ success: true, message: 'Recharge entry deleted' });
+    } else {
+      res.status(404).json({ success: false, error: 'Recharge entry could not be deleted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==================== SIM REQUESTS CRUD ====================
+app.get('/api/sim-requests', async (req, res) => {
+  try {
+    const requests = await db.getAll('sim_requests');
+    res.json({ success: true, data: requests });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sim-requests', async (req, res) => {
+  try {
+    const request = req.body;
+    if (!request.id) request.id = `SIMREQ-${Date.now()}`;
+    const now = new Date().toISOString();
+    const record = {
+      ...request,
+      status: request.status || 'Pending',
+      createdAt: request.createdAt || now,
+      updatedAt: now,
+    };
+    const saved = await db.upsert('sim_requests', record);
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/sim-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.getById('sim_requests', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'SIM request not found' });
+    }
+    const updated = {
+      ...existing,
+      ...req.body,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    await db.upsert('sim_requests', updated);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/sim-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await db.delete('sim_requests', id);
+    if (success) {
+      res.json({ success: true, message: 'SIM request deleted' });
+    } else {
+      res.status(404).json({ success: false, error: 'SIM request could not be deleted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ==================== COMPLETE DATABASE BULK SYNC ====================
 app.post('/api/sync', async (req, res) => {
   try {
@@ -680,6 +976,9 @@ app.post('/api/sync', async (req, res) => {
       weeklyPhotoRecords,
       purchases,
       assetRequests,
+      simCards,
+      simRecharges,
+      simRequests,
     } = req.body;
 
     if (Array.isArray(employees)) {
@@ -709,6 +1008,15 @@ app.post('/api/sync', async (req, res) => {
     if (Array.isArray(assetRequests)) {
       for (const ar of assetRequests) await db.upsert('asset_requests', ar);
     }
+    if (Array.isArray(simCards)) {
+      for (const s of simCards) await db.upsert('sim_cards', s);
+    }
+    if (Array.isArray(simRecharges)) {
+      for (const r of simRecharges) await db.upsert('sim_recharges', r);
+    }
+    if (Array.isArray(simRequests)) {
+      for (const sr of simRequests) await db.upsert('sim_requests', sr);
+    }
 
     const stats = await db.getStats();
     res.json({ success: true, message: 'Database synchronized', stats });
@@ -731,6 +1039,9 @@ app.post('/api/clear', async (req, res) => {
       'weekly_photos',
       'purchases',
       'asset_requests',
+      'sim_cards',
+      'sim_recharges',
+      'sim_requests',
     ];
     for (const c of collections) {
       await db.clear(c);

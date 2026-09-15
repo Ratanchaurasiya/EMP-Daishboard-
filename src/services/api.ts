@@ -9,6 +9,9 @@ import {
   WeeklyAssetPhotoRecord,
   PurchaseRecord,
   AssetRequest,
+  SimCard,
+  SimRecharge,
+  SimRequest,
 } from '../types';
 
 // In development or unified hosting, use relative '/api'
@@ -30,6 +33,9 @@ export interface BootstrapResponse {
     weeklyPhotoRecords: WeeklyAssetPhotoRecord[];
     purchases?: PurchaseRecord[];
     assetRequests?: AssetRequest[];
+    simCards?: SimCard[];
+    simRecharges?: SimRecharge[];
+    simRequests?: SimRequest[];
   };
   stats?: any;
 }
@@ -430,6 +436,172 @@ export const api = {
     }
   },
 
+  // ================= SIM CARD MANAGEMENT =================
+  async getSims(): Promise<SimCard[]> {
+    try {
+      const res = await fetch(`${API_BASE}/sims`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createSim(sim: SimCard): Promise<{ success: boolean; data?: SimCard; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/sims`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sim),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to save SIM' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async updateSim(id: string, updates: Partial<SimCard>): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/sims/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async suspendSim(id: string, reason: string, suspendedBy?: string): Promise<{ success: boolean; data?: SimCard; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/sims/${encodeURIComponent(id)}/suspend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, suspendedBy }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to suspend SIM' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async reactivateSim(id: string): Promise<{ success: boolean; data?: SimCard; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/sims/${encodeURIComponent(id)}/reactivate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to reactivate SIM' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async deleteSim(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/sims/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  // ================= SIM RECHARGES =================
+  async getSimRecharges(): Promise<SimRecharge[]> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-recharges`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createSimRecharge(recharge: SimRecharge): Promise<{ success: boolean; data?: SimRecharge; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-recharges`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recharge),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to save recharge' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async deleteSimRecharge(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-recharges/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  // ================= SIM REQUESTS =================
+  async getSimRequests(): Promise<SimRequest[]> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-requests`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createSimRequest(request: SimRequest): Promise<{ success: boolean; data?: SimRequest; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to submit SIM request' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async updateSimRequest(id: string, updates: Partial<SimRequest>): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-requests/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async deleteSimRequest(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-requests/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // ================= BULK SYNC / RESTORE =================
   async syncAll(data: {
     employees?: Employee[];
@@ -441,6 +613,9 @@ export const api = {
     weeklyPhotoRecords?: WeeklyAssetPhotoRecord[];
     purchases?: PurchaseRecord[];
     assetRequests?: AssetRequest[];
+    simCards?: SimCard[];
+    simRecharges?: SimRecharge[];
+    simRequests?: SimRequest[];
   }): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/sync`, {

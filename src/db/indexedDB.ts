@@ -13,6 +13,9 @@ import {
   StoredAssetFile,
   PurchaseRecord,
   AssetRequest,
+  SimCard,
+  SimRecharge,
+  SimRequest,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -24,7 +27,7 @@ import {
 } from '../data/initialSeedData';
 
 const DB_NAME = 'AssetCore_Enterprise_DB';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 export type StoreName =
   | 'employees'
@@ -37,6 +40,9 @@ export type StoreName =
   | 'uploadedFiles'
   | 'purchases'
   | 'assetRequests'
+  | 'simCards'
+  | 'simRecharges'
+  | 'simRequests'
   | 'systemSettings';
 
 export interface DatabaseStats {
@@ -161,6 +167,31 @@ class IndexedDBManager {
             reqStore.createIndex('urgency', 'urgency', { unique: false });
             reqStore.createIndex('createdAt', 'createdAt', { unique: false });
           }
+
+          // 12. SIM Cards Master Store
+          if (!db.objectStoreNames.contains('simCards')) {
+            const simStore = db.createObjectStore('simCards', { keyPath: 'id' });
+            simStore.createIndex('contactNumber', 'contactNumber', { unique: true });
+            simStore.createIndex('assignedEmployeeId', 'assignedEmployeeId', { unique: false });
+            simStore.createIndex('status', 'status', { unique: false });
+            simStore.createIndex('purpose', 'purpose', { unique: false });
+          }
+
+          // 13. SIM Recharges Store
+          if (!db.objectStoreNames.contains('simRecharges')) {
+            const recStore = db.createObjectStore('simRecharges', { keyPath: 'id' });
+            recStore.createIndex('simId', 'simId', { unique: false });
+            recStore.createIndex('employeeId', 'employeeId', { unique: false });
+            recStore.createIndex('rechargeDate', 'rechargeDate', { unique: false });
+          }
+
+          // 14. SIM Requests Store
+          if (!db.objectStoreNames.contains('simRequests')) {
+            const simReqStore = db.createObjectStore('simRequests', { keyPath: 'id' });
+            simReqStore.createIndex('employeeId', 'employeeId', { unique: false });
+            simReqStore.createIndex('requestType', 'requestType', { unique: false });
+            simReqStore.createIndex('status', 'status', { unique: false });
+          }
         };
 
         request.onsuccess = event => {
@@ -284,6 +315,9 @@ class IndexedDBManager {
       this.clear('uploadedFiles'),
       this.clear('purchases'),
       this.clear('assetRequests'),
+      this.clear('simCards'),
+      this.clear('simRecharges'),
+      this.clear('simRequests'),
     ]);
   }
 
@@ -298,6 +332,9 @@ class IndexedDBManager {
     weeklyPhotoRecords: WeeklyAssetPhotoRecord[];
     purchases: PurchaseRecord[];
     assetRequests: AssetRequest[];
+    simCards: SimCard[];
+    simRecharges: SimRecharge[];
+    simRequests: SimRequest[];
   }> {
     try {
       await this.getDB();
@@ -313,6 +350,9 @@ class IndexedDBManager {
         dbWeeklyPhotos,
         dbPurchases,
         dbRequests,
+        dbSimCards,
+        dbSimRecharges,
+        dbSimRequests,
       ] = await Promise.all([
         this.getAll<Employee>('employees'),
         this.getAll<Computer>('computers'),
@@ -323,6 +363,9 @@ class IndexedDBManager {
         this.getAll<WeeklyAssetPhotoRecord>('weeklyAssetPhotos'),
         this.getAll<PurchaseRecord>('purchases'),
         this.getAll<AssetRequest>('assetRequests'),
+        this.getAll<SimCard>('simCards'),
+        this.getAll<SimRecharge>('simRecharges'),
+        this.getAll<SimRequest>('simRequests'),
       ]);
 
       return {
@@ -335,6 +378,9 @@ class IndexedDBManager {
         weeklyPhotoRecords: dbWeeklyPhotos,
         purchases: dbPurchases,
         assetRequests: dbRequests,
+        simCards: dbSimCards,
+        simRecharges: dbSimRecharges,
+        simRequests: dbSimRequests,
       };
     } catch (err) {
       console.warn('IndexedDB initialize error:', err);
@@ -348,6 +394,9 @@ class IndexedDBManager {
         weeklyPhotoRecords: [],
         purchases: [],
         assetRequests: [],
+        simCards: [],
+        simRecharges: [],
+        simRequests: [],
       };
     }
   }
@@ -400,6 +449,9 @@ class IndexedDBManager {
         'uploadedFiles',
         'purchases',
         'assetRequests',
+        'simCards',
+        'simRecharges',
+        'simRequests',
       ];
 
       const counts: Record<string, number> = {};
@@ -457,6 +509,9 @@ class IndexedDBManager {
       uploadedFiles,
       purchases,
       assetRequests,
+      simCards,
+      simRecharges,
+      simRequests,
     ] = await Promise.all([
       this.getAll('employees'),
       this.getAll('computers'),
@@ -468,12 +523,15 @@ class IndexedDBManager {
       this.getAll('uploadedFiles'),
       this.getAll('purchases'),
       this.getAll('assetRequests'),
+      this.getAll('simCards'),
+      this.getAll('simRecharges'),
+      this.getAll('simRequests'),
     ]);
 
     return {
       metadata: {
         system: 'AssetCore Enterprise Fleet Management',
-        schemaVersion: '2.1.0',
+        schemaVersion: '2.2.0',
         exportedAt: new Date().toISOString(),
         totalEntities:
           employees.length +
@@ -483,7 +541,10 @@ class IndexedDBManager {
           weeklyAssetPhotos.length +
           uploadedFiles.length +
           purchases.length +
-          assetRequests.length,
+          assetRequests.length +
+          simCards.length +
+          simRecharges.length +
+          simRequests.length,
       },
       data: {
         employees,
@@ -496,6 +557,9 @@ class IndexedDBManager {
         uploadedFiles,
         purchases,
         assetRequests,
+        simCards,
+        simRecharges,
+        simRequests,
       },
     };
   }

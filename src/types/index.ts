@@ -234,7 +234,20 @@ export interface AuditLog {
     | 'System Reset'
     | 'Database Backup'
     | 'Database Restored'
-    | 'Report Exported';
+    | 'Report Exported'
+    | 'SIM Added'
+    | 'SIM Updated'
+    | 'SIM Assigned'
+    | 'SIM Reassigned'
+    | 'SIM Purpose Changed'
+    | 'SIM Suspension Requested'
+    | 'SIM Suspended'
+    | 'SIM Reactivated'
+    | 'SIM Removed'
+    | 'SIM Recharge Added'
+    | 'SIM Recharge Updated'
+    | 'SIM Request Submitted'
+    | 'SIM Request Status Updated';
   details: string;
   actor: string;
   timestamp: string;
@@ -450,6 +463,90 @@ export interface AssetRequest {
   reason: string; // Business reason / description
   adminNotes?: string;
   fulfilledDate?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ==================== SIM CARD & TELECOM MANAGEMENT ====================
+export type SimStatus = 'Available' | 'Assigned' | 'Active' | 'Suspended' | 'Deactivated';
+
+export const SIM_PURPOSES = [
+  'Holding',
+  'WhatsApp',
+  'Marketing',
+  'Calling',
+  'Incoming',
+  'CP',
+  'Other',
+] as const;
+
+export type SimPurpose = (typeof SIM_PURPOSES)[number];
+
+export interface SimCard {
+  id: string; // Unique ID, e.g. "SIM-2026-001" or UUID
+  contactNumber: string; // e.g. "9876543210"
+  simNumber?: string; // ICCID or SIM number e.g. "8991..."
+  assignedEmployeeId?: string | null; // e.g. "EMP001"
+  assignedEmployeeName?: string | null;
+  status: SimStatus;
+  purpose: SimPurpose;
+  customPurpose?: string; // Exact purpose if purpose is 'Other'
+  project?: string; // Project for which SIM is allocated (e.g. "ABC Project", "HQ Ops")
+  department?: string;
+  carrier?: string; // e.g. "Airtel", "Jio", "Vodafone Idea", "BSNL"
+  issueDate?: string | null; // YYYY-MM-DD or allocation date
+  remarks?: string;
+  suspensionReason?: string | null;
+  suspendedBy?: string | null;
+  suspendedAt?: string | null;
+  reactivatedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SimRecharge {
+  id: string; // e.g. "REC-2026-001"
+  simId: string; // Reference to SimCard.id
+  contactNumber: string;
+  employeeId?: string | null;
+  employeeName?: string | null;
+  project?: string;
+  rechargeDate: string; // YYYY-MM-DD
+  planDescription: string; // e.g. "Unlimited 5G 84 Days + 2GB/Day"
+  rechargeAmount: number; // Base recharge amount in INR
+  gstPercentage: number; // Default: 18%
+  gstAmount: number; // Auto: Amount * (GST% / 100)
+  totalAmount: number; // Auto: Amount + GST Amount
+  paymentMode?: string; // 'Company UPI', 'Corporate Card', 'Net Banking', 'Cash'
+  referenceNumber?: string; // Transaction ID / Invoice Ref
+  remarks?: string;
+  createdAt: string;
+}
+
+export type SimRequestType = 'Additional SIM' | 'Suspend SIM';
+export type SimRequestStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface SimRequest {
+  id: string; // e.g. "SIMREQ-2026-001"
+  employeeId: string;
+  employeeName: string;
+  companyEmployeeNumber?: string;
+  employeeEmail?: string;
+  employeePhone?: string;
+  quantity?: number; // Quantity of SIMs requested (default 1)
+  project?: string; // Project for which SIM is required
+  requestType: SimRequestType;
+  simId?: string; // For suspend requests
+  contactNumber?: string; // For suspend requests
+  purpose?: SimPurpose | string; // For additional SIM
+  customPurpose?: string; // If 'Other' is selected
+  urgency: RequestUrgency;
+  reason: string; // Mandatory requirement details / justification
+  remarks?: string;
+  status: SimRequestStatus;
+  adminRemarks?: string;
+  targetWhatsAppNumber?: string; // e.g. "9328594724"
+  whatsAppStatus?: 'Sent' | 'Pending' | 'Not Configured' | 'Failed';
   createdAt: string;
   updatedAt?: string;
 }

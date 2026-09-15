@@ -5,7 +5,7 @@ export const STORAGE_READ_KEY = 'assetcore_read_notifications_v1';
 export const STORAGE_DISMISSED_KEY = 'assetcore_dismissed_notifications_v1';
 
 export function useNotificationStats() {
-  const { computers, serviceRecords, purchases, assets, auditLogs, assetRequests, currentUser, userRole } = useApp();
+  const { computers, serviceRecords, purchases, assets, auditLogs, assetRequests, simRequests, simCards, currentUser, userRole } = useApp();
   const isEmployee = currentUser?.role === 'employee' || userRole === 'employee';
 
   const [stats, setStats] = useState({ unreadCount: 0, hasCritical: false, totalCount: 0 });
@@ -58,6 +58,23 @@ export function useNotificationStats() {
           if (!dismissedIds.has(id)) {
             total++;
             if (req.urgency === 'Critical' || req.urgency === 'High') {
+              hasCrit = true;
+            }
+            if (!readIds.has(id)) unread++;
+          }
+        }
+      });
+
+      // 0.5. SIM Requisitions & Suspension Requests
+      simRequests.forEach(req => {
+        const shouldCount = isEmployee ? (req.employeeId === (currentUser?.id || currentUser?.employeeId)) : true;
+        if (!shouldCount) return;
+
+        if (req.status === 'Pending') {
+          const id = `sim-req-${req.id}`;
+          if (!dismissedIds.has(id)) {
+            total++;
+            if (req.requestType === 'Suspend SIM') {
               hasCrit = true;
             }
             if (!readIds.has(id)) unread++;
@@ -144,7 +161,7 @@ export function useNotificationStats() {
     } catch {
       // Fallback safe default
     }
-  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, isEmployee, currentUser, syncVersion]);
+  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, simRequests, simCards, isEmployee, currentUser, syncVersion]);
 
   return stats;
 }

@@ -24,6 +24,7 @@ import { WeeklyPhotoAuditHub } from './components/documentation/WeeklyPhotoAudit
 import { PurchaseManagementView } from './components/purchases/PurchaseManagementView';
 import { AssetRequestList } from './components/requests/AssetRequestList';
 import { ServiceFlowchartView } from './components/flowchart/ServiceFlowchartView';
+import { SimManagementView } from './components/sim/SimManagementView';
 import { ToastContainer } from './components/common/Toast';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { SharedEmployeeView } from './components/employees/SharedEmployeeView';
@@ -139,11 +140,7 @@ const DashboardContent: React.FC = () => {
         <main className="flex-1 p-3.5 sm:p-6 max-w-7xl w-full mx-auto pb-24 lg:pb-8">
           {/* STRICT DATA ISOLATION: When an Employee logs in, render only their personal dashboard */}
           {isEmployee ? (
-            activeTab === 'service-flowchart' ? (
-              <ServiceFlowchartView />
-            ) : (
-              <EmployeeDashboard />
-            )
+            <EmployeeDashboard />
           ) : (
             <>
               {/* TAB 1: EXECUTIVE COMMAND DASHBOARD */}
@@ -263,6 +260,13 @@ const DashboardContent: React.FC = () => {
               {/* TAB 9: SERVICE MANAGEMENT FLOWCHART */}
               {activeTab === 'service-flowchart' && (
                 <ServiceFlowchartView />
+              )}
+
+              {/* TAB 10: SIM CARD & CONTACT NUMBER MANAGEMENT */}
+              {activeTab === 'sim-management' && (
+                <SimManagementView
+                  onSelectEmployee={handleSelectEmployee}
+                />
               )}
             </>
           )}

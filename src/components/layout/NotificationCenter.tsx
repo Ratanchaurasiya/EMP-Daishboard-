@@ -54,6 +54,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     employees,
     auditLogs,
     assetRequests,
+    simRequests,
+    simCards,
     setActiveTab,
     setSelectedComputerId,
     setSelectedEmployeeId,
@@ -166,6 +168,36 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         tabTarget: 'requests',
         targetId: req.id,
         actionLabel: isPending ? 'Review Request' : 'View Requisition',
+      });
+    });
+
+    // 0.5. SIM Requisitions & Suspension Requests
+    simRequests.forEach(req => {
+      const shouldShow = isEmployee ? (req.employeeId === (currentUser?.id || currentUser?.employeeId)) : true;
+      if (!shouldShow) return;
+
+      const isPending = req.status === 'Pending';
+      const isSuspension = req.requestType === 'Suspend SIM';
+      const reqDateMillis = req.createdAt ? new Date(req.createdAt).getTime() : now;
+      const dateDisplay = req.createdAt
+        ? new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : 'Recent';
+
+      items.push({
+        id: `sim-req-${req.id}`,
+        category: 'alerts',
+        severity: isPending ? (isSuspension ? 'warning' : 'info') : (req.status === 'Approved' ? 'success' : 'critical'),
+        title: isPending
+          ? `${isSuspension ? '⚠️ SIM Suspension Pending' : '📱 Additional SIM Requisition'}: ${req.employeeName}`
+          : `SIM Request ${req.status}: ${req.employeeName}`,
+        description: isSuspension
+          ? `Suspension requested for SIM ${req.contactNumber || ''}. Mandatory Reason: ${req.reason}`
+          : `Requested new SIM for ${req.purpose || 'Calling'}. Purpose/Remarks: ${req.reason}`,
+        timestamp: dateDisplay || 'Recent',
+        rawDate: isNaN(reqDateMillis) ? now : reqDateMillis,
+        tabTarget: 'sim-management',
+        targetId: req.id,
+        actionLabel: isPending ? 'Take SIM Action' : 'View SIM Records',
       });
     });
 
@@ -299,7 +331,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       if (scoreDiff !== 0) return scoreDiff;
       return b.rawDate - a.rawDate;
     });
-  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, isEmployee, currentUser]);
+  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, simRequests, simCards, isEmployee, currentUser]);
 
   // Filter out dismissed
   const visibleNotifications = useMemo(() => {
