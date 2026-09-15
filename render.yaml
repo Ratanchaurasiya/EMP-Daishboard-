@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: assetcore-service-management
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: assetcore-postgres
+          property: connectionString
+      - key: CORS_ORIGIN
+        value: '*'
+
+databases:
+  - name: assetcore-postgres
+    plan: free
+    databaseName: assetcore
+    user: assetcore_admin

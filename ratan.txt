@@ -1,0 +1,281 @@
+================================================================================
+   GOOGLE FORM AI / PROMPT FOR AUTO-GENERATION (COPY FROM BELOW)
+================================================================================
+
+""
+Create a comprehensive, multi-section Google Form titled 'Employee Registration & Corporate IT Asset Allocation Form' with the description: 'Official form to register employee details, credentials, and track custody of company-issued workstation, peripherals, and corporate mobile phone in the IT asset inventory.'
+
+Configure the form with 4 well-organized sections, precise question types, required indicators (*), and conditional navigation:
+
+SECTION 1: EMPLOYEE PERSONAL & PROFESSIONAL DETAILS
+1. Full Name * (Short answer) - Description: Enter employee's official full name as per government ID (e.g. Arjun Mehta)
+2. Employee ID * (Short answer) - Description: Unique corporate employee ID (e.g. EMP101)
+3. Official Email Address * (Short answer with email validation) - Description: Company or onboarding email (e.g. arjun.mehta@company.com)
+4. Personal Contact Number * (Short answer) - Description: 10-digit mobile number with country code. Used for login authentication (first 6 digits) (e.g. +91 98765 43210)
+5. Department * (Dropdown) - Options: Engineering, Product Management, IT & Infrastructure, Human Resources, Finance & Accounts, Sales & Marketing, Operations & Support, Legal & Compliance
+6. Designation / Job Title * (Short answer) - e.g. Senior Software Engineer / Telecaller / Operations Lead
+7. Date of Joining * (Date) - Format: YYYY-MM-DD
+8. Employment Status * (Multiple choice) - Options: Active, On Probation, On Leave, Contractual
+9. Profile Photo (File upload / Short answer for URL) - Description: Link to employee photo or upload passport-size corporate photo
+10. General Remarks / Notes (Paragraph) - e.g. Standard onboarding kit dispatched
+
+SECTION 2: ASSIGNED WORKSTATION / LAPTOP DETAILS
+11. Is a Computer / Laptop Assigned? * (Multiple choice with conditional navigation)
+    - Yes (Continue to next question in this section)
+    - No (Skip directly to Section 3: Company Peripherals)
+12. Computer / Laptop Asset Tag Number (Short answer) - e.g. LAP-012 or DSK-004
+13. Computer / Laptop Device Name (Short answer) - Description: Machine hostname from Windows Settings > About (e.g. Arjun_Latitude_5430)
+14. Manufacturer / Brand (Dropdown) - Options: Dell, Lenovo, HP, Apple, Asus, Other
+15. Computer Model (Short answer) - e.g. Latitude 5430 / ThinkPad T14 Gen 3
+16. Computer Serial Number / Service Tag * (Short answer) - e.g. CN-0H99-101-DEL
+17. Operating System (OS) Edition (Dropdown) - Options: Windows 11 Pro 64-bit, Windows 10 Pro 64-bit, macOS Sonoma, Ubuntu Linux 22.04 LTS
+18. Processor (CPU) Full Name & Speed (Short answer) - e.g. 12th Gen Intel(R) Core(TM) i5-1245U @ 1.60 GHz
+19. Installed RAM (Total & Usable) (Short answer) - e.g. 16.0 GB (15.7 GB usable)
+20. Storage Capacity & Type (Short answer) - e.g. 512 GB NVMe SSD
+21. Computer Condition at Issue (Multiple choice) - Options: New, Good, Fair
+
+SECTION 3: COMPANY PERIPHERALS & ACCESSORIES
+22. Is a Company Mouse Assigned? (Multiple choice) - Options: Yes, No
+23. Is a Company Keyboard Assigned? (Multiple choice) - Options: Yes, No
+24. Is a Company Headset Assigned? (Multiple choice) - Options: Yes, No
+
+SECTION 4: ASSIGNED COMPANY PHONE
+25. Is a Company Mobile Phone Assigned? * (Multiple choice with conditional navigation)
+    - Yes (Continue to phone details below)
+    - No (Submit form)
+26. Phone Device Name * (Short answer) - Description: Device name / label (e.g. Samsung Galaxy S23 Enterprise)
+27. Phone Brand / Manufacturer * (Dropdown) - Options: Samsung, Apple (iPhone), Google (Pixel), OnePlus, Motorola, Other
+28. Phone Model * (Short answer) - e.g. Galaxy S23 5G (128GB) / iPhone 15 Pro
+29. 15-Digit IMEI Number * (Short answer) - Description: Device primary IMEI (dial *#06# on phone to view). Set 15-digit number validation (e.g. 358921098234561)
+30. Company Assigned Mobile Number * (Short answer) - Description: Official SIM / mobile contact number (e.g. +91 98765 00101)
+31. Phone Asset Tag / ID (Short answer) - e.g. PHN-001
+32. Phone Assignment Date (Date) - Format: YYYY-MM-DD
+33. Phone Status (Dropdown) - Options: Assigned, Available, In Repair
+34. Phone Hardware Condition (Multiple choice) - Options: New, Good, Fair
+""
+
+================================================================================
+   DETAILED MANUAL FIELD REFERENCE (ORIGINAL SPECIFICATION)
+================================================================================
+
+FORM TITLE: Employee Registration & IT Asset Provisioning Form
+FORM DESCRIPTION: 
+Please fill out the following employee profile and hardware allocation details. 
+This data will be used to generate your employee dashboard, configure your company 
+credentials, and register your assigned company equipment (workstation, peripherals, 
+and corporate phone) in the IT asset inventory.
+
+--------------------------------------------------------------------------------
+SECTION 1: EMPLOYEE PERSONAL & PROFESSIONAL DETAILS
+--------------------------------------------------------------------------------
+
+1. Full Name *
+   [Question Type: Short answer]
+   Description: Enter employee's official full name as per government ID
+   Example: Arjun Mehta
+
+2. Employee ID *
+   [Question Type: Short answer]
+   Description: Unique corporate employee ID
+   Example: EMP101
+
+4. Official Email Address *
+   [Question Type: Short answer]
+   Description: Company email or onboarding email address
+   Example: arjun.mehta@company.com
+
+5. Personal Contact Number *
+   [Question Type: Short answer]
+   Description: 10-digit mobile number with country code. Used for login authentication (first 6 digits).
+   Example: +91 98765 43210
+
+6. Department *
+   [Question Type: Dropdown / Multiple choice]
+   Options:
+   - Engineering
+   - Product Management
+   - IT & Infrastructure
+   - Human Resources
+   - Finance & Accounts
+   - Sales & Marketing
+   - Operations & Support
+   - Legal & Compliance
+
+7. Designation / Job Title *
+   [Question Type: Short answer]
+   Example: Senior Software Engineer / Telecaller
+
+9. Date of Joining *
+   [Question Type: Date]
+   Format: YYYY-MM-DD (e.g., 2026-09-01)
+
+10. Employment Status *
+    [Question Type: Multiple choice]
+    Options:
+    - Active
+    - On Probation
+    - On Leave
+    - Contractual
+
+11. Profile Photo URL
+    [Question Type: Short answer / File upload]
+    Description: Link to employee photo (or upload passport-size corporate photo)
+
+12. General Remarks / Notes
+    [Question Type: Paragraph]
+    Example: Onboarding kit dispatched via courier.
+
+--------------------------------------------------------------------------------
+SECTION 2: ASSIGNED WORKSTATION / LAPTOP DETAILS
+--------------------------------------------------------------------------------
+* Check whether a desktop/laptop is assigned to this employee.
+
+13. Is a Computer / Laptop Assigned? *
+    [Question Type: Multiple choice]
+    Options:
+    - Yes (Proceed with computer details below)
+    - No (Skip to Section 3)
+
+14. Computer/laptop Asset Tag / Number
+    [Question Type: Short answer]
+    Example: LAP-012 or DSK-004
+
+15. Computer/Laptop Device Name
+    [Question Type: Short answer]
+    Description: Machine hostname as displayed in Windows Settings > About
+    Example: Arjun_Latitude_5430
+
+17. Manufacturer / Brand
+    [Question Type: Dropdown / Short answer]
+    Options:
+    - Dell
+    - Lenovo
+    - HP
+    - Apple
+    - Asus
+    - Other
+
+18. Computer Model
+    [Question Type: Short answer]
+    Example: Latitude 5430 / ThinkPad T14 Gen 3
+
+19. Computer Serial Number / Service Tag
+    [Question Type: Short answer]
+    Example: CN-0H99-101-DEL
+
+20. Operating System (OS) Edition
+    [Question Type: Dropdown / Short answer]
+    Options:
+    - Windows 11 Pro 64-bit
+    - Windows 10 Pro 64-bit
+    - macOS Sonoma
+    - Ubuntu Linux 22.04 LTS
+
+21. Processor (CPU) Full Name & Speed
+    [Question Type: Short answer]
+    Example: 12th Gen Intel(R) Core(TM) i5-1245U @ 1.60 GHz
+
+22. Installed RAM (Total & Usable)
+    [Question Type: Short answer]
+    Example: 16.0 GB (15.7 GB usable)
+
+23. Storage Capacity & Type
+    [Question Type: Short answer]
+    Example: 512 GB NVMe SSD
+
+24. Computer Condition at Issue
+    [Question Type: Multiple choice]
+    Options:
+    - New
+    - Good
+    - Fair
+
+--------------------------------------------------------------------------------
+SECTION 3: COMPANY PERIPHERALS & ACCESSORIES
+--------------------------------------------------------------------------------
+
+[MOUSE]
+22. Is a Company Mouse Assigned?
+    [Question Type: Multiple choice]
+    Options:
+    - Yes
+    - No
+
+[KEYBOARD]
+23. Is a Company Keyboard Assigned?
+    [Question Type: Multiple choice]
+    Options:
+    - Yes
+    - No
+
+[HEADSET]
+24. Is a Company Headset Assigned?
+    [Question Type: Multiple choice]
+    Options:
+    - Yes
+    - No
+
+--------------------------------------------------------------------------------
+SECTION 4: ASSIGNED COMPANY PHONE
+--------------------------------------------------------------------------------
+
+25. Is a Company Mobile Phone Assigned? *
+    [Question Type: Multiple choice]
+    Options:
+    - Yes (Fill in the phone details below)
+    - No (Done)
+
+26. Phone Device Name *
+    [Question Type: Short answer]
+    Description: Device name / model label
+    Example: Samsung Galaxy S23 Enterprise
+
+27. Phone Brand / Manufacturer *
+    [Question Type: Dropdown / Short answer]
+    Options:
+    - Samsung
+    - Apple (iPhone)
+    - Google (Pixel)
+    - OnePlus
+    - Motorola
+    - Other
+
+28. Phone Model *
+    [Question Type: Short answer]
+    Example: Galaxy S23 5G (128GB) / iPhone 15 Pro
+
+29. 15-Digit IMEI Number *
+    [Question Type: Short answer]
+    Description: Device primary IMEI (dial *#06# on phone to view)
+    Example: 358921098234561
+
+30. Company Assigned Mobile Number *
+    [Question Type: Short answer]
+    Description: Official SIM / mobile contact number
+    Example: +91 98765 00101
+
+31. Phone Asset Tag / ID
+    [Question Type: Short answer]
+    Example: PHN-001
+
+32. Phone Assignment Date
+    [Question Type: Date]
+    Format: YYYY-MM-DD
+
+33. Phone Status
+    [Question Type: Dropdown]
+    Options:
+    - Assigned
+    - Available
+    - In Repair
+
+34. Phone Hardware Condition
+    [Question Type: Multiple choice]
+    Options:
+    - New
+    - Good
+    - Fair
+
+================================================================================
+           END OF FORM - READY TO IMPORT INTO GOOGLE FORMS
+================================================================================
