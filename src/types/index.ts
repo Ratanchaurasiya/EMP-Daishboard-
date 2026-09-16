@@ -47,6 +47,7 @@ export type AssetType =
   | 'Headset'
   | 'Monitor'
   | 'Mobile Phone'
+  | 'SIM Card'
   | 'Docking Station'
   | 'Other';
 
@@ -186,6 +187,20 @@ export interface ServiceRecord {
   serviceStatus: ServiceStatus;
   resolution: string;
   remarks: string;
+  // Service Provider / Electric Shop Details
+  serviceProviderId?: string;
+  serviceProviderShopName?: string; // Shop or company name e.g. "QuickFix Chip & Board Lab" or "Sharma Electricals"
+  serviceProviderPhone?: string; // Contact phone / WhatsApp number
+  serviceProviderAddress?: string; // Address / city
+  serviceType?: string; // Work category / specialty
+  // Repair Receipt / Invoice Proof Fields
+  receiptNumber?: string;
+  receiptDate?: string;
+  receiptFileName?: string;
+  receiptFileUrl?: string;
+  receiptFileType?: string;
+  receiptFileSize?: number;
+  receiptStoragePath?: string;
 }
 
 // Automatic Service Summary Calculated for each Computer
@@ -207,6 +222,7 @@ export interface AuditLog {
     | 'Asset Returned'
     | 'Asset Status Changed'
     | 'Asset Removed'
+    | 'Asset Moved to Buffer Stock'
     | 'Computer Added'
     | 'Computer Updated'
     | 'Computer Removed'
@@ -238,6 +254,7 @@ export interface AuditLog {
     | 'SIM Added'
     | 'SIM Updated'
     | 'SIM Assigned'
+    | 'SIM Unassigned'
     | 'SIM Reassigned'
     | 'SIM Purpose Changed'
     | 'SIM Suspension Requested'
@@ -247,7 +264,10 @@ export interface AuditLog {
     | 'SIM Recharge Added'
     | 'SIM Recharge Updated'
     | 'SIM Request Submitted'
-    | 'SIM Request Status Updated';
+    | 'SIM Request Status Updated'
+    | 'Service Provider Added'
+    | 'Service Provider Updated'
+    | 'Service Provider Deleted';
   details: string;
   actor: string;
   timestamp: string;
@@ -291,6 +311,8 @@ export interface StoredAssetFile {
   uploadedAt: string;
 }
 
+export type WeeklyUploadStatus = 'Pending Review' | 'Verified' | 'Needs Attention' | 'Rejected';
+
 export interface WeeklyAssetPhotoRecord {
   id: string; // e.g. "WPR-2026-W37-EMP001"
   employeeId: string; // Employee ID or UUID
@@ -304,8 +326,14 @@ export interface WeeklyAssetPhotoRecord {
   weekStartDate: string; // YYYY-MM-DD
   weekEndDate: string; // YYYY-MM-DD
   inspectionDate: string; // YYYY-MM-DD
+  uploadDate?: string; // YYYY-MM-DD or ISO timestamp
+  status?: WeeklyUploadStatus; // 'Pending Review' | 'Verified' | 'Needs Attention' | 'Rejected'
+  reviewStatus?: WeeklyUploadStatus;
+  reviewedBy?: string; // Admin reviewer name
+  reviewedAt?: string; // ISO date timestamp
+  adminRemarks?: string; // Feedback from Admin to Employee
   googleDriveLink?: string; // Google Drive folder or file share URL
-  conductedBy: string; // Auditor / Admin name
+  conductedBy: string; // Auditor / Submitter name
   overallRemarks?: string;
   assetPhotos: AssetPhotoItem[];
   createdAt: string;
@@ -445,7 +473,7 @@ export interface AssetRequestItem {
 }
 
 export type RequestStatus = 'Pending' | 'Approved' | 'In Progress' | 'Fulfilled' | 'Rejected';
-export type RequestUrgency = 'Normal' | 'High' | 'Critical';
+export type RequestUrgency = 'Normal' | 'High' | 'Critical' | 'Urgent';
 
 export interface AssetRequest {
   id: string; // e.g. "REQ-2026-001"
@@ -495,6 +523,8 @@ export interface SimCard {
   department?: string;
   carrier?: string; // e.g. "Airtel", "Jio", "Vodafone Idea", "BSNL"
   issueDate?: string | null; // YYYY-MM-DD or allocation date
+  assignedDate?: string | null; // Allocation date alias
+  unassignedDate?: string | null; // Return/release date
   remarks?: string;
   suspensionReason?: string | null;
   suspendedBy?: string | null;
@@ -523,8 +553,20 @@ export interface SimRecharge {
   createdAt: string;
 }
 
-export type SimRequestType = 'Additional SIM' | 'Suspend SIM';
-export type SimRequestStatus = 'Pending' | 'Approved' | 'Rejected';
+export type SimRequestType = 'Additional SIM' | 'Suspend SIM' | 'Report Issue';
+export type SimRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'In Progress' | 'Resolved';
+
+export type SimIssueType =
+  | 'SIM Blocked'
+  | 'SIM Not Working'
+  | 'Incoming Calls Not Working'
+  | 'Outgoing Calls Not Working'
+  | 'Internet/Data Not Working'
+  | 'WhatsApp Issue'
+  | 'Network Issue'
+  | 'SIM Lost'
+  | 'SIM Damaged'
+  | 'Other';
 
 export interface SimRequest {
   id: string; // e.g. "SIMREQ-2026-001"
@@ -536,17 +578,72 @@ export interface SimRequest {
   quantity?: number; // Quantity of SIMs requested (default 1)
   project?: string; // Project for which SIM is required
   requestType: SimRequestType;
-  simId?: string; // For suspend requests
-  contactNumber?: string; // For suspend requests
-  purpose?: SimPurpose | string; // For additional SIM
+  issueType?: SimIssueType | string; // For issue reports
+  simId?: string; // For suspend or issue requests
+  contactNumber?: string; // For suspend or issue requests
+  purpose?: SimPurpose | string; // For additional SIM or issue report
   customPurpose?: string; // If 'Other' is selected
   urgency: RequestUrgency;
   reason: string; // Mandatory requirement details / justification
   remarks?: string;
   status: SimRequestStatus;
   adminRemarks?: string;
+  resolutionRemarks?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
   targetWhatsAppNumber?: string; // e.g. "9328594724"
   whatsAppStatus?: 'Sent' | 'Pending' | 'Not Configured' | 'Failed';
   createdAt: string;
   updatedAt?: string;
 }
+
+// ==================== SYSTEM / PC SUPPORT & SERVICE PROVIDERS ====================
+export type ServiceProviderType =
+  | 'Hardware Repair & Chip-Level'
+  | 'Screen & Display Replacement'
+  | 'OS & Enterprise Software Setup'
+  | 'Networking & Infrastructure'
+  | 'Authorized Brand Service Center'
+  | 'AMC & General Maintenance'
+  | 'Data Recovery & Storage'
+  | 'Custom'
+  | 'Other';
+
+export interface ServiceProvider {
+  id: string; // e.g. "PROV-2026-001"
+  technicianName: string; // Person Name, e.g. "Ramesh Sharma"
+  shopName: string; // Shop/Company Name, e.g. "Apex PC Care & Chip Level Solutions"
+  phoneNumber: string; // Mobile/WhatsApp Number, e.g. "+91 98765-43210"
+  whatsappNumber?: string;
+  email?: string;
+  address: string; // Shop Address / Location
+  city?: string;
+  state?: string;
+  pincode?: string;
+  serviceType: ServiceProviderType | string;
+  rating?: number; // 1 to 5 stars
+  experienceYears?: number;
+  workingHours?: string; // e.g. "10:00 AM - 8:30 PM (Mon-Sat)"
+  isPreferred?: boolean;
+  remarks?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ActiveSystemSupportTicket {
+  requestId?: string;
+  ticketId?: string;
+  employeeId?: string;
+  employeeName?: string;
+  department?: string;
+  deviceName?: string;
+  assetNumber?: string;
+  assetType?: string;
+  serialNumber?: string;
+  problemCategory?: string;
+  problemDescription?: string;
+  urgency?: RequestUrgency;
+  status?: string;
+  createdAt?: string;
+}
+

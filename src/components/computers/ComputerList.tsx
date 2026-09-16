@@ -415,8 +415,8 @@ export const ComputerList: React.FC<ComputerListProps> = ({
                       <Cpu className="w-3 h-3 text-blue-500 shrink-0" />
                       <span>CPU:</span>
                     </span>
-                    <span className="text-slate-900 dark:text-slate-100 font-semibold font-mono truncate max-w-[180px]" title={comp.processor.name}>
-                      {comp.processor.name}
+                    <span className="text-slate-900 dark:text-slate-100 font-semibold font-mono truncate max-w-[180px]" title={comp.processor?.name || 'Standard Processor'}>
+                      {comp.processor?.name || 'Standard Processor'}
                     </span>
                   </div>
 
@@ -427,7 +427,7 @@ export const ComputerList: React.FC<ComputerListProps> = ({
                       <span>Memory & Disk:</span>
                     </span>
                     <span className="text-slate-900 dark:text-slate-100 font-semibold font-mono">
-                      {comp.memory.installedRAM} RAM • {comp.storage.total} {comp.storage.type}
+                      {comp.memory?.installedRAM || '8 GB'} RAM • {comp.storage?.total || '256 GB'} {comp.storage?.type || 'SSD'}
                     </span>
                   </div>
 
@@ -435,7 +435,7 @@ export const ComputerList: React.FC<ComputerListProps> = ({
                   <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-blue-200/50 dark:border-blue-900/40">
                     <span className="text-slate-500 dark:text-slate-400">OS:</span>
                     <span className="text-slate-700 dark:text-slate-300 font-medium font-mono truncate max-w-[190px]">
-                      {comp.system.os}
+                      {comp.system?.os || 'Windows 11 Enterprise'}
                     </span>
                   </div>
                 </div>
@@ -711,12 +711,12 @@ export const ComputerList: React.FC<ComputerListProps> = ({
 
                       {/* Processor */}
                       <td className="py-3 px-4">
-                        <div className="max-w-[160px] truncate" title={comp.processor.name}>
+                        <div className="max-w-[160px] truncate" title={comp.processor?.name || 'Standard Processor'}>
                           <span className="text-[11px] font-mono text-slate-700 dark:text-slate-300 block truncate">
-                            {comp.processor.name}
+                            {comp.processor?.name || 'Standard Processor'}
                           </span>
                           <span className="text-[10px] text-slate-400 font-mono block">
-                            {comp.processor.speed} • {comp.system.processorArchitecture}
+                            {comp.processor?.speed || '2.4 GHz'} • {comp.system?.processorArchitecture || 'x64'}
                           </span>
                         </div>
                       </td>
@@ -724,10 +724,10 @@ export const ComputerList: React.FC<ComputerListProps> = ({
                       {/* RAM & Storage */}
                       <td className="py-3 px-4 font-mono text-[11px]">
                         <div className="text-slate-800 dark:text-slate-200 font-semibold">
-                          {comp.memory.installedRAM} RAM
+                          {comp.memory?.installedRAM || '8 GB'} RAM
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {comp.storage.total} {comp.storage.type}
+                          {comp.storage?.total || '256 GB'} {comp.storage?.type || 'SSD'}
                         </div>
                       </td>
 
@@ -735,9 +735,9 @@ export const ComputerList: React.FC<ComputerListProps> = ({
                       <td className="py-3 px-4">
                         <span
                           className="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 truncate max-w-[120px] inline-block"
-                          title={comp.system.os}
+                          title={comp.system?.os || 'Windows 11'}
                         >
-                          {comp.system.os.replace(' 64-bit', '')}
+                          {(comp.system?.os || 'Windows 11').replace(' 64-bit', '')}
                         </span>
                       </td>
 

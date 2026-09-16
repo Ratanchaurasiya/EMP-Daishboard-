@@ -59,8 +59,8 @@ export const AddComputerModal: React.FC<AddComputerModalProps> = ({ isOpen, onCl
   const [installedRAM, setInstalledRAM] = useState('16.00 GB');
   const usableRAM = '15.75 GB';
 
-  const graphicsCard = 'Intel(R) Iris(R) Xe Graphics';
-  const graphicsMemory = '512 MB';
+  const [graphicsCard, setGraphicsCard] = useState('Intel(R) Iris(R) Xe Graphics');
+  const [graphicsMemory, setGraphicsMemory] = useState('512 MB');
 
   const [storageTotal, setStorageTotal] = useState('512 GB');
   const storageUsed = '40 GB';
@@ -332,6 +332,34 @@ export const AddComputerModal: React.FC<AddComputerModalProps> = ({ isOpen, onCl
                 value={os}
                 onChange={e => setOs(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Graphics Card & Video Memory */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Graphics Card / GPU Model
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Intel(R) Iris(R) Xe Graphics or NVIDIA RTX 4060"
+                value={graphicsCard}
+                onChange={e => setGraphicsCard(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Graphics / Video Memory (VRAM)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 512 MB or 8 GB Dedicated"
+                value={graphicsMemory}
+                onChange={e => setGraphicsMemory(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
               />
             </div>
           </div>

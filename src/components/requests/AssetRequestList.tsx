@@ -517,19 +517,24 @@ export const AssetRequestList: React.FC = () => {
                       <span>Employee Details</span>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-sm flex items-center justify-center border border-blue-500/20 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEmployeeId(req.employeeId)}
+                      className="flex items-center gap-2.5 text-left group cursor-pointer w-full hover:opacity-90 transition-opacity"
+                      title={`Click to view complete profile for ${req.employeeName} (${req.employeeId})`}
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-sm flex items-center justify-center border border-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
                         {req.employeeName.charAt(0)}
                       </div>
                       <div className="truncate flex-1">
-                        <div className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                        <div className="font-bold text-slate-900 dark:text-white text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                           {req.employeeName}
                         </div>
                         <div className="text-[11px] text-slate-500 font-mono truncate">
                           {req.employeeId} {req.companyEmployeeNumber ? `• ${req.companyEmployeeNumber}` : ''}
                         </div>
                       </div>
-                    </div>
+                    </button>
 
                     <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-400 pt-1">
                       <div className="flex items-center gap-1.5 truncate">

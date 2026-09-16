@@ -96,218 +96,220 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100 flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 bg-black/70 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-200">
+      <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100 max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80">
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
               <CreditCard className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Log SIM Card Recharge</h2>
-              <p className="text-xs text-zinc-400">
+              <h2 className="text-base sm:text-lg font-semibold text-white leading-tight">Log SIM Card Recharge</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">
                 Track telecom recurring costs, automatic GST calculations, and invoices
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-          {error && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+            {error && (
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-          {/* SIM Card Selector */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-              Select SIM / Contact Number <span className="text-orange-500">*</span>
-            </label>
-            <select
-              value={selectedSimId}
-              onChange={e => setSelectedSimId(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-            >
-              {simCards.map(sim => (
-                <option key={sim.id} value={sim.id}>
-                  {sim.contactNumber} — {sim.assignedEmployeeName ? `${sim.assignedEmployeeName} (${sim.purpose})` : `In Stock (${sim.purpose})`} [{sim.carrier || 'Telecom'}]
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Project Name */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-              Project Name (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. ABC Project, Field Ops, Marketing"
-              value={project}
-              onChange={e => setProject(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Recharge Date */}
+            {/* SIM Card Selector */}
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Recharge Date <span className="text-orange-500">*</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={rechargeDate}
-                onChange={e => setRechargeDate(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-              />
-            </div>
-
-            {/* Payment Mode */}
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Payment Mode
+                Select SIM / Contact Number <span className="text-orange-500">*</span>
               </label>
               <select
-                value={paymentMode}
-                onChange={e => setPaymentMode(e.target.value)}
+                value={selectedSimId}
+                onChange={e => setSelectedSimId(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               >
-                <option value="Company UPI">Company UPI</option>
-                <option value="Corporate Card">Corporate Credit Card</option>
-                <option value="Net Banking">Net Banking / Direct Debit</option>
-                <option value="Cash / Expense Claim">Cash / Employee Expense Claim</option>
+                {simCards.map(sim => (
+                  <option key={sim.id} value={sim.id}>
+                    {sim.contactNumber} — {sim.assignedEmployeeName ? `${sim.assignedEmployeeName} (${sim.purpose})` : `In Stock (${sim.purpose})`} [{sim.carrier || 'Telecom'}]
+                  </option>
+                ))}
               </select>
             </div>
-          </div>
 
-          {/* Plan Description */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-              Recharge Plan / Pack Description <span className="text-orange-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Airtel 84 Days Unlimited 5G (2GB/Day) or Monthly Unlimited ₹399"
-              value={planDescription}
-              onChange={e => setPlanDescription(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-            />
-          </div>
-
-          {/* Amount & GST Calculation Section */}
-          <div className="p-4 rounded-xl bg-zinc-950/80 border border-zinc-800 space-y-3">
-            <div className="flex items-center space-x-2 text-xs font-semibold text-zinc-300">
-              <Calculator className="w-4 h-4 text-orange-500" />
-              <span>Tax & Expenditure Breakdown</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] text-zinc-400 mb-1">
-                  Base Recharge Amount (₹) <span className="text-orange-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">₹</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                    value={rechargeAmount}
-                    onChange={e => setRechargeAmount(e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-white font-medium focus:outline-none focus:border-orange-500 transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-zinc-400 mb-1">
-                  GST % (Tax Rate)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={gstPercentage}
-                    onChange={e => setGstPercentage(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-white font-medium focus:outline-none focus:border-orange-500 transition-colors"
-                  />
-                  <span className="absolute right-3 top-2 text-zinc-500 text-sm">%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Auto Calculated Summary Display */}
-            <div className="pt-2 border-t border-zinc-800/80 grid grid-cols-2 gap-2 text-xs">
-              <div className="flex justify-between py-1 px-2.5 rounded-lg bg-zinc-900/50">
-                <span className="text-zinc-400">Calculated GST ({calc.gstPercentage}%):</span>
-                <span className="text-zinc-200 font-mono font-medium">{formatINR(calc.gstAmount)}</span>
-              </div>
-              <div className="flex justify-between py-1 px-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <span className="text-emerald-400 font-semibold">Total with GST:</span>
-                <span className="text-emerald-300 font-mono font-bold">{formatINR(calc.totalAmount)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Reference Number */}
+            {/* Project Name */}
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Transaction / Invoice Ref
+                Project Name (Optional)
               </label>
               <input
                 type="text"
-                placeholder="e.g. TXN-AIR-9921 / INV-2026-08"
-                value={referenceNumber}
-                onChange={e => setReferenceNumber(e.target.value)}
+                placeholder="e.g. ABC Project, Field Ops, Marketing"
+                value={project}
+                onChange={e => setProject(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               />
             </div>
 
-            {/* Remarks */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Recharge Date */}
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Recharge Date <span className="text-orange-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={rechargeDate}
+                  onChange={e => setRechargeDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                />
+              </div>
+
+              {/* Payment Mode */}
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Payment Mode
+                </label>
+                <select
+                  value={paymentMode}
+                  onChange={e => setPaymentMode(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                >
+                  <option value="Company UPI">Company UPI</option>
+                  <option value="Corporate Card">Corporate Credit Card</option>
+                  <option value="Net Banking">Net Banking / Direct Debit</option>
+                  <option value="Cash / Expense Claim">Cash / Employee Expense Claim</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Plan Description */}
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Remarks / Expense Notes
+                Recharge Plan / Pack Description <span className="text-orange-500">*</span>
               </label>
               <input
                 type="text"
-                placeholder="e.g. Approved monthly recurring calling allowance"
-                value={remarks}
-                onChange={e => setRemarks(e.target.value)}
+                required
+                placeholder="e.g. Airtel 84 Days Unlimited 5G (2GB/Day) or Monthly Unlimited ₹399"
+                value={planDescription}
+                onChange={e => setPlanDescription(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
               />
             </div>
+
+            {/* Amount & GST Calculation Section */}
+            <div className="p-4 rounded-xl bg-zinc-950/80 border border-zinc-800 space-y-3">
+              <div className="flex items-center space-x-2 text-xs font-semibold text-zinc-300">
+                <Calculator className="w-4 h-4 text-orange-500" />
+                <span>Tax & Expenditure Breakdown</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Base Recharge Amount (₹) <span className="text-orange-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={rechargeAmount}
+                      onChange={e => setRechargeAmount(e.target.value)}
+                      className="w-full pl-7 pr-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-white font-medium focus:outline-none focus:border-orange-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    GST % (Tax Rate)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={gstPercentage}
+                      onChange={e => setGstPercentage(e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-white font-medium focus:outline-none focus:border-orange-500 transition-colors"
+                    />
+                    <span className="absolute right-3 top-2 text-zinc-500 text-sm">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Auto Calculated Summary Display */}
+              <div className="pt-2 border-t border-zinc-800/80 grid grid-cols-2 gap-2 text-xs">
+                <div className="flex justify-between py-1 px-2.5 rounded-lg bg-zinc-900/50">
+                  <span className="text-zinc-400">Calculated GST ({calc.gstPercentage}%):</span>
+                  <span className="text-zinc-200 font-mono font-medium">{formatINR(calc.gstAmount)}</span>
+                </div>
+                <div className="flex justify-between py-1 px-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-emerald-400 font-semibold">Total with GST:</span>
+                  <span className="text-emerald-300 font-mono font-bold">{formatINR(calc.totalAmount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Reference Number */}
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Transaction / Invoice Ref
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. TXN-AIR-9921 / INV-2026-08"
+                  value={referenceNumber}
+                  onChange={e => setReferenceNumber(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                />
+              </div>
+
+              {/* Remarks */}
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Remarks / Expense Notes
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Approved monthly recurring calling allowance"
+                  value={remarks}
+                  onChange={e => setRemarks(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-zinc-800">
+          {/* Fixed Footer Actions */}
+          <div className="shrink-0 flex items-center justify-end space-x-3 px-6 py-4 border-t border-zinc-800 bg-zinc-900/95 backdrop-blur-sm">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 text-sm font-medium transition-colors"
+              className="px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 text-sm font-medium transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow-lg shadow-emerald-600/20 transition-all flex items-center space-x-2"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow-lg shadow-emerald-600/20 transition-all flex items-center space-x-2 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Record Recharge ({formatINR(calc.totalAmount)})</span>

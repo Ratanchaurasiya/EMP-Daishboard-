@@ -12,6 +12,7 @@ import {
   SimCard,
   SimRecharge,
   SimRequest,
+  ServiceProvider,
 } from '../types';
 
 // In development or unified hosting, use relative '/api'
@@ -36,6 +37,7 @@ export interface BootstrapResponse {
     simCards?: SimCard[];
     simRecharges?: SimRecharge[];
     simRequests?: SimRequest[];
+    serviceProviders?: ServiceProvider[];
   };
   stats?: any;
 }
@@ -602,6 +604,56 @@ export const api = {
     }
   },
 
+  // ================= SERVICE PROVIDERS (PC/SYSTEM REPAIR VENDORS) =================
+  async getServiceProviders(): Promise<ServiceProvider[]> {
+    try {
+      const res = await fetch(`${API_BASE}/service-providers`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createServiceProvider(provider: ServiceProvider): Promise<{ success: boolean; data?: ServiceProvider; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/service-providers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(provider),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to save service provider' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async updateServiceProvider(id: string, updates: Partial<ServiceProvider>): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/service-providers/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async deleteServiceProvider(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/service-providers/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // ================= BULK SYNC / RESTORE =================
   async syncAll(data: {
     employees?: Employee[];
@@ -616,6 +668,7 @@ export const api = {
     simCards?: SimCard[];
     simRecharges?: SimRecharge[];
     simRequests?: SimRequest[];
+    serviceProviders?: ServiceProvider[];
   }): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/sync`, {

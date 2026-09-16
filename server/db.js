@@ -225,6 +225,18 @@ if (DATABASE_URL && (DATABASE_URL.startsWith('mysql://') || DATABASE_URL.startsW
         INDEX idx_simreq_emp (employee_id),
         INDEX idx_simreq_status (status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+      CREATE TABLE IF NOT EXISTS service_providers (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        technician_name VARCHAR(255) NULL,
+        shop_name VARCHAR(255) NULL,
+        phone_number VARCHAR(100) NULL,
+        service_type VARCHAR(255) NULL,
+        city VARCHAR(100) NULL,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_prov_type (service_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
     console.log('[Database] Cloud MySQL / MariaDB tables & indices verified.');
@@ -375,6 +387,17 @@ if (!mysqlPool && !isProduction) {
           data TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS service_providers (
+          id TEXT PRIMARY KEY,
+          technicianName TEXT,
+          shopName TEXT,
+          phoneNumber TEXT,
+          serviceType TEXT,
+          city TEXT,
+          data TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
       `);
     } else {
       useFallback = true;
@@ -399,6 +422,7 @@ let fallbackState = {
   sim_cards: [],
   sim_recharges: [],
   sim_requests: [],
+  service_providers: [],
   system_settings: {},
 };
 
@@ -742,6 +766,28 @@ export const db = {
             item.urgency || 'Normal',
             dataStr,
           ]);
+        } else if (collection === 'service_providers') {
+          const q = `
+            INSERT INTO service_providers (id, technician_name, shop_name, phone_number, service_type, city, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              technician_name = VALUES(technician_name),
+              shop_name = VALUES(shop_name),
+              phone_number = VALUES(phone_number),
+              service_type = VALUES(service_type),
+              city = VALUES(city),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await mysqlPool.query(q, [
+            item.id,
+            item.technicianName || '',
+            item.shopName || '',
+            item.phoneNumber || '',
+            item.serviceType || 'Other',
+            item.city || '',
+            dataStr,
+          ]);
         } else if (collection === 'system_settings') {
           const q = `
             INSERT INTO system_settings (\`key\`, \`value\`, updated_at)
@@ -991,6 +1037,29 @@ export const db = {
             dataStr,
             now
           );
+        } else if (collection === 'service_providers') {
+          const stmt = sqliteDB.prepare(`
+            INSERT INTO service_providers (id, technicianName, shopName, phoneNumber, serviceType, city, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              technicianName = excluded.technicianName,
+              shopName = excluded.shopName,
+              phoneNumber = excluded.phoneNumber,
+              serviceType = excluded.serviceType,
+              city = excluded.city,
+              data = excluded.data,
+              updated_at = excluded.updated_at
+          `);
+          stmt.run(
+            item.id,
+            item.technicianName || '',
+            item.shopName || '',
+            item.phoneNumber || '',
+            item.serviceType || 'Other',
+            item.city || '',
+            dataStr,
+            now
+          );
         }
         return item;
       } catch (err) {
@@ -1091,6 +1160,7 @@ export const db = {
       'sim_cards',
       'sim_recharges',
       'sim_requests',
+      'service_providers',
     ];
     const counts = {};
     let total = 0;

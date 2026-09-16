@@ -16,6 +16,7 @@ import {
   SimCard,
   SimRecharge,
   SimRequest,
+  ServiceProvider,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -27,7 +28,7 @@ import {
 } from '../data/initialSeedData';
 
 const DB_NAME = 'AssetCore_Enterprise_DB';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 export type StoreName =
   | 'employees'
@@ -43,6 +44,7 @@ export type StoreName =
   | 'simCards'
   | 'simRecharges'
   | 'simRequests'
+  | 'serviceProviders'
   | 'systemSettings';
 
 export interface DatabaseStats {
@@ -192,6 +194,15 @@ class IndexedDBManager {
             simReqStore.createIndex('requestType', 'requestType', { unique: false });
             simReqStore.createIndex('status', 'status', { unique: false });
           }
+
+          // 15. Service Providers Store
+          if (!db.objectStoreNames.contains('serviceProviders')) {
+            const provStore = db.createObjectStore('serviceProviders', { keyPath: 'id' });
+            provStore.createIndex('technicianName', 'technicianName', { unique: false });
+            provStore.createIndex('shopName', 'shopName', { unique: false });
+            provStore.createIndex('serviceType', 'serviceType', { unique: false });
+            provStore.createIndex('city', 'city', { unique: false });
+          }
         };
 
         request.onsuccess = event => {
@@ -335,6 +346,7 @@ class IndexedDBManager {
     simCards: SimCard[];
     simRecharges: SimRecharge[];
     simRequests: SimRequest[];
+    serviceProviders: ServiceProvider[];
   }> {
     try {
       await this.getDB();
@@ -353,6 +365,7 @@ class IndexedDBManager {
         dbSimCards,
         dbSimRecharges,
         dbSimRequests,
+        dbServiceProviders,
       ] = await Promise.all([
         this.getAll<Employee>('employees'),
         this.getAll<Computer>('computers'),
@@ -366,6 +379,7 @@ class IndexedDBManager {
         this.getAll<SimCard>('simCards'),
         this.getAll<SimRecharge>('simRecharges'),
         this.getAll<SimRequest>('simRequests'),
+        this.getAll<ServiceProvider>('serviceProviders'),
       ]);
 
       return {
@@ -381,6 +395,7 @@ class IndexedDBManager {
         simCards: dbSimCards,
         simRecharges: dbSimRecharges,
         simRequests: dbSimRequests,
+        serviceProviders: dbServiceProviders,
       };
     } catch (err) {
       console.warn('IndexedDB initialize error:', err);
@@ -397,6 +412,7 @@ class IndexedDBManager {
         simCards: [],
         simRecharges: [],
         simRequests: [],
+        serviceProviders: [],
       };
     }
   }
@@ -512,6 +528,7 @@ class IndexedDBManager {
       simCards,
       simRecharges,
       simRequests,
+      serviceProviders,
     ] = await Promise.all([
       this.getAll('employees'),
       this.getAll('computers'),
@@ -526,6 +543,7 @@ class IndexedDBManager {
       this.getAll('simCards'),
       this.getAll('simRecharges'),
       this.getAll('simRequests'),
+      this.getAll('serviceProviders'),
     ]);
 
     return {
@@ -544,7 +562,8 @@ class IndexedDBManager {
           assetRequests.length +
           simCards.length +
           simRecharges.length +
-          simRequests.length,
+          simRequests.length +
+          serviceProviders.length,
       },
       data: {
         employees,
@@ -560,6 +579,7 @@ class IndexedDBManager {
         simCards,
         simRecharges,
         simRequests,
+        serviceProviders,
       },
     };
   }
@@ -581,6 +601,10 @@ class IndexedDBManager {
       uploadedFiles,
       purchases,
       assetRequests,
+      simCards,
+      simRecharges,
+      simRequests,
+      serviceProviders,
     } = backupObj.data;
 
     await Promise.all([
@@ -594,6 +618,10 @@ class IndexedDBManager {
       Array.isArray(uploadedFiles) ? this.putAll('uploadedFiles', uploadedFiles) : Promise.resolve(),
       Array.isArray(purchases) ? this.putAll('purchases', purchases) : Promise.resolve(),
       Array.isArray(assetRequests) ? this.putAll('assetRequests', assetRequests) : Promise.resolve(),
+      Array.isArray(simCards) ? this.putAll('simCards', simCards) : Promise.resolve(),
+      Array.isArray(simRecharges) ? this.putAll('simRecharges', simRecharges) : Promise.resolve(),
+      Array.isArray(simRequests) ? this.putAll('simRequests', simRequests) : Promise.resolve(),
+      Array.isArray(serviceProviders) ? this.putAll('serviceProviders', serviceProviders) : Promise.resolve(),
     ]);
 
     return true;

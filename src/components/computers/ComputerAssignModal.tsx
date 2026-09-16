@@ -142,7 +142,7 @@ export const ComputerAssignModal: React.FC<ComputerAssignModalProps> = ({
                 <option value="">-- Choose Computer from Fleet --</option>
                 {candidateComputers.map(c => (
                   <option key={c.id} value={c.id}>
-                    [{c.assetNumber}] {c.manufacturer} {c.model} ({c.deviceName}) • {c.memory.installedRAM} RAM ({c.status})
+                    [{c.assetNumber}] {c.manufacturer} {c.model} ({c.deviceName}) • {c.memory?.installedRAM || '8 GB'} RAM ({c.status})
                   </option>
                 ))}
               </select>

@@ -11,6 +11,12 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
+  Clock,
+  Flag,
+  MessageSquare,
+  X,
+  Check,
   Laptop,
   Smartphone,
   Headphones,
@@ -22,7 +28,7 @@ import {
   Database,
   Link2,
 } from 'lucide-react';
-import { AssetPhotoItem, WeeklyAssetPhotoRecord } from '../../types';
+import { AssetPhotoItem, WeeklyAssetPhotoRecord, WeeklyUploadStatus } from '../../types';
 import { ConditionBadge } from '../common/Badge';
 import { formatDateDisplay, formatFileSize } from '../../utils/formatters';
 import { PhotoLightboxModal } from './PhotoLightboxModal';
@@ -48,16 +54,17 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
   const isAdmin = userRole === 'admin' && currentUser?.role !== 'employee';
 
   const displayedPhotos = useMemo(() => {
+    const photos = record?.assetPhotos || [];
     if (!filterAssetNumber || filterAssetNumber === 'all') {
-      return record.assetPhotos;
+      return photos;
     }
-    return record.assetPhotos.filter(
+    return photos.filter(
       p =>
-        p.assetNumber.toLowerCase() === filterAssetNumber.toLowerCase() ||
-        p.assetId === filterAssetNumber ||
-        p.assetType.toLowerCase() === filterAssetNumber.toLowerCase()
+        p?.assetNumber?.toLowerCase() === filterAssetNumber.toLowerCase() ||
+        p?.assetId === filterAssetNumber ||
+        p?.assetType?.toLowerCase() === filterAssetNumber.toLowerCase()
     );
-  }, [record.assetPhotos, filterAssetNumber]);
+  }, [record?.assetPhotos, filterAssetNumber]);
 
   // Permission: Employee can remove photo/link ONLY from their own assigned asset; Admin can remove from any
   const isEmployeeOwner = Boolean(
@@ -71,8 +78,30 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
   const [confirmDelete, setConfirmDelete] = useState<boolean>(false);
   const [photoToDeleteId, setPhotoToDeleteId] = useState<string | null>(null);
 
+  // Admin Review State
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState<boolean>(false);
+  const [reviewStatusChoice, setReviewStatusChoice] = useState<WeeklyUploadStatus>(
+    record.status || record.reviewStatus || 'Verified'
+  );
+  const [reviewRemarks, setReviewRemarks] = useState<string>(record.adminRemarks || '');
+
+  const currentStatus: WeeklyUploadStatus = record.status || record.reviewStatus || 'Verified';
+
+  const handleUpdateStatus = (newStatus: WeeklyUploadStatus, remarks?: string) => {
+    updateWeeklyPhotoRecord(record.id, {
+      status: newStatus,
+      reviewStatus: newStatus,
+      reviewedBy: currentUser?.name || 'Administrator',
+      reviewedAt: new Date().toISOString(),
+      adminRemarks: remarks !== undefined ? remarks : (record.adminRemarks || ''),
+    });
+    showToast(`Weekly upload marked as ${newStatus}`, 'success');
+    setIsReviewModalOpen(false);
+  };
+
   const handleRemoveAssetDocumentation = (photoId: string) => {
-    const photoToRemove = record.assetPhotos.find(p => p.id === photoId);
+    const photos = record?.assetPhotos || [];
+    const photoToRemove = photos.find(p => p.id === photoId);
     if (!photoToRemove) return;
 
     // Delete stored file from IndexedDB if present
@@ -81,7 +110,7 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
       assetCoreDB.deleteUploadedFile(fileId).catch(() => {});
     }
 
-    const remainingPhotos = record.assetPhotos.filter(p => p.id !== photoId);
+    const remainingPhotos = photos.filter(p => p.id !== photoId);
 
     if (remainingPhotos.length === 0) {
       deleteWeeklyPhotoRecord(record.id);
@@ -193,6 +222,29 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
               </div>
             </div>
 
+            {/* Status Badge in Header */}
+            {currentStatus === 'Verified' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-2xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Verified</span>
+              </span>
+            ) : currentStatus === 'Pending Review' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shadow-2xs animate-pulse">
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                <span>Pending Review</span>
+              </span>
+            ) : currentStatus === 'Needs Attention' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shadow-2xs">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                <span>Needs Attention</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <AlertCircle className="w-3.5 h-3.5 text-slate-500" />
+                <span>{currentStatus}</span>
+              </span>
+            )}
+
             {record.conductedBy && record.conductedBy !== record.employeeName && (
               <span className="text-[11px] text-slate-400 hidden lg:inline">
                 • Verified By: <span className="font-semibold text-slate-600 dark:text-slate-400">{record.conductedBy}</span>
@@ -216,9 +268,38 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
               </a>
             ) : null}
 
-            {/* Admin Actions */}
+            {/* Admin Quick Review & Verification Actions */}
             {isAdmin && (
-              <div className="flex items-center gap-1 border-l border-slate-200 dark:border-slate-800 pl-2">
+              <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-800 pl-2">
+                {currentStatus !== 'Verified' && (
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateStatus('Verified')}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-2xs cursor-pointer"
+                    title="Mark as Verified & Approved"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Approve</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewStatusChoice(currentStatus === 'Needs Attention' ? 'Verified' : 'Needs Attention');
+                    setReviewRemarks(record.adminRemarks || '');
+                    setIsReviewModalOpen(true);
+                  }}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer ${
+                    currentStatus === 'Needs Attention'
+                      ? 'bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                  }`}
+                  title="Change review status or send remarks to employee"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
+                  <span>{currentStatus === 'Needs Attention' ? 'Edit Remarks' : 'Review'}</span>
+                </button>
                 {onEdit && (
                   <button
                     type="button"
@@ -265,6 +346,53 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
             )}
           </div>
         </div>
+
+        {/* Admin Review / Feedback Notice Banner */}
+        {(record.adminRemarks || currentStatus === 'Needs Attention') && (
+          <div className={`px-5 py-3 text-xs border-b flex items-start justify-between gap-3 ${
+            currentStatus === 'Needs Attention'
+              ? 'bg-rose-50/90 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/60 text-rose-950 dark:text-rose-100'
+              : currentStatus === 'Verified'
+              ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/40 text-emerald-950 dark:text-emerald-100'
+              : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 text-amber-950 dark:text-amber-100'
+          }`}>
+            <div className="flex items-start gap-2.5">
+              {currentStatus === 'Needs Attention' ? (
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              )}
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold uppercase tracking-wider text-[10px]">
+                    Admin Review ({record.reviewedBy || 'IT Admin'}{record.reviewedAt ? ` • ${formatDateDisplay(record.reviewedAt)}` : ''}):
+                  </span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    currentStatus === 'Needs Attention'
+                      ? 'bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200'
+                      : 'bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200'
+                  }`}>
+                    Status: {currentStatus}
+                  </span>
+                </div>
+                <p className="mt-1 font-medium text-slate-800 dark:text-slate-200">
+                  {record.adminRemarks || 'Document flagged for attention by the administrator.'}
+                </p>
+              </div>
+            </div>
+
+            {onEdit && (isEmployeeOwner || isAdmin) && (
+              <button
+                type="button"
+                onClick={() => onEdit(record)}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-2xs transition-colors cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Update / Re-upload</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Remarks if any */}
         {record.overallRemarks && (
@@ -569,6 +697,94 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
           canDelete={canRemoveAssetDoc}
           onDeletePhoto={handleRemoveAssetDocumentation}
         />
+      )}
+
+      {/* Admin Review & Remarks Modal */}
+      {isReviewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#111827] rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-500" />
+                  <span>Admin Review & Action</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {record.employeeName} • {record.weekLabel}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReviewModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                  Select Review Status:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Verified', 'Needs Attention', 'Pending Review'] as WeeklyUploadStatus[]).map(st => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setReviewStatusChoice(st)}
+                      className={`p-2 rounded-xl text-center font-bold text-xs border transition-all cursor-pointer ${
+                        reviewStatusChoice === st
+                          ? st === 'Verified'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : st === 'Needs Attention'
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                            : 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Admin Feedback / Instructions for Employee:
+                </label>
+                <textarea
+                  rows={3}
+                  value={reviewRemarks}
+                  onChange={e => setReviewRemarks(e.target.value)}
+                  placeholder={
+                    reviewStatusChoice === 'Needs Attention'
+                      ? 'Specify what needs to be fixed, e.g. "Serial number tag on laptop is not legible, please re-upload a clear photo."'
+                      : 'Add any remarks or confirmation notes...'
+                  }
+                  className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsReviewModalOpen(false)}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(reviewStatusChoice, reviewRemarks)}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-xs transition-colors cursor-pointer"
+              >
+                Save Review
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

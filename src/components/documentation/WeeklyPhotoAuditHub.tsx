@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Camera,
@@ -10,13 +10,15 @@ import {
   Layers,
   Filter,
   CheckCircle2,
+  AlertTriangle,
+  Clock,
   ExternalLink,
   ShieldCheck,
   RotateCcw,
 } from 'lucide-react';
 import { WeeklyPhotoCard } from './WeeklyPhotoCard';
 import { WeeklyPhotoUploadModal } from './WeeklyPhotoUploadModal';
-import { WeeklyAssetPhotoRecord } from '../../types';
+import { WeeklyAssetPhotoRecord, WeeklyUploadStatus } from '../../types';
 
 interface WeeklyPhotoAuditHubProps {
   onSelectEmployee?: (employeeId: string) => void;
@@ -36,28 +38,50 @@ export const WeeklyPhotoAuditHub: React.FC<WeeklyPhotoAuditHubProps> = ({
     return 'all';
   });
   const [selectedAssetType, setSelectedAssetType] = useState<string>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [editingRecord, setEditingRecord] = useState<WeeklyAssetPhotoRecord | null>(null);
+
+  // If role changes to admin, default filter to 'all'
+  useEffect(() => {
+    if (isAdmin) {
+      setSelectedEmpFilter('all');
+    }
+  }, [isAdmin]);
 
   // Extract all asset types present in records
   const availableAssetTypes = useMemo<string[]>(() => {
     const types = new Set<string>();
-    weeklyPhotoRecords.forEach(r => {
-      r.assetPhotos.forEach(p => {
-        if (p.assetType) types.add(p.assetType);
+    (weeklyPhotoRecords || []).forEach(r => {
+      (r?.assetPhotos || []).forEach(p => {
+        if (p?.assetType) types.add(p.assetType);
       });
     });
     return Array.from(types).sort();
   }, [weeklyPhotoRecords]);
 
   // Statistics
-  const totalAudits = weeklyPhotoRecords.length;
-  const totalPhotos = weeklyPhotoRecords.reduce((sum, r) => sum + r.assetPhotos.length, 0);
-  const uniqueEmployees = new Set(weeklyPhotoRecords.map(r => r.employeeId)).size;
-  const auditsWithDrive = weeklyPhotoRecords.filter(r => !!r.googleDriveLink).length;
+  const totalAudits = (weeklyPhotoRecords || []).length;
+  const totalPhotos = (weeklyPhotoRecords || []).reduce((sum, r) => sum + (r?.assetPhotos?.length || 0), 0);
+  const uniqueEmployees = new Set((weeklyPhotoRecords || []).map(r => r?.employeeId).filter(Boolean)).size;
+  const auditsWithDrive = (weeklyPhotoRecords || []).filter(r => !!r?.googleDriveLink).length;
+  
+  const verifiedAudits = useMemo(() => {
+    return (weeklyPhotoRecords || []).filter(r => (r?.status || r?.reviewStatus || 'Verified') === 'Verified').length;
+  }, [weeklyPhotoRecords]);
+
+  const pendingAudits = useMemo(() => {
+    return (weeklyPhotoRecords || []).filter(r => (r?.status || r?.reviewStatus) === 'Pending Review').length;
+  }, [weeklyPhotoRecords]);
+
+  const needsAttentionAudits = useMemo(() => {
+    return (weeklyPhotoRecords || []).filter(r => (r?.status || r?.reviewStatus) === 'Needs Attention').length;
+  }, [weeklyPhotoRecords]);
 
   // Filter records
-  const filteredRecords = weeklyPhotoRecords.filter(record => {
+  const filteredRecords = (weeklyPhotoRecords || []).filter(record => {
+    if (!record) return false;
+
     // Employee filter
     if (selectedEmpFilter !== 'all') {
       if (record.employeeId !== selectedEmpFilter && record.employeeCode !== selectedEmpFilter) {
@@ -67,25 +91,31 @@ export const WeeklyPhotoAuditHub: React.FC<WeeklyPhotoAuditHubProps> = ({
 
     // Asset Type filter
     if (selectedAssetType !== 'all') {
-      const hasType = record.assetPhotos.some(
-        p => p.assetType.toLowerCase() === selectedAssetType.toLowerCase()
+      const hasType = (record.assetPhotos || []).some(
+        p => p?.assetType?.toLowerCase() === selectedAssetType.toLowerCase()
       );
       if (!hasType) return false;
+    }
+
+    // Status filter
+    if (selectedStatusFilter !== 'all') {
+      const currentStatus = record.status || record.reviewStatus || 'Verified';
+      if (currentStatus !== selectedStatusFilter) return false;
     }
 
     // Search query
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       const matchEmp =
-        record.employeeName.toLowerCase().includes(q) ||
-        record.employeeCode.toLowerCase().includes(q) ||
-        record.weekLabel.toLowerCase().includes(q);
+        (record.employeeName || '').toLowerCase().includes(q) ||
+        (record.employeeCode || '').toLowerCase().includes(q) ||
+        (record.weekLabel || '').toLowerCase().includes(q);
 
-      const matchAsset = record.assetPhotos.some(
+      const matchAsset = (record.assetPhotos || []).some(
         p =>
-          p.assetNumber.toLowerCase().includes(q) ||
-          p.assetName.toLowerCase().includes(q) ||
-          p.assetType.toLowerCase().includes(q)
+          (p?.assetNumber || '').toLowerCase().includes(q) ||
+          (p?.assetName || '').toLowerCase().includes(q) ||
+          (p?.assetType || '').toLowerCase().includes(q)
       );
 
       if (!matchEmp && !matchAsset) return false;
@@ -138,10 +168,10 @@ export const WeeklyPhotoAuditHub: React.FC<WeeklyPhotoAuditHubProps> = ({
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-            Weekly Audits Conducted
+            Total Audits
           </span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
@@ -152,32 +182,52 @@ export const WeeklyPhotoAuditHub: React.FC<WeeklyPhotoAuditHubProps> = ({
         </div>
 
         <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-            Assets Photographed
-          </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
-              {totalPhotos}
-            </span>
-            <span className="text-xs text-slate-400">items</span>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-            Employees Audited
+          <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />
+            <span>Verified</span>
           </span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-              {uniqueEmployees}
+              {verifiedAudits}
             </span>
-            <span className="text-xs text-slate-400">/ {employees.length} staff</span>
+            <span className="text-xs text-slate-400">approved</span>
           </div>
         </div>
 
         <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-            Google Drive Folders
+          <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wider flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            <span>Pending Review</span>
+          </span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
+              {pendingAudits}
+            </span>
+            {pendingAudits > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                Action
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 tracking-wider flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            <span>Needs Attention</span>
+          </span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono">
+              {needsAttentionAudits}
+            </span>
+            <span className="text-xs text-slate-400">flagged</span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1">
+            <FolderOpen className="w-3 h-3" />
+            <span>Drive Folders</span>
           </span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
@@ -189,8 +239,8 @@ export const WeeklyPhotoAuditHub: React.FC<WeeklyPhotoAuditHubProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
+      <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col lg:flex-row items-center justify-between gap-3">
+        <div className="relative w-full lg:w-72">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
           <input
             type="text"
@@ -201,7 +251,7 @@ export const WeeklyPhotoAuditHub: React.FC<WeeklyPhotoAuditHubProps> = ({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
           <div className="flex items-center gap-1.5">
             <label className="text-xs font-semibold text-slate-500 shrink-0">Employee:</label>
             <select
@@ -234,13 +284,29 @@ export const WeeklyPhotoAuditHub: React.FC<WeeklyPhotoAuditHubProps> = ({
             </select>
           </div>
 
-          {(searchTerm || selectedEmpFilter !== 'all' || selectedAssetType !== 'all') && (
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs font-semibold text-slate-500 shrink-0">Status:</label>
+            <select
+              value={selectedStatusFilter}
+              onChange={e => setSelectedStatusFilter(e.target.value)}
+              className="text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white p-2 focus:ring-2 focus:ring-blue-500 focus:outline-hidden w-full sm:w-40"
+            >
+              <option value="all">All Statuses</option>
+              <option value="Pending Review">Pending Review ({pendingAudits})</option>
+              <option value="Verified">Verified ({verifiedAudits})</option>
+              <option value="Needs Attention">Needs Attention ({needsAttentionAudits})</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+
+          {(searchTerm || selectedEmpFilter !== 'all' || selectedAssetType !== 'all' || selectedStatusFilter !== 'all') && (
             <button
               type="button"
               onClick={() => {
                 setSearchTerm('');
                 setSelectedEmpFilter('all');
                 setSelectedAssetType('all');
+                setSelectedStatusFilter('all');
               }}
               className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               title="Reset Filters"

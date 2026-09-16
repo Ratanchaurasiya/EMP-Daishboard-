@@ -75,10 +75,10 @@ export function getEmployeeAssignedCompanyAssets(
       assignedDate: comp.assignedDate || employee.joiningDate,
       condition: comp.condition,
       status: comp.status,
-      relevantDetails: comp.processor
+      relevantDetails: comp.processor?.name
         ? `${comp.processor.name} • ${comp.memory?.installedRAM || ''} RAM • ${comp.storage?.total || ''} ${comp.storage?.type || ''} • ${comp.system?.os || ''}`
-        : `${comp.manufacturer} ${comp.model}`,
-      specPill: comp.memory ? `${comp.memory.installedRAM} RAM / ${comp.storage?.total || ''}` : comp.deviceType,
+        : `${comp.manufacturer || 'System'} ${comp.model || 'Workstation'}`,
+      specPill: comp.memory?.installedRAM ? `${comp.memory.installedRAM} RAM / ${comp.storage?.total || ''}` : (comp.deviceType || 'Workstation'),
       isComputer: true,
       originalComputerId: comp.id,
     });

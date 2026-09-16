@@ -112,6 +112,7 @@ app.get('/api/bootstrap', async (req, res) => {
       simCards,
       simRecharges,
       simRequests,
+      serviceProviders,
       stats,
     ] = await Promise.all([
       db.getAll('employees'),
@@ -126,6 +127,7 @@ app.get('/api/bootstrap', async (req, res) => {
       db.getAll('sim_cards'),
       db.getAll('sim_recharges'),
       db.getAll('sim_requests'),
+      db.getAll('service_providers'),
       db.getStats(),
     ]);
 
@@ -144,6 +146,7 @@ app.get('/api/bootstrap', async (req, res) => {
         simCards,
         simRecharges,
         simRequests,
+        serviceProviders,
       },
       stats,
     });
@@ -215,7 +218,125 @@ app.delete('/api/employees/:id', async (req, res) => {
 
     if (success) {
       console.log(`[Database] Employee permanently removed by Admin: ${emp?.name || id}`);
-      res.json({ success: true, message: 'Employee removed permanently' });
+      
+      const targetIds = [id];
+      if (emp?.id) targetIds.push(emp.id);
+      if (emp?.employeeId) targetIds.push(emp.employeeId);
+      const isTarget = (field) => {
+        if (!field) return false;
+        const lower = String(field).trim().toLowerCase();
+        return targetIds.some(t => String(t).trim().toLowerCase() === lower);
+      };
+
+      // 1. Cascade delete SIM cards assigned to this employee
+      try {
+        const allSims = await db.getAll('sim_cards');
+        for (const s of allSims) {
+          if (isTarget(s.assignedEmployeeId)) {
+            await db.delete('sim_cards', s.id);
+          }
+        }
+      } catch (simErr) {
+        console.warn('[Database] Error cascade deleting SIMs:', simErr.message);
+      }
+
+      // 2. Cascade delete SIM recharges for this employee
+      try {
+        const allRecharges = await db.getAll('sim_recharges');
+        for (const r of allRecharges) {
+          if (isTarget(r.employeeId)) {
+            await db.delete('sim_recharges', r.id);
+          }
+        }
+      } catch (recErr) {
+        console.warn('[Database] Error cascade deleting SIM recharges:', recErr.message);
+      }
+
+      // 3. Cascade delete SIM requests submitted by this employee
+      try {
+        const allSimReqs = await db.getAll('sim_requests');
+        for (const reqItem of allSimReqs) {
+          if (isTarget(reqItem.employeeId)) {
+            await db.delete('sim_requests', reqItem.id);
+          }
+        }
+      } catch (srErr) {
+        console.warn('[Database] Error cascade deleting SIM requests:', srErr.message);
+      }
+
+      // 4. Cascade delete computers assigned to this employee
+      try {
+        const allComps = await db.getAll('computers');
+        for (const c of allComps) {
+          if (isTarget(c.assignedEmployeeId)) {
+            await db.delete('computers', c.id);
+          }
+        }
+      } catch (compErr) {
+        console.warn('[Database] Error cascade deleting computers:', compErr.message);
+      }
+
+      // 5. Cascade delete peripherals & phones assigned to this employee
+      try {
+        const allAssets = await db.getAll('assets');
+        for (const a of allAssets) {
+          if (isTarget(a.assignedEmployeeId)) {
+            await db.delete('assets', a.id);
+          }
+        }
+      } catch (assetErr) {
+        console.warn('[Database] Error cascade deleting assets:', assetErr.message);
+      }
+
+      // 6. Cascade delete allocation records
+      try {
+        const allAllocations = await db.getAll('allocation_records');
+        for (const alloc of allAllocations) {
+          if (isTarget(alloc.employeeId)) {
+            await db.delete('allocation_records', alloc.id);
+          }
+        }
+      } catch (allocErr) {
+        console.warn('[Database] Error cascade deleting allocations:', allocErr.message);
+      }
+
+      // 7. Cascade delete service records
+      try {
+        const allServices = await db.getAll('service_records');
+        for (const srv of allServices) {
+          if (isTarget(srv.employeeId)) {
+            await db.delete('service_records', srv.id);
+          }
+        }
+      } catch (srvErr) {
+        console.warn('[Database] Error cascade deleting service records:', srvErr.message);
+      }
+
+      // 8. Cascade delete asset requests
+      try {
+        const allAssetReqs = await db.getAll('asset_requests');
+        for (const reqItem of allAssetReqs) {
+          if (isTarget(reqItem.employeeId)) {
+            await db.delete('asset_requests', reqItem.id);
+          }
+        }
+      } catch (arErr) {
+        console.warn('[Database] Error cascade deleting asset requests:', arErr.message);
+      }
+
+      // 9. Cascade delete weekly photo records
+      try {
+        const allPhotos = await db.getAll('weekly_photos');
+        for (const p of allPhotos) {
+          if (isTarget(p.employeeId)) {
+            await db.delete('weekly_photos', p.id);
+          }
+        }
+      } catch (wpErr) {
+        console.warn('[Database] Error cascade deleting weekly photos:', wpErr.message);
+      }
+
+      res.json({ success: true, message: 'Employee and all associated records (including SIM cards) permanently deleted' });
     } else {
       res.status(404).json({ success: false, error: 'Employee could not be deleted' });
     }
@@ -963,7 +1084,83 @@ app.delete('/api/sim-requests/:id', async (req, res) => {
   }
 });
 
-// ==================== COMPLETE DATABASE BULK SYNC ====================
+
+// ==================== SERVICE PROVIDERS (PC/LAPTOP SUPPORT & VENDORS) CRUD ====================
+app.get('/api/service-providers', async (req, res) => {
+  try {
+    const providers = await db.getAll('service_providers');
+    res.json({ success: true, data: providers });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/service-providers/:id', async (req, res) => {
+  try {
+    const provider = await db.getById('service_providers', req.params.id);
+    if (!provider) {
+      return res.status(404).json({ success: false, error: 'Service provider not found' });
+    }
+    res.json({ success: true, data: provider });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/service-providers', async (req, res) => {
+  try {
+    const provider = req.body;
+    if (!provider || !provider.technicianName || !provider.shopName || !provider.phoneNumber) {
+      return res.status(400).json({ success: false, error: 'Technician name, shop name, and phone number are required' });
+    }
+    if (!provider.id) provider.id = `PROV-${Date.now()}`;
+    const now = new Date().toISOString();
+    const saved = await db.upsert('service_providers', {
+      ...provider,
+      createdAt: provider.createdAt || now,
+      updatedAt: now,
+    });
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/service-providers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.getById('service_providers', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Service provider not found' });
+    }
+    const updated = {
+      ...existing,
+      ...req.body,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    await db.upsert('service_providers', updated);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/service-providers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await db.delete('service_providers', id);
+    if (success) {
+      res.json({ success: true, message: 'Service provider deleted' });
+    } else {
+      res.status(404).json({ success: false, error: 'Service provider could not be deleted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==================== BATCH SYNC FROM CLIENT INDEXEDDB ====================
 app.post('/api/sync', async (req, res) => {
   try {
     const {
@@ -979,6 +1176,7 @@ app.post('/api/sync', async (req, res) => {
       simCards,
       simRecharges,
       simRequests,
+      serviceProviders,
     } = req.body;
 
     if (Array.isArray(employees)) {
@@ -1017,6 +1215,9 @@ app.post('/api/sync', async (req, res) => {
     if (Array.isArray(simRequests)) {
       for (const sr of simRequests) await db.upsert('sim_requests', sr);
     }
+    if (Array.isArray(serviceProviders)) {
+      for (const sp of serviceProviders) await db.upsert('service_providers', sp);
+    }
 
     const stats = await db.getStats();
     res.json({ success: true, message: 'Database synchronized', stats });
@@ -1042,6 +1243,7 @@ app.post('/api/clear', async (req, res) => {
       'sim_cards',
       'sim_recharges',
       'sim_requests',
+      'service_providers',
     ];
     for (const c of collections) {
       await db.clear(c);
@@ -1085,3 +1287,6 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
 }
 
 export default app;
+
+
+

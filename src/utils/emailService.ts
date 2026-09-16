@@ -201,7 +201,7 @@ export interface AssetRequestEmailPayload {
   department?: string;
   designation?: string;
   requestDate: string;
-  urgency: 'Normal' | 'High' | 'Critical';
+  urgency: 'Normal' | 'High' | 'Critical' | 'Urgent';
   items: Array<{
     assetType: string;
     customAssetName?: string;

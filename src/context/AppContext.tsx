@@ -24,6 +24,8 @@ import {
   SimRequestStatus,
   SimStatus,
   SimPurpose,
+  ServiceProvider,
+  ActiveSystemSupportTicket,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -37,6 +39,7 @@ import {
   INITIAL_SIM_CARDS,
   INITIAL_SIM_RECHARGES,
   INITIAL_SIM_REQUESTS,
+  INITIAL_SERVICE_PROVIDERS,
 } from '../data/initialSeedData';
 import { getEmployeePhoneFirst6 } from '../utils/formatters';
 import { assetCoreDB, DatabaseStats } from '../db/indexedDB';
@@ -68,12 +71,17 @@ interface AppContextType {
   simCards: SimCard[];
   simRecharges: SimRecharge[];
   simRequests: SimRequest[];
+  serviceProviders: ServiceProvider[];
+  activeSystemSupportTicket: ActiveSystemSupportTicket | null;
+  selectedServiceProviderId: string | null;
   userRole: UserRole;
   currentEmployeeId: string; // EMP001 (Ratan Chaurasiya)
   activeTab: string;
   selectedEmployeeId: string | null;
   selectedComputerId: string | null;
   highlightedRequestId: string | null;
+  simManagementSubTab: 'inventory' | 'recharges' | 'requests' | 'history';
+  highlightedSimRequestId: string | null;
   theme: 'light' | 'dark';
   toasts: ToastNotification[];
   globalFilters: GlobalFilters;
@@ -91,6 +99,10 @@ interface AppContextType {
   setSelectedEmployeeId: (id: string | null) => void;
   setSelectedComputerId: (id: string | null) => void;
   setHighlightedRequestId: (id: string | null) => void;
+  setSimManagementSubTab: (tab: 'inventory' | 'recharges' | 'requests' | 'history') => void;
+  setHighlightedSimRequestId: (id: string | null) => void;
+  setActiveSystemSupportTicket: (ticket: ActiveSystemSupportTicket | null) => void;
+  setSelectedServiceProviderId: (id: string | null) => void;
   setGlobalFilters: (filters: Partial<GlobalFilters>) => void;
   resetGlobalFilters: () => void;
   toggleTheme: () => void;
@@ -100,7 +112,7 @@ interface AppContextType {
   // Actions
   addEmployee: (
     empData: Omit<Employee, 'id'>,
-    computerData?: Omit<Computer, 'id' | 'assignedEmployeeId'> | null,
+    computerData?: (Omit<Computer, 'id' | 'assignedEmployeeId'> & { isExistingComputerId?: string; id?: string }) | null,
     assetsData?: Array<{
       assetType: AssetType;
       assetNumber: string;
@@ -125,7 +137,17 @@ interface AppContextType {
       serviceStatus?: import('../types').ServiceStatus;
       resolution?: string;
       remarks?: string;
-    } | null
+    } | null,
+    simCardsData?: Array<{
+      contactNumber: string;
+      simNumber?: string;
+      carrier?: string;
+      purpose: SimPurpose;
+      customPurpose?: string;
+      project?: string;
+      remarks?: string;
+      isExistingSimId?: string;
+    }> | null
   ) => { success: boolean; error?: string };
 
   updateEmployee: (id: string, updates: Partial<Employee>) => void;
@@ -155,6 +177,17 @@ interface AppContextType {
     receivedBy: string,
     statusOption: 'Available' | 'Returned',
     remarks?: string
+  ) => { success: boolean; error?: string };
+
+  moveToBufferStock: (
+    itemType: 'computer' | 'asset',
+    itemId: string,
+    options?: {
+      returnCondition?: AssetCondition;
+      returnDate?: string;
+      receivedBy?: string;
+      remarks?: string;
+    }
   ) => { success: boolean; error?: string };
 
   updateCompanyAsset: (
@@ -212,6 +245,15 @@ interface AppContextType {
     simData: Omit<SimCard, 'id' | 'createdAt' | 'updatedAt'>
   ) => { success: boolean; error?: string; data?: SimCard };
   updateSimCard: (id: string, updates: Partial<SimCard>) => { success: boolean; error?: string };
+  assignSimCard: (
+    simId: string,
+    employeeId: string,
+    purpose?: SimPurpose,
+    customPurpose?: string,
+    project?: string,
+    remarks?: string
+  ) => { success: boolean; error?: string };
+  unassignSimCard: (simId: string, reason?: string) => { success: boolean; error?: string };
   suspendSimCard: (id: string, reason: string) => { success: boolean; error?: string };
   reactivateSimCard: (id: string) => { success: boolean; error?: string };
   removeSimCard: (id: string) => { success: boolean; error?: string };
@@ -232,9 +274,20 @@ interface AppContextType {
   updateSimRequestStatus: (
     requestId: string,
     status: SimRequestStatus,
-    adminRemarks?: string
+    adminRemarks?: string,
+    resolutionRemarks?: string
   ) => { success: boolean; error?: string };
   removeSimRequest: (requestId: string) => void;
+
+  // System & PC Support Service Providers
+  addServiceProvider: (
+    providerData: Omit<ServiceProvider, 'id' | 'createdAt' | 'updatedAt'>
+  ) => Promise<{ success: boolean; provider?: ServiceProvider; error?: string }>;
+  updateServiceProvider: (
+    id: string,
+    updates: Partial<ServiceProvider>
+  ) => Promise<{ success: boolean; provider?: ServiceProvider; error?: string }>;
+  deleteServiceProvider: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   resetToDemoData: () => void;
   clearAllData: () => void;
@@ -270,6 +323,8 @@ const VALID_TABS_LIST = [
   'purchases',
   'shared',
   'service-flowchart',
+  'system-support',
+  'pc-support',
 ];
 
 const EMPLOYEE_ALLOWED_TABS = [
@@ -443,6 +498,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`);
+      return saved ? JSON.parse(saved) : INITIAL_SERVICE_PROVIDERS;
+    } catch {
+      return INITIAL_SERVICE_PROVIDERS;
+    }
+  });
+
+  const [activeSystemSupportTicket, setActiveSystemSupportTicketState] = useState<ActiveSystemSupportTicket | null>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_ACTIVE_SUPPORT_TICKET`);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const setActiveSystemSupportTicket = (ticket: ActiveSystemSupportTicket | null) => {
+    setActiveSystemSupportTicketState(ticket);
+    if (ticket) {
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_ACTIVE_SUPPORT_TICKET`, JSON.stringify(ticket));
+      } catch {}
+    } else {
+      localStorage.removeItem(`${STORAGE_KEY}_ACTIVE_SUPPORT_TICKET`);
+    }
+  };
+
+  const [selectedServiceProviderId, setSelectedServiceProviderId] = useState<string | null>(null);
+
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     try {
       const savedAuth = localStorage.getItem(`${STORAGE_KEY}_AUTH`);
@@ -569,6 +655,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [highlightedRequestId, setHighlightedRequestId] = useState<string | null>(null);
+  const [simManagementSubTab, setSimManagementSubTab] = useState<'inventory' | 'recharges' | 'requests' | 'history'>('inventory');
+  const [highlightedSimRequestId, setHighlightedSimRequestId] = useState<string | null>(null);
 
   // Sync route and state with URL hash and localStorage
   const syncRoute = useCallback(
@@ -805,6 +893,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let effectiveSimCards: SimCard[] = [];
         let effectiveSimRecharges: SimRecharge[] = [];
         let effectiveSimRequests: SimRequest[] = [];
+        let effectiveServiceProviders: ServiceProvider[] = [];
 
         const hasBackendData = bootstrap?.success && (
           bootstrap.data.employees.length > 0 ||
@@ -812,7 +901,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           bootstrap.data.assets.length > 0 ||
           (bootstrap.data.purchases && bootstrap.data.purchases.length > 0) ||
           (bootstrap.data.assetRequests && bootstrap.data.assetRequests.length > 0) ||
-          (bootstrap.data.simCards && bootstrap.data.simCards.length > 0)
+          (bootstrap.data.simCards && bootstrap.data.simCards.length > 0) ||
+          (bootstrap.data.serviceProviders && bootstrap.data.serviceProviders.length > 0)
         );
 
         if (hasBackendData && bootstrap) {
@@ -829,6 +919,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           effectiveSimCards = bootstrap.data.simCards || [];
           effectiveSimRecharges = bootstrap.data.simRecharges || [];
           effectiveSimRequests = bootstrap.data.simRequests || [];
+          effectiveServiceProviders = bootstrap.data.serviceProviders || [];
 
           // Sync into local caches so offline/local cache is identical
           assetCoreDB.putAll('employees', effectiveEmployees).catch(() => {});
@@ -855,6 +946,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (effectiveSimRequests.length > 0) {
             assetCoreDB.putAll('simRequests', effectiveSimRequests).catch(() => {});
           }
+          if (effectiveServiceProviders.length > 0) {
+            assetCoreDB.putAll('serviceProviders', effectiveServiceProviders).catch(() => {});
+          }
         } else {
           // Fallback or Initial SQLite Seed from local cache
           effectiveEmployees = migrated.employees;
@@ -869,6 +963,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           effectiveSimCards = migrated.simCards?.length ? migrated.simCards : INITIAL_SIM_CARDS;
           effectiveSimRecharges = migrated.simRecharges?.length ? migrated.simRecharges : INITIAL_SIM_RECHARGES;
           effectiveSimRequests = migrated.simRequests?.length ? migrated.simRequests : INITIAL_SIM_REQUESTS;
+          effectiveServiceProviders = migrated.serviceProviders?.length ? migrated.serviceProviders : INITIAL_SERVICE_PROVIDERS;
 
           try {
             const cachedEmpStr = localStorage.getItem(`${STORAGE_KEY}_EMPLOYEES`);
@@ -962,8 +1057,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               } catch {}
             }
 
+            const cachedProvStr = localStorage.getItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`);
+            if (cachedProvStr && effectiveServiceProviders.length === 0) {
+              try {
+                effectiveServiceProviders = JSON.parse(cachedProvStr);
+              } catch {}
+            }
+
             // If backend is online and empty, auto-sync our existing data to SQLite database so it's permanently stored on disk!
-            if (bootstrap?.success && (effectiveEmployees.length > 0 || effectiveComputers.length > 0 || effectiveAssets.length > 0 || effectivePurchases.length > 0 || effectiveRequests.length > 0 || effectiveSimCards.length > 0)) {
+            if (bootstrap?.success && (effectiveEmployees.length > 0 || effectiveComputers.length > 0 || effectiveAssets.length > 0 || effectivePurchases.length > 0 || effectiveRequests.length > 0 || effectiveSimCards.length > 0 || effectiveServiceProviders.length > 0)) {
               console.log('[Database] Migrating local data to SQLite database permanently...');
               api.syncAll({
                 employees: effectiveEmployees,
@@ -978,6 +1080,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 simCards: effectiveSimCards,
                 simRecharges: effectiveSimRecharges,
                 simRequests: effectiveSimRequests,
+                serviceProviders: effectiveServiceProviders,
               }).catch(() => {});
             }
           } catch (e) {
@@ -1004,6 +1107,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSimCards(effectiveSimCards.length > 0 ? effectiveSimCards : INITIAL_SIM_CARDS);
         setSimRecharges(effectiveSimRecharges.length > 0 ? effectiveSimRecharges : INITIAL_SIM_RECHARGES);
         setSimRequests(effectiveSimRequests.length > 0 ? effectiveSimRequests : INITIAL_SIM_REQUESTS);
+        setServiceProviders(effectiveServiceProviders.length > 0 ? effectiveServiceProviders : INITIAL_SERVICE_PROVIDERS);
 
         const stats = await assetCoreDB.getStats();
         if (bootstrap?.stats) {
@@ -1040,12 +1144,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(simCards));
       localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(simRecharges));
       localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify(simRequests));
+      localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify(serviceProviders));
       try {
-        const safeRecordsForStorage = weeklyPhotoRecords.map(r => ({
+        const safeRecordsForStorage = (weeklyPhotoRecords || []).map(r => ({
           ...r,
-          assetPhotos: r.assetPhotos.map(p => ({
+          assetPhotos: (r?.assetPhotos || []).map(p => ({
             ...p,
-            photoUrl: p.photoUrl && p.photoUrl.length > 50000 ? p.photoUrl.substring(0, 100) + '...[indexeddb_stored]' : p.photoUrl,
+            photoUrl: p?.photoUrl && p.photoUrl.length > 50000 ? p.photoUrl.substring(0, 100) + '...[indexeddb_stored]' : (p?.photoUrl || ''),
           })),
         }));
         localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTO_DOCS`, JSON.stringify(safeRecordsForStorage));
@@ -1072,6 +1177,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assetCoreDB.putAll('simCards', simCards),
           assetCoreDB.putAll('simRecharges', simRecharges),
           assetCoreDB.putAll('simRequests', simRequests),
+          assetCoreDB.putAll('serviceProviders', serviceProviders),
         ]);
         const stats = await assetCoreDB.getStats();
         setDbStats(stats);
@@ -1079,7 +1185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('IndexedDB async sync error:', e);
       }
     })();
-  }, [employees, computers, assets, allocationRecords, serviceRecords, auditLogs, weeklyPhotoRecords, purchases, assetRequests, simCards, simRecharges, simRequests]);
+  }, [employees, computers, assets, allocationRecords, serviceRecords, auditLogs, weeklyPhotoRecords, purchases, assetRequests, simCards, simRecharges, simRequests, serviceProviders]);
 
   // Reactive Cross-Tab & Cross-Process Synchronization for Requisitions
   useEffect(() => {
@@ -1188,7 +1294,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Add Employee with optional Computer, Peripherals & Service Record in a single atomic flow
-  const addEmployee: AppContextType['addEmployee'] = (empData, computerData, assetsData, serviceRecordData) => {
+  // Add Employee with optional Computer, Peripherals, Service Record & SIM Cards in a single atomic flow
+  const addEmployee: AppContextType['addEmployee'] = (empData, computerData, assetsData, serviceRecordData, simCardsData) => {
     if (userRole !== 'admin' && currentUser?.role === 'employee') {
       showToast('Unauthorized: Administrative privileges required to add employees.', 'error');
       return { success: false, error: 'Unauthorized: Administrative privileges required.' };
@@ -1214,13 +1321,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let newAssets = [...assets];
     let newAllocations = [...allocationRecords];
     let newServices = [...serviceRecords];
+    let newSimCards = [...simCards];
 
     let createdComputerId: string | null = null;
     let createdComputerAssetNumber: string | null = null;
     let createdComputerDeviceName: string | null = null;
 
-    // Check and add computer if provided
-    if (computerData && computerData.assetNumber) {
+    let isExistingStockComputer = false;
+
+    // Check and add or assign computer if provided
+    if (computerData && (computerData.isExistingComputerId || (computerData as any).id)) {
+      const existingId = computerData.isExistingComputerId || (computerData as any).id;
+      const compIndex = newComputers.findIndex(
+        c => c.id === existingId || c.assetNumber.toLowerCase() === (computerData.assetNumber || '').toLowerCase()
+      );
+      if (compIndex !== -1) {
+        const existingComp = newComputers[compIndex];
+        isExistingStockComputer = true;
+        createdComputerId = existingComp.id;
+        createdComputerAssetNumber = existingComp.assetNumber;
+        createdComputerDeviceName = existingComp.deviceName;
+
+        const updatedComp: Computer = {
+          ...existingComp,
+          assignedEmployeeId: newEmpId,
+          assignedDate: computerData.assignedDate || newEmployee.joiningDate || new Date().toISOString().substring(0, 10),
+          status: 'Assigned',
+          condition: computerData.condition || existingComp.condition,
+          remarks: computerData.remarks || existingComp.remarks || `Assigned to ${newEmployee.name} from available stock`,
+        };
+        newComputers[compIndex] = updatedComp;
+
+        // Sync matching asset in newAssets if present
+        newAssets = newAssets.map(a => {
+          if (a.assetNumber.toLowerCase() === existingComp.assetNumber.toLowerCase()) {
+            return {
+              ...a,
+              assignedEmployeeId: newEmpId,
+              assignedDate: computerData.assignedDate || newEmployee.joiningDate || new Date().toISOString().substring(0, 10),
+              status: 'Assigned',
+              condition: computerData.condition || a.condition,
+            };
+          }
+          return a;
+        });
+
+        newAllocations.push({
+          id: 'alloc-' + Date.now() + '-lap',
+          employeeId: newEmployee.employeeId,
+          employeeName: newEmployee.name,
+          assetId: existingComp.id,
+          assetType: (existingComp.deviceType as AssetType) || 'Laptop',
+          assetNumber: existingComp.assetNumber,
+          serialNumber: existingComp.serialNumber,
+          assignedDate: computerData.assignedDate || newEmployee.joiningDate || '',
+          issuedBy: currentUser?.name || 'IT Admin',
+          receivedBy: newEmployee.name,
+          conditionAtIssue: updatedComp.condition,
+          returnDate: null,
+          returnCondition: null,
+          status: 'Assigned',
+          remarks: 'Assigned from available buffer stock during employee onboarding',
+        });
+      }
+    } else if (computerData && computerData.assetNumber) {
       const compTagClean = (computerData.assetNumber || '').trim().toLowerCase();
       const compAssetExists = computers.some(
         c => (c.assetNumber || '').trim().toLowerCase() === compTagClean
@@ -1316,6 +1480,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    // Add SIM Card / Telecom Numbers if provided
+    const newlyCreatedSims: SimCard[] = [];
+    const updatedExistingSims: SimCard[] = [];
+    if (simCardsData && simCardsData.length > 0) {
+      const nowIso = new Date().toISOString();
+      for (let i = 0; i < simCardsData.length; i++) {
+        const s = simCardsData[i];
+        if (!s.contactNumber && !s.isExistingSimId) continue;
+
+        if (s.isExistingSimId) {
+          // Assigning an existing available SIM from stock
+          const simIndex = newSimCards.findIndex(sim => sim.id === s.isExistingSimId);
+          if (simIndex !== -1) {
+            const updatedSim: SimCard = {
+              ...newSimCards[simIndex],
+              assignedEmployeeId: newEmpId,
+              assignedEmployeeName: newEmployee.name,
+              status: 'Assigned',
+              purpose: s.purpose || newSimCards[simIndex].purpose,
+              customPurpose: s.customPurpose || newSimCards[simIndex].customPurpose,
+              project: s.project || newSimCards[simIndex].project || newEmployee.department,
+              remarks: s.remarks || newSimCards[simIndex].remarks,
+              assignedDate: newEmployee.joiningDate || nowIso.substring(0, 10),
+              updatedAt: nowIso,
+            };
+            newSimCards[simIndex] = updatedSim;
+            updatedExistingSims.push(updatedSim);
+
+            newAllocations.push({
+              id: 'alloc-' + Date.now() + '-sim-' + i,
+              employeeId: newEmployee.employeeId,
+              employeeName: newEmployee.name,
+              assetId: updatedSim.id,
+              assetType: 'SIM Card',
+              assetNumber: updatedSim.contactNumber,
+              serialNumber: updatedSim.simNumber || updatedSim.contactNumber,
+              assignedDate: updatedSim.assignedDate || nowIso.substring(0, 10),
+              issuedBy: currentUser?.name || 'IT Admin',
+              receivedBy: newEmployee.name,
+              conditionAtIssue: 'Good',
+              returnDate: null,
+              returnCondition: null,
+              status: 'Assigned',
+              remarks: `Assigned on onboarding for ${s.purpose || 'telecom'} (${s.project || 'General'})`,
+            });
+          }
+        } else {
+          // Creating and assigning a new SIM card
+          const newSimId = `SIM-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}${i > 0 ? '-' + i : ''}`;
+          const newSim: SimCard = {
+            id: newSimId,
+            contactNumber: s.contactNumber.trim(),
+            simNumber: (s.simNumber || s.contactNumber).trim(),
+            carrier: (s.carrier as any) || 'Airtel',
+            status: 'Assigned',
+            purpose: s.purpose || 'Calling',
+            customPurpose: s.customPurpose || '',
+            project: s.project || newEmployee.department,
+            assignedEmployeeId: newEmpId,
+            assignedEmployeeName: newEmployee.name,
+            assignedDate: newEmployee.joiningDate || nowIso.substring(0, 10),
+            remarks: s.remarks || `Allocated during onboarding of ${newEmployee.name}`,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          };
+          newSimCards.unshift(newSim);
+          newlyCreatedSims.push(newSim);
+
+          newAllocations.push({
+            id: 'alloc-' + Date.now() + '-sim-' + i,
+            employeeId: newEmployee.employeeId,
+            employeeName: newEmployee.name,
+            assetId: newSim.id,
+            assetType: 'SIM Card',
+            assetNumber: newSim.contactNumber,
+            serialNumber: newSim.simNumber || newSim.contactNumber,
+            assignedDate: newSim.assignedDate || nowIso.substring(0, 10),
+            issuedBy: currentUser?.name || 'IT Admin',
+            receivedBy: newEmployee.name,
+            conditionAtIssue: 'New',
+            returnDate: null,
+            returnCondition: null,
+            status: 'Assigned',
+            remarks: `Onboarding SIM allocation: ${s.purpose || 'Telecom'} (${s.project || newEmployee.department})`,
+          });
+        }
+      }
+    }
+
     // Provision Initial Service/Maintenance Record if specified
     if (serviceRecordData && (serviceRecordData.problem || serviceRecordData.workPerformed)) {
       const newServiceId = 'SRV-' + Date.now().toString().slice(-6);
@@ -1343,6 +1596,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEmployees(nextEmployees);
     setComputers(newComputers);
     setAssets(newAssets);
+    setSimCards(newSimCards);
     setAllocationRecords(newAllocations);
     setServiceRecords(newServices);
 
@@ -1351,6 +1605,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`${STORAGE_KEY}_EMPLOYEES`, JSON.stringify(nextEmployees));
       localStorage.setItem(`${STORAGE_KEY}_COMPUTERS`, JSON.stringify(newComputers));
       localStorage.setItem(`${STORAGE_KEY}_ASSETS`, JSON.stringify(newAssets));
+      localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(newSimCards));
       localStorage.setItem(`${STORAGE_KEY}_ALLOCATIONS`, JSON.stringify(newAllocations));
       localStorage.setItem(`${STORAGE_KEY}_SERVICES`, JSON.stringify(newServices));
     } catch (err) {
@@ -1364,6 +1619,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assetCoreDB.put('employees', newEmployee),
           assetCoreDB.putAll('computers', newComputers),
           assetCoreDB.putAll('assets', newAssets),
+          assetCoreDB.putAll('simCards', newSimCards),
           assetCoreDB.putAll('allocationRecords', newAllocations),
           assetCoreDB.putAll('serviceRecords', newServices),
         ]);
@@ -1378,13 +1634,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await api.createEmployee(newEmployee);
         if (createdComputerId) {
           const addedComp = newComputers.find(c => c.id === createdComputerId);
-          if (addedComp) await api.createComputer(addedComp);
+          if (addedComp) {
+            if (isExistingStockComputer) {
+              await api.updateComputer(addedComp.id, addedComp);
+            } else {
+              await api.createComputer(addedComp);
+            }
+          }
         }
         if (assetsData && assetsData.length > 0) {
           const addedAssets = newAssets.filter(a => a.assignedEmployeeId === newEmpId);
           for (const a of addedAssets) {
             await api.createAsset(a);
           }
+        }
+        for (const sim of newlyCreatedSims) {
+          await api.createSim(sim);
+        }
+        for (const sim of updatedExistingSims) {
+          await api.updateSim(sim.id, sim);
         }
         for (const alloc of newAllocations.slice(allocationRecords.length)) {
           await api.createAllocation(alloc);
@@ -1400,12 +1668,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Clear search filter so newly created employee is immediately visible across directory
     setGlobalFiltersState(prev => ({ ...prev, search: '' }));
 
+    const simCount = (simCardsData || []).filter(s => s.contactNumber || s.isExistingSimId).length;
     addAuditEntry(
       'Employee Added',
-      `Added employee ${newEmployee.name} (${newEmployee.employeeId}) with ${assetsData?.length || 0} peripheral assets${serviceRecordData ? ' and initial service record' : ''}.`
+      `Added employee ${newEmployee.name} (${newEmployee.employeeId}) with ${assetsData?.length || 0} peripheral assets, ${simCount} SIM allocation(s)${serviceRecordData ? ' and initial service record' : ''}.`
     );
 
-    showToast(`Employee "${newEmployee.name}" successfully created and saved to database!`, 'success');
+    showToast(`Employee "${newEmployee.name}" successfully created with ${simCount} SIM(s) assigned and saved to database!`, 'success');
     return { success: true };
   };
 
@@ -1647,7 +1916,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const nextAssets = assets.filter(a => !deletedAssetIds.has(a.id));
 
-    // 3. Purge all allocation records for this employee or their deleted hardware
+    // 3. Completely delete all corporate SIM cards assigned to this employee
+    const deletedSimIds = new Set<string>();
+    const deletedSimContactNumbers = new Set<string>();
+
+    simCards.forEach(s => {
+      if (isTargetEmployee(s.assignedEmployeeId)) {
+        deletedSimIds.add(s.id);
+        if (s.contactNumber) deletedSimContactNumbers.add(s.contactNumber.trim());
+      }
+    });
+
+    const nextSimCards = simCards.filter(s => !deletedSimIds.has(s.id));
+
+    // 4. Completely purge all SIM recharge records for this employee or their deleted SIM cards
+    const deletedSimRechargeIds = new Set<string>();
+    simRecharges.forEach(r => {
+      if (
+        isTargetEmployee(r.employeeId) ||
+        (r.simId && deletedSimIds.has(r.simId)) ||
+        (r.contactNumber && deletedSimContactNumbers.has(r.contactNumber.trim()))
+      ) {
+        deletedSimRechargeIds.add(r.id);
+      }
+    });
+
+    const nextSimRecharges = simRecharges.filter(r => !deletedSimRechargeIds.has(r.id));
+
+    // 5. Completely purge all SIM requisition requests submitted by this employee
+    const deletedSimRequestIds = new Set<string>();
+    simRequests.forEach(req => {
+      if (isTargetEmployee(req.employeeId)) {
+        deletedSimRequestIds.add(req.id);
+      }
+    });
+
+    const nextSimRequests = simRequests.filter(req => !deletedSimRequestIds.has(req.id));
+
+    // 6. Completely purge all equipment / asset requisition requests submitted by this employee
+    const deletedAssetRequestIds = new Set<string>();
+    assetRequests.forEach(req => {
+      if (isTargetEmployee(req.employeeId)) {
+        deletedAssetRequestIds.add(req.id);
+      }
+    });
+
+    const nextAssetRequests = assetRequests.filter(req => !deletedAssetRequestIds.has(req.id));
+
+    // 7. Completely purge all weekly photo audit records for this employee
+    const deletedPhotoIds = new Set<string>();
+    weeklyPhotoRecords.forEach(w => {
+      if (isTargetEmployee(w.employeeId)) {
+        deletedPhotoIds.add(w.id);
+      }
+    });
+
+    const nextWeeklyPhotos = weeklyPhotoRecords.filter(w => !deletedPhotoIds.has(w.id));
+
+    // 8. Purge all allocation records for this employee or their deleted hardware
     const nextAllocations = allocationRecords.filter(alloc => {
       if (isTargetEmployee(alloc.employeeId)) return false;
       if (alloc.assetId && (deletedAssetIds.has(alloc.assetId) || deletedComputerIds.has(alloc.assetId))) return false;
@@ -1655,7 +1981,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return true;
     });
 
-    // 4. Purge all service & maintenance records for this employee or their deleted hardware
+    // 9. Purge all service & maintenance records for this employee or their deleted hardware
     const nextServices = serviceRecords.filter(srv => {
       if (isTargetEmployee(srv.employeeId)) return false;
       if (srv.computerId && deletedComputerIds.has(srv.computerId)) return false;
@@ -1663,7 +1989,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return true;
     });
 
-    // 5. Permanently remove employee from active and inactive directories
+    // 10. Permanently remove employee from active and inactive directories
     const nextEmployees = employees.filter(
       e => !isTargetEmployee(e.id) && !isTargetEmployee(e.employeeId)
     );
@@ -1678,6 +2004,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Update React states immediately
     setComputers(nextComputers);
     setAssets(nextAssets);
+    setSimCards(nextSimCards);
+    setSimRecharges(nextSimRecharges);
+    setSimRequests(nextSimRequests);
+    setAssetRequests(nextAssetRequests);
+    setWeeklyPhotoRecords(nextWeeklyPhotos);
     setAllocationRecords(nextAllocations);
     setServiceRecords(nextServices);
     setEmployees(nextEmployees);
@@ -1690,11 +2021,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSelectedComputerId(null);
     }
 
-    // 6. Synchronously commit to localStorage so all sections and page refresh immediately reflect complete deletion
+    // 11. Synchronously commit to localStorage so all sections and page refresh immediately reflect complete deletion
     try {
       localStorage.setItem(`${STORAGE_KEY}_EMPLOYEES`, JSON.stringify(nextEmployees));
       localStorage.setItem(`${STORAGE_KEY}_COMPUTERS`, JSON.stringify(nextComputers));
       localStorage.setItem(`${STORAGE_KEY}_ASSETS`, JSON.stringify(nextAssets));
+      localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSimCards));
+      localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(nextSimRecharges));
+      localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify(nextSimRequests));
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_REQUESTS`, JSON.stringify(nextAssetRequests));
+      localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTOS`, JSON.stringify(nextWeeklyPhotos));
       localStorage.setItem(`${STORAGE_KEY}_ALLOCATIONS`, JSON.stringify(nextAllocations));
       localStorage.setItem(`${STORAGE_KEY}_SERVICES`, JSON.stringify(nextServices));
       if (selectedEmployeeId && isTargetEmployee(selectedEmployeeId)) {
@@ -1707,18 +2043,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('LocalStorage write error during employee removal:', err);
     }
 
-    // 7. Immediately commit transactions and hard deletes to IndexedDB
+    // 12. Immediately commit transactions and hard deletes to IndexedDB
     (async () => {
       try {
         await Promise.all([
           assetCoreDB.putAll('employees', nextEmployees),
           assetCoreDB.putAll('computers', nextComputers),
           assetCoreDB.putAll('assets', nextAssets),
+          assetCoreDB.putAll('simCards', nextSimCards),
+          assetCoreDB.putAll('simRecharges', nextSimRecharges),
+          assetCoreDB.putAll('simRequests', nextSimRequests),
+          assetCoreDB.putAll('assetRequests', nextAssetRequests),
+          assetCoreDB.putAll('weeklyAssetPhotos', nextWeeklyPhotos),
           assetCoreDB.putAll('allocationRecords', nextAllocations),
           assetCoreDB.putAll('serviceRecords', nextServices),
           assetCoreDB.delete('employees', emp.id),
           ...Array.from(deletedComputerIds).map(cId => assetCoreDB.delete('computers', cId)),
           ...Array.from(deletedAssetIds).map(aId => assetCoreDB.delete('assets', aId)),
+          ...Array.from(deletedSimIds).map(sId => assetCoreDB.delete('simCards', sId)),
+          ...Array.from(deletedSimRechargeIds).map(rId => assetCoreDB.delete('simRecharges', rId)),
+          ...Array.from(deletedSimRequestIds).map(reqId => assetCoreDB.delete('simRequests', reqId)),
+          ...Array.from(deletedAssetRequestIds).map(reqId => assetCoreDB.delete('assetRequests', reqId)),
+          ...Array.from(deletedPhotoIds).map(pId => assetCoreDB.delete('weeklyAssetPhotos', pId)),
+          ...Array.from(deletedServiceIds).map(sId => assetCoreDB.delete('serviceRecords', sId)),
+          ...Array.from(deletedAllocationIds).map(alId => assetCoreDB.delete('allocationRecords', alId)),
         ]);
         const stats = await assetCoreDB.getStats();
         setDbStats(stats);
@@ -1735,6 +2083,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         for (const aId of deletedAssetIds) {
           await api.deleteAsset(aId);
         }
+        for (const sId of deletedSimIds) {
+          await api.deleteSim(sId);
+        }
+        for (const rId of deletedSimRechargeIds) {
+          await api.deleteSimRecharge(rId);
+        }
+        for (const reqId of deletedSimRequestIds) {
+          await api.deleteSimRequest(reqId);
+        }
+        for (const reqId of deletedAssetRequestIds) {
+          await api.deleteAssetRequest(reqId);
+        }
+        for (const pId of deletedPhotoIds) {
+          await api.deleteWeeklyPhoto(pId);
+        }
         for (const sId of deletedServiceIds) {
           await api.deleteServiceRecord(sId);
         }
@@ -1748,10 +2111,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     addAuditEntry(
       'Employee Removed',
-      `Permanently removed employee ${emp.name} (${emp.employeeId}) and purged all associated computers (${deletedComputerIds.size}), phones & peripherals (${deletedAssetIds.size}), allocations, and service records from database.`
+      `Permanently removed employee ${emp.name} (${emp.employeeId}) and purged all associated SIM cards (${deletedSimIds.size}), computers (${deletedComputerIds.size}), phones & peripherals (${deletedAssetIds.size}), allocations, and service records from database.`
     );
     showToast(
-      `Employee "${emp.name}" and all associated laptop, phone, peripherals, and service records have been permanently deleted from the database.`,
+      `Employee "${emp.name}" and all associated SIM cards, phone, computer, and service records have been permanently deleted from the database.`,
       'success'
     );
   };
@@ -2324,6 +2687,267 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
+  // Move Asset / Computer to Buffer Stock (Unassigned, Available for reassignment)
+  const moveToBufferStock: AppContextType['moveToBufferStock'] = (
+    itemType,
+    itemId,
+    options
+  ) => {
+    if (currentUser?.role === 'employee') {
+      showToast('Unauthorized: Administrative privileges required.', 'error');
+      return { success: false, error: 'Unauthorized: Administrative privileges required.' };
+    }
+
+    const retDate = options?.returnDate || new Date().toISOString().substring(0, 10);
+    const retCondition = options?.returnCondition || 'Good';
+    const recBy = options?.receivedBy || currentUser?.name || 'IT Administrator';
+    const note = options?.remarks || 'Moved to Buffer Stock for reassignment.';
+
+    let targetItemLabel = '';
+    let previousEmpName = 'Unassigned';
+
+    let nextComputers = [...computers];
+    let nextAssets = [...assets];
+    let nextAllocations = [...allocationRecords];
+
+    if (itemType === 'computer') {
+      const comp = computers.find(c => c.id === itemId || c.assetNumber.toLowerCase() === itemId.toLowerCase());
+      if (!comp) {
+        showToast('Computer not found.', 'error');
+        return { success: false, error: 'Computer not found.' };
+      }
+
+      targetItemLabel = `${comp.deviceType} ${comp.assetNumber} (${comp.manufacturer} ${comp.model})`;
+      const prevEmp = employees.find(e => e.id === comp.assignedEmployeeId || e.employeeId === comp.assignedEmployeeId);
+      if (prevEmp) previousEmpName = prevEmp.name;
+
+      // 1. Update computer
+      nextComputers = computers.map(c => {
+        if (c.id === comp.id || c.assetNumber.toLowerCase() === comp.assetNumber.toLowerCase()) {
+          return {
+            ...c,
+            assignedEmployeeId: null,
+            assignedDate: null,
+            condition: retCondition,
+            status: 'Available' as const,
+            remarks: note,
+          };
+        }
+        return c;
+      });
+
+      // 2. Also update matching asset in assets if it exists
+      nextAssets = assets.map(a => {
+        if (a.assetNumber.toLowerCase() === comp.assetNumber.toLowerCase()) {
+          return {
+            ...a,
+            assignedEmployeeId: null,
+            assignedDate: null,
+            returnDate: retDate,
+            condition: retCondition,
+            status: 'Available' as const,
+            remarks: note,
+          };
+        }
+        return a;
+      });
+
+      // 3. Close open allocation record or append a return allocation record
+      let allocFound = false;
+      nextAllocations = allocationRecords.map(rec => {
+        const matches =
+          rec.assetNumber.toLowerCase() === comp.assetNumber.toLowerCase() ||
+          rec.assetId === comp.id;
+        if (matches && !rec.returnDate) {
+          allocFound = true;
+          return {
+            ...rec,
+            returnDate: retDate,
+            returnCondition: retCondition,
+            receivedBy: recBy,
+            status: 'Returned' as const,
+            remarks: `${rec.remarks || ''} [Returned to Buffer: ${note}]`.trim(),
+          };
+        }
+        return rec;
+      });
+
+      if (!allocFound && comp.assignedEmployeeId) {
+        const newAlloc: AssetAllocationRecord = {
+          id: 'alloc-' + Date.now(),
+          employeeId: prevEmp ? prevEmp.employeeId : 'UNKNOWN',
+          employeeName: prevEmp ? prevEmp.name : 'Unknown Employee',
+          assetId: comp.id,
+          assetType: (comp.deviceType as AssetType) || 'Laptop',
+          assetNumber: comp.assetNumber,
+          serialNumber: comp.serialNumber,
+          assignedDate: comp.assignedDate || '—',
+          issuedBy: 'IT Admin',
+          receivedBy: recBy,
+          conditionAtIssue: comp.condition,
+          returnDate: retDate,
+          returnCondition: retCondition,
+          status: 'Returned',
+          remarks: note,
+        };
+        nextAllocations = [newAlloc, ...nextAllocations];
+      }
+
+      // SQLite backend sync
+      api.updateComputer(comp.id, {
+        assignedEmployeeId: null,
+        assignedDate: null,
+        condition: retCondition,
+        status: 'Available',
+        remarks: note,
+      }).catch(e => console.warn('SQLite updateComputer warning:', e));
+
+      const matchingAsset = assets.find(a => a.assetNumber.toLowerCase() === comp.assetNumber.toLowerCase());
+      if (matchingAsset) {
+        api.updateAsset(matchingAsset.id, {
+          assignedEmployeeId: null,
+          assignedDate: null,
+          returnDate: retDate,
+          condition: retCondition,
+          status: 'Available',
+          remarks: note,
+        }).catch(e => console.warn('SQLite updateAsset warning:', e));
+      }
+    } else {
+      // itemType === 'asset'
+      const asset = assets.find(a => a.id === itemId || a.assetNumber.toLowerCase() === itemId.toLowerCase());
+      if (!asset) {
+        showToast('Asset not found.', 'error');
+        return { success: false, error: 'Asset not found.' };
+      }
+
+      targetItemLabel = `${asset.assetType} ${asset.assetNumber} (${asset.brand} ${asset.model})`;
+      const prevEmp = employees.find(e => e.id === asset.assignedEmployeeId || e.employeeId === asset.assignedEmployeeId);
+      if (prevEmp) previousEmpName = prevEmp.name;
+
+      // 1. Update asset
+      nextAssets = assets.map(a => {
+        if (a.id === asset.id || a.assetNumber.toLowerCase() === asset.assetNumber.toLowerCase()) {
+          return {
+            ...a,
+            assignedEmployeeId: null,
+            assignedDate: null,
+            returnDate: retDate,
+            condition: retCondition,
+            status: 'Available' as const,
+            remarks: note,
+          };
+        }
+        return a;
+      });
+
+      // 2. Also update matching computer if it exists
+      nextComputers = computers.map(c => {
+        if (c.assetNumber.toLowerCase() === asset.assetNumber.toLowerCase()) {
+          return {
+            ...c,
+            assignedEmployeeId: null,
+            assignedDate: null,
+            condition: retCondition,
+            status: 'Available' as const,
+            remarks: note,
+          };
+        }
+        return c;
+      });
+
+      // 3. Close open allocation record or append a return allocation record
+      let allocFound = false;
+      nextAllocations = allocationRecords.map(rec => {
+        const matches =
+          rec.assetNumber.toLowerCase() === asset.assetNumber.toLowerCase() ||
+          rec.assetId === asset.id;
+        if (matches && !rec.returnDate) {
+          allocFound = true;
+          return {
+            ...rec,
+            returnDate: retDate,
+            returnCondition: retCondition,
+            receivedBy: recBy,
+            status: 'Returned' as const,
+            remarks: `${rec.remarks || ''} [Returned to Buffer: ${note}]`.trim(),
+          };
+        }
+        return rec;
+      });
+
+      if (!allocFound && asset.assignedEmployeeId) {
+        const newAlloc: AssetAllocationRecord = {
+          id: 'alloc-' + Date.now(),
+          employeeId: prevEmp ? prevEmp.employeeId : 'UNKNOWN',
+          employeeName: prevEmp ? prevEmp.name : 'Unknown Employee',
+          assetId: asset.id,
+          assetType: asset.assetType,
+          assetNumber: asset.assetNumber,
+          serialNumber: asset.serialNumber,
+          assignedDate: asset.assignedDate || '—',
+          issuedBy: 'IT Admin',
+          receivedBy: recBy,
+          conditionAtIssue: asset.condition,
+          returnDate: retDate,
+          returnCondition: retCondition,
+          status: 'Returned',
+          remarks: note,
+        };
+        nextAllocations = [newAlloc, ...nextAllocations];
+      }
+
+      // SQLite backend sync
+      api.updateAsset(asset.id, {
+        assignedEmployeeId: null,
+        assignedDate: null,
+        returnDate: retDate,
+        condition: retCondition,
+        status: 'Available',
+        remarks: note,
+      }).catch(e => console.warn('SQLite updateAsset warning:', e));
+
+      const matchingComp = computers.find(c => c.assetNumber.toLowerCase() === asset.assetNumber.toLowerCase());
+      if (matchingComp) {
+        api.updateComputer(matchingComp.id, {
+          assignedEmployeeId: null,
+          assignedDate: null,
+          condition: retCondition,
+          status: 'Available',
+          remarks: note,
+        }).catch(e => console.warn('SQLite updateComputer warning:', e));
+      }
+    }
+
+    setComputers(nextComputers);
+    setAssets(nextAssets);
+    setAllocationRecords(nextAllocations);
+
+    // Synchronous LocalStorage write
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_COMPUTERS`, JSON.stringify(nextComputers));
+      localStorage.setItem(`${STORAGE_KEY}_ASSETS`, JSON.stringify(nextAssets));
+      localStorage.setItem(`${STORAGE_KEY}_ALLOCATIONS`, JSON.stringify(nextAllocations));
+    } catch (e) {
+      console.error('LocalStorage write error during moveToBufferStock:', e);
+    }
+
+    // Immediate IndexedDB write
+    Promise.all([
+      assetCoreDB.putAll('computers', nextComputers),
+      assetCoreDB.putAll('assets', nextAssets),
+      assetCoreDB.putAll('allocationRecords', nextAllocations),
+    ]).catch(() => {});
+
+    addAuditEntry(
+      'Asset Moved to Buffer Stock',
+      `Moved ${targetItemLabel} to Buffer Stock (Condition: ${retCondition}). Previous Custodian: ${previousEmpName}. Ready for reassignment.`
+    );
+
+    showToast(`Asset "${targetItemLabel}" moved to Buffer Stock!`, 'success');
+    return { success: true };
+  };
+
   // Update / Change Company Asset (Admin only)
   const updateCompanyAsset: AppContextType['updateCompanyAsset'] = (assetId, updates) => {
     if (currentUser?.role === 'employee') {
@@ -2720,12 +3344,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
-  // Add Service Record with automatic status sync
+  // Add Service Record with automatic status sync & permanent receipt storage
   const addServiceRecord: AppContextType['addServiceRecord'] = record => {
     const newServiceId = 'SRV-' + new Date().getFullYear() + '-' + String(serviceRecords.length + 1).padStart(3, '0');
+    
+    // Process receipt document if provided
+    let receiptStoragePath = record.receiptStoragePath;
+    if (record.receiptFileUrl && !receiptStoragePath) {
+      const fileId = `RECEIPT-${newServiceId}-${Date.now()}`;
+      receiptStoragePath = `indexeddb://uploadedFiles/${fileId}`;
+      
+      assetCoreDB.saveUploadedFile({
+        id: fileId,
+        employeeId: record.employeeId,
+        employeeName: record.employeeName,
+        assetId: record.computerId,
+        assetNumber: record.assetNumber,
+        assetType: 'Service Receipt',
+        fileName: record.receiptFileName || `ServiceReceipt_${newServiceId}.pdf`,
+        fileType: record.receiptFileType || (record.receiptFileName?.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+        fileSize: record.receiptFileSize || Math.round((record.receiptFileUrl.length * 3) / 4),
+        data: record.receiptFileUrl,
+        storagePath: receiptStoragePath,
+        storageLocation: 'Permanent IndexedDB Secure Storage',
+        uploadedAt: record.receiptDate || new Date().toISOString(),
+      }).catch(err => console.warn('Failed saving receipt to uploadedFiles store:', err));
+    }
+
     const newRecord: ServiceRecord = {
       ...record,
       id: newServiceId,
+      serviceCost: Number(record.serviceCost) || 0,
+      receiptStoragePath,
     };
 
     const nextServices = [newRecord, ...serviceRecords];
@@ -2776,6 +3426,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`${STORAGE_KEY}_SERVICES`, JSON.stringify(nextServices));
       localStorage.setItem(`${STORAGE_KEY}_COMPUTERS`, JSON.stringify(nextComputers));
       localStorage.setItem(`${STORAGE_KEY}_ASSETS`, JSON.stringify(nextAssets));
+      localStorage.setItem('assetcore_service_broadcast', JSON.stringify({ id: newRecord.id, timestamp: Date.now() }));
     } catch (e) {
       console.error('LocalStorage write error during addServiceRecord:', e);
     }
@@ -2790,23 +3441,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // SQLite Backend Sync
     api.createServiceRecord(newRecord).catch(e => console.warn('SQLite add service warning:', e));
 
+    // Reactive event dispatch for immediate notification badge update
+    window.dispatchEvent(new CustomEvent('assetcore:new_service_record', { detail: newRecord }));
+
     addAuditEntry(
       'Service Record Added',
-      `Logged service ${newRecord.id} for computer ${newRecord.deviceName} (${newRecord.assetNumber}). Problem: ${newRecord.problemCategory}`
+      `Logged service ${newRecord.id} for computer ${newRecord.deviceName} (${newRecord.assetNumber}). Cost: ₹${newRecord.serviceCost || 0}. Problem: ${newRecord.problemCategory}`
     );
 
-    showToast(`Service ticket "${newRecord.id}" recorded!`, 'success');
+    showToast(`Service ticket "${newRecord.id}" recorded successfully!`, 'success');
     return { success: true };
   };
 
-  // Update Service Record with automatic status sync
+  // Update Service Record with automatic status sync & receipt persistence
   const updateServiceRecord: AppContextType['updateServiceRecord'] = (id, updates) => {
     let nextComputers = [...computers];
     let nextAssets = [...assets];
 
     const nextServices = serviceRecords.map(s => {
       if (s.id === id) {
-        const updated = { ...s, ...updates };
+        let receiptStoragePath = updates.receiptStoragePath !== undefined ? updates.receiptStoragePath : s.receiptStoragePath;
+        
+        // If a new receipt file is provided, persist it in uploadedFiles store
+        if (updates.receiptFileUrl && updates.receiptFileUrl !== s.receiptFileUrl) {
+          const fileId = `RECEIPT-${id}-${Date.now()}`;
+          receiptStoragePath = `indexeddb://uploadedFiles/${fileId}`;
+
+          assetCoreDB.saveUploadedFile({
+            id: fileId,
+            employeeId: s.employeeId,
+            employeeName: s.employeeName,
+            assetId: s.computerId,
+            assetNumber: s.assetNumber,
+            assetType: 'Service Receipt',
+            fileName: updates.receiptFileName || s.receiptFileName || `ServiceReceipt_${id}.pdf`,
+            fileType: updates.receiptFileType || (updates.receiptFileName?.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+            fileSize: updates.receiptFileSize || Math.round((updates.receiptFileUrl.length * 3) / 4),
+            data: updates.receiptFileUrl,
+            storagePath: receiptStoragePath,
+            storageLocation: 'Permanent IndexedDB Secure Storage',
+            uploadedAt: updates.receiptDate || new Date().toISOString(),
+          }).catch(err => console.warn('Failed saving updated receipt to uploadedFiles store:', err));
+        }
+
+        const updated = {
+          ...s,
+          ...updates,
+          receiptStoragePath,
+          ...(updates.serviceCost !== undefined ? { serviceCost: Number(updates.serviceCost) || 0 } : {}),
+        };
 
         // If status transitioned to Completed
         if (updates.serviceStatus === 'Completed') {
@@ -2847,6 +3530,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`${STORAGE_KEY}_SERVICES`, JSON.stringify(nextServices));
       localStorage.setItem(`${STORAGE_KEY}_COMPUTERS`, JSON.stringify(nextComputers));
       localStorage.setItem(`${STORAGE_KEY}_ASSETS`, JSON.stringify(nextAssets));
+      localStorage.setItem('assetcore_service_broadcast', JSON.stringify({ id, action: 'update', timestamp: Date.now() }));
     } catch (e) {
       console.error('LocalStorage write error during updateServiceRecord:', e);
     }
@@ -2861,8 +3545,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // SQLite Backend Sync
     api.updateServiceRecord(id, updates).catch(e => console.warn('SQLite update service warning:', e));
 
-    addAuditEntry('Service Record Updated', `Service record ${id} status/details updated.`);
-    showToast('Service record updated.', 'success');
+    window.dispatchEvent(new CustomEvent('assetcore:new_service_record', { detail: { id, updates } }));
+
+    addAuditEntry('Service Record Updated', `Service record ${id} status/details/receipt updated.`);
+    showToast('Service record updated successfully.', 'success');
   };
 
   const removeServiceRecord: AppContextType['removeServiceRecord'] = id => {
@@ -2907,7 +3593,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const id = 'WPR-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
     
     // Ensure all uploaded files are tagged with storage locations
-    const enrichedPhotos = recordData.assetPhotos.map(photo => {
+    const enrichedPhotos = (recordData.assetPhotos || []).map(photo => {
       const fileId = `FILE-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const hasFile = !!photo.photoUrl && photo.photoUrl.trim() !== '';
       const hasDrive = !!photo.googleDriveLink && photo.googleDriveLink.trim() !== '';
@@ -2952,6 +3638,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newRecord: WeeklyAssetPhotoRecord = {
       ...recordData,
+      uploadDate: recordData.uploadDate || now.substring(0, 10),
+      status: recordData.status || 'Pending Review',
+      reviewStatus: recordData.status || 'Pending Review',
       assetPhotos: enrichedPhotos,
       id,
       createdAt: now,
@@ -2963,16 +3652,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Synchronous LocalStorage write with quota defense
     try {
-      const safeRecords = nextRecords.map(r => ({
-        ...r,
-        assetPhotos: r.assetPhotos.map(p => ({
-          ...p,
-          photoUrl: p.photoUrl && p.photoUrl.length > 50000 ? p.photoUrl.substring(0, 100) + '...[indexeddb_stored]' : p.photoUrl,
-        })),
-      }));
-      localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTO_DOCS`, JSON.stringify(safeRecords));
+      localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTO_DOCS`, JSON.stringify(nextRecords));
+      localStorage.setItem('assetcore_photo_broadcast', JSON.stringify({ id, timestamp: Date.now() }));
     } catch (e) {
-      console.warn('LocalStorage write warning (handled, IndexedDB maintains full records):', e);
+      console.warn('LocalStorage write warning (handled, IndexedDB & SQLite maintain full records):', e);
     }
 
     // Immediate IndexedDB write (Permanent Enterprise Storage)
@@ -2981,11 +3664,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // SQLite Backend Sync
     api.createWeeklyPhoto(newRecord).catch(e => console.warn('SQLite add photo warning:', e));
 
+    window.dispatchEvent(new CustomEvent('assetcore:new_photo_audit', { detail: newRecord }));
+
     addAuditEntry(
       'Weekly Photo Audit Added',
-      `Uploaded weekly asset documentation for ${newRecord.employeeName} (${newRecord.employeeCode || newRecord.employeeId}) for ${newRecord.weekLabel} with ${newRecord.assetPhotos.length} asset entries permanently saved to IndexedDB.`
+      `Uploaded weekly asset documentation for ${newRecord.employeeName} (${newRecord.employeeCode || newRecord.employeeId}) for ${newRecord.weekLabel} [Status: ${newRecord.status}] with ${newRecord.assetPhotos.length} asset entries permanently saved.`
     );
-    showToast(`Weekly Asset Documentation permanently saved for ${newRecord.employeeName}.`, 'success');
+    showToast(`Weekly Asset Documentation uploaded successfully for ${newRecord.employeeName}.`, 'success');
     return { success: true };
   };
 
@@ -3023,19 +3708,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const nextRecords = weeklyPhotoRecords.map(r => (r.id === id ? { ...r, ...updates, updatedAt: now } : r));
+    const nextRecords = weeklyPhotoRecords.map(r => {
+      if (r.id !== id) return r;
+      const updatedStatus = updates.status || r.status || 'Pending Review';
+      return {
+        ...r,
+        ...updates,
+        status: updatedStatus,
+        reviewStatus: updatedStatus,
+        updatedAt: now,
+      };
+    });
     setWeeklyPhotoRecords(nextRecords);
 
     // Synchronous LocalStorage write with quota defense
     try {
-      const safeRecords = nextRecords.map(r => ({
-        ...r,
-        assetPhotos: r.assetPhotos.map(p => ({
-          ...p,
-          photoUrl: p.photoUrl && p.photoUrl.length > 50000 ? p.photoUrl.substring(0, 100) + '...[indexeddb_stored]' : p.photoUrl,
-        })),
-      }));
-      localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTO_DOCS`, JSON.stringify(safeRecords));
+      localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTO_DOCS`, JSON.stringify(nextRecords));
+      localStorage.setItem('assetcore_photo_broadcast', JSON.stringify({ id, action: 'update', timestamp: Date.now() }));
     } catch (e) {
       console.warn('LocalStorage write warning (handled, IndexedDB maintains full records):', e);
     }
@@ -3046,9 +3735,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // SQLite Backend Sync
     api.updateWeeklyPhoto(id, updates).catch(e => console.warn('SQLite update photo warning:', e));
 
+    window.dispatchEvent(new CustomEvent('assetcore:new_photo_audit', { detail: { id, updates } }));
+
     addAuditEntry(
       'Weekly Photo Audit Updated',
-      `Updated weekly asset photo audit record for ${existing.employeeName} (${existing.weekLabel}).`
+      `Updated weekly asset photo audit record for ${existing.employeeName} (${existing.weekLabel}) - Status: ${updates.status || existing.status}.`
     );
     showToast(`Weekly Asset Photo Documentation updated.`, 'success');
     return { success: true };
@@ -3076,11 +3767,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Synchronous LocalStorage write
     try {
-      const safeRecords = nextRecords.map(r => ({
+      const safeRecords = (nextRecords || []).map(r => ({
         ...r,
-        assetPhotos: r.assetPhotos.map(p => ({
+        assetPhotos: (r?.assetPhotos || []).map(p => ({
           ...p,
-          photoUrl: p.photoUrl && p.photoUrl.length > 50000 ? p.photoUrl.substring(0, 100) + '...[indexeddb_stored]' : p.photoUrl,
+          photoUrl: p?.photoUrl && p.photoUrl.length > 50000 ? p.photoUrl.substring(0, 100) + '...[indexeddb_stored]' : (p?.photoUrl || ''),
         })),
       }));
       localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTO_DOCS`, JSON.stringify(safeRecords));
@@ -3753,11 +4444,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Contact number / SIM number is required.', 'error');
       return { success: false, error: 'Contact number is required.' };
     }
-    const id = `SIM-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
-    const now = new Date().toISOString();
+
+    const cleanContact = simData.contactNumber.trim().replace(/\s+/g, '');
     const assignedEmp = simData.assignedEmployeeId
       ? employees.find(e => e.id === simData.assignedEmployeeId || e.employeeId === simData.assignedEmployeeId)
       : null;
+
+    // Uniqueness check: check if a SIM card with the same contact number already exists
+    const existingSim = simCards.find(
+      s => s.contactNumber.trim().replace(/\s+/g, '') === cleanContact
+    );
+
+    if (existingSim) {
+      if (existingSim.assignedEmployeeId && assignedEmp && existingSim.assignedEmployeeId !== assignedEmp.id) {
+        const msg = `SIM / Contact Number "${simData.contactNumber}" is already assigned to ${existingSim.assignedEmployeeName || 'another employee'}. The same SIM cannot be assigned to two employees simultaneously.`;
+        showToast(msg, 'error');
+        return { success: false, error: msg };
+      }
+    }
+
+    const id = `SIM-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    const now = new Date().toISOString();
 
     const newSim: SimCard = {
       ...simData,
@@ -3795,6 +4502,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('SIM card not found.', 'error');
       return { success: false, error: 'SIM card not found.' };
     }
+
+    if (updates.contactNumber) {
+      const cleanContact = updates.contactNumber.trim().replace(/\s+/g, '');
+      const duplicateSim = simCards.find(
+        s => s.id !== id && s.contactNumber.trim().replace(/\s+/g, '') === cleanContact
+      );
+      if (duplicateSim) {
+        const msg = `Contact Number "${updates.contactNumber}" is already registered for another SIM (${duplicateSim.assignedEmployeeName ? `Assigned to ${duplicateSim.assignedEmployeeName}` : 'In Stock'}).`;
+        showToast(msg, 'error');
+        return { success: false, error: msg };
+      }
+    }
+
     const now = new Date().toISOString();
     let assignedEmployeeName = updates.assignedEmployeeName;
     if (updates.assignedEmployeeId !== undefined) {
@@ -3934,6 +4654,156 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
+  const assignSimCard: AppContextType['assignSimCard'] = (
+    simId,
+    employeeId,
+    purpose,
+    customPurpose,
+    project,
+    remarks
+  ) => {
+    if (currentUser?.role === 'employee') {
+      showToast('Unauthorized: Administrative privileges required.', 'error');
+      return { success: false, error: 'Unauthorized: Administrative privileges required.' };
+    }
+
+    const targetSim = simCards.find(s => s.id === simId);
+    if (!targetSim) {
+      showToast('SIM card not found.', 'error');
+      return { success: false, error: 'SIM card not found.' };
+    }
+
+    const targetEmp = employees.find(e => e.id === employeeId || e.employeeId === employeeId);
+    if (!targetEmp) {
+      showToast('Target employee not found.', 'error');
+      return { success: false, error: 'Target employee not found.' };
+    }
+
+    if (targetSim.assignedEmployeeId && targetSim.assignedEmployeeId !== targetEmp.id) {
+      if (targetSim.status === 'Assigned' || targetSim.status === 'Active') {
+        const msg = `SIM ${targetSim.contactNumber} is currently assigned to ${targetSim.assignedEmployeeName || 'another employee'}. Release or unassign it first before assigning to ${targetEmp.name}.`;
+        showToast(msg, 'error');
+        return { success: false, error: msg };
+      }
+    }
+
+    const now = new Date().toISOString();
+    const today = now.substring(0, 10);
+
+    const updatedSim: SimCard = {
+      ...targetSim,
+      assignedEmployeeId: targetEmp.id,
+      assignedEmployeeName: targetEmp.name,
+      status: 'Assigned',
+      purpose: purpose || targetSim.purpose || 'Calling',
+      customPurpose: customPurpose !== undefined ? customPurpose : targetSim.customPurpose,
+      project: project !== undefined ? project : (targetSim.project || targetEmp.department),
+      remarks: remarks !== undefined ? remarks : targetSim.remarks,
+      assignedDate: today,
+      updatedAt: now,
+    };
+
+    const nextSimCards = simCards.map(s => (s.id === simId ? updatedSim : s));
+    setSimCards(nextSimCards);
+
+    const newAlloc: AssetAllocationRecord = {
+      id: 'alloc-' + Date.now() + '-sim',
+      employeeId: targetEmp.employeeId,
+      employeeName: targetEmp.name,
+      assetId: targetSim.id,
+      assetType: 'SIM Card',
+      assetNumber: targetSim.contactNumber,
+      serialNumber: targetSim.simNumber || targetSim.contactNumber,
+      assignedDate: today,
+      issuedBy: currentUser?.name || 'IT Admin',
+      receivedBy: targetEmp.name,
+      conditionAtIssue: 'Good',
+      returnDate: null,
+      returnCondition: null,
+      status: 'Assigned',
+      remarks: remarks || `Assigned for ${updatedSim.purpose || 'telecom'} (${updatedSim.project || 'General'})`,
+    };
+
+    const nextAllocations = [newAlloc, ...allocationRecords];
+    setAllocationRecords(nextAllocations);
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSimCards));
+      localStorage.setItem(`${STORAGE_KEY}_ALLOCATIONS`, JSON.stringify(nextAllocations));
+    } catch (e) {
+      console.warn('LocalStorage error assigning SIM:', e);
+    }
+
+    api.updateSim(simId, updatedSim).catch(err => console.warn('[AssetCore Backend] Failed to assign SIM in SQLite:', err));
+    api.createAllocation(newAlloc).catch(err => console.warn('[AssetCore Backend] Failed to create SIM allocation in SQLite:', err));
+    assetCoreDB.put('simCards', updatedSim).catch(() => {});
+    assetCoreDB.put('allocationRecords', newAlloc).catch(() => {});
+
+    addAuditEntry('SIM Assigned', `Admin allocated SIM ${targetSim.contactNumber} to ${targetEmp.name} (${targetEmp.employeeId}) for ${updatedSim.purpose} [Project: ${updatedSim.project || 'General'}]`);
+    showToast(`SIM ${targetSim.contactNumber} successfully assigned to ${targetEmp.name}!`, 'success');
+    return { success: true };
+  };
+
+  const unassignSimCard: AppContextType['unassignSimCard'] = (simId, reason) => {
+    if (currentUser?.role === 'employee') {
+      showToast('Unauthorized: Administrative privileges required.', 'error');
+      return { success: false, error: 'Unauthorized: Administrative privileges required.' };
+    }
+
+    const targetSim = simCards.find(s => s.id === simId);
+    if (!targetSim) {
+      showToast('SIM card not found.', 'error');
+      return { success: false, error: 'SIM card not found.' };
+    }
+
+    const previousEmpName = targetSim.assignedEmployeeName || 'Employee';
+    const now = new Date().toISOString();
+    const today = now.substring(0, 10);
+
+    const updatedSim: SimCard = {
+      ...targetSim,
+      assignedEmployeeId: null,
+      assignedEmployeeName: null,
+      status: 'Available',
+      unassignedDate: today,
+      remarks: reason ? `${targetSim.remarks || ''} | Released: ${reason}`.trim() : targetSim.remarks,
+      updatedAt: now,
+    };
+
+    const nextSimCards = simCards.map(s => (s.id === simId ? updatedSim : s));
+    setSimCards(nextSimCards);
+
+    // Update active allocation records for this SIM
+    const nextAllocations = allocationRecords.map(alloc => {
+      if ((alloc.assetId === simId || alloc.assetNumber === targetSim.contactNumber) && alloc.status === 'Assigned') {
+        return {
+          ...alloc,
+          returnDate: today,
+          returnCondition: 'Good' as AssetCondition,
+          status: 'Returned' as const,
+          remarks: reason ? `SIM Released: ${reason}` : 'SIM unassigned and returned to inventory',
+        };
+      }
+      return alloc;
+    });
+    setAllocationRecords(nextAllocations);
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSimCards));
+      localStorage.setItem(`${STORAGE_KEY}_ALLOCATIONS`, JSON.stringify(nextAllocations));
+    } catch (e) {
+      console.warn('LocalStorage error unassigning SIM:', e);
+    }
+
+    api.updateSim(simId, updatedSim).catch(err => console.warn('[AssetCore Backend] Failed to unassign SIM in SQLite:', err));
+    assetCoreDB.put('simCards', updatedSim).catch(() => {});
+    assetCoreDB.putAll('allocationRecords', nextAllocations).catch(() => {});
+
+    addAuditEntry('SIM Unassigned', `Admin released SIM ${targetSim.contactNumber} from ${previousEmpName}. Reason: ${reason || 'Returned to buffer'}`);
+    showToast(`SIM ${targetSim.contactNumber} released and returned to Available buffer.`, 'info');
+    return { success: true };
+  };
+
   // -------------------------------------------------------------
   // SIM RECHARGE MANAGEMENT
   // -------------------------------------------------------------
@@ -4035,17 +4905,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, requestId: reqId };
   };
 
-  const updateSimRequestStatus: AppContextType['updateSimRequestStatus'] = (requestId, status, adminRemarks) => {
+  const updateSimRequestStatus: AppContextType['updateSimRequestStatus'] = (requestId, status, adminRemarks, resolutionRemarks) => {
     const existing = simRequests.find(r => r.id === requestId);
     if (!existing) {
       showToast('SIM request not found.', 'error');
       return { success: false, error: 'SIM request not found.' };
     }
     const now = new Date().toISOString();
+    const actor = currentUser?.name || 'IT Administrator';
     const updatedRecord: SimRequest = {
       ...existing,
       status,
       adminRemarks: adminRemarks !== undefined ? adminRemarks : existing.adminRemarks,
+      resolutionRemarks: resolutionRemarks !== undefined ? resolutionRemarks : existing.resolutionRemarks,
+      resolvedAt: status === 'Resolved' ? (existing.resolvedAt || now) : existing.resolvedAt,
+      resolvedBy: status === 'Resolved' ? (existing.resolvedBy || actor) : existing.resolvedBy,
       updatedAt: now,
     };
 
@@ -4094,6 +4968,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`SIM request record removed.`, 'info');
   };
 
+  // -------------------------------------------------------------
+  // SYSTEM & PC SUPPORT SERVICE PROVIDERS
+  // -------------------------------------------------------------
+  const addServiceProvider: AppContextType['addServiceProvider'] = async providerData => {
+    try {
+      const newProvider: ServiceProvider = {
+        ...providerData,
+        id: `PROV-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nextList = [newProvider, ...serviceProviders];
+      setServiceProviders(nextList);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify(nextList));
+      } catch (e) {
+        console.warn('LocalStorage save error for service provider:', e);
+      }
+
+      assetCoreDB.put('serviceProviders', newProvider).catch(e => console.warn('IndexedDB provider write error:', e));
+      api.createServiceProvider(newProvider).catch(e => console.warn('SQLite provider write error:', e));
+
+      addAuditEntry('Service Provider Added', `Registered service provider ${newProvider.technicianName} (${newProvider.shopName}).`);
+      showToast(`Service provider "${newProvider.technicianName}" added successfully.`, 'success');
+      return { success: true, provider: newProvider };
+    } catch (err: any) {
+      showToast(`Failed to add service provider: ${err?.message || 'Unknown error'}`, 'error');
+      return { success: false, error: err?.message || 'Unknown error' };
+    }
+  };
+
+  const updateServiceProvider: AppContextType['updateServiceProvider'] = async (id, updates) => {
+    try {
+      let updatedRecord: ServiceProvider | null = null;
+      const nextList = serviceProviders.map(p => {
+        if (p.id === id) {
+          updatedRecord = {
+            ...p,
+            ...updates,
+            updatedAt: new Date().toISOString(),
+          };
+          return updatedRecord;
+        }
+        return p;
+      });
+
+      if (!updatedRecord) {
+        return { success: false, error: 'Provider not found' };
+      }
+
+      setServiceProviders(nextList);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify(nextList));
+      } catch (e) {
+        console.warn('LocalStorage error updating service provider:', e);
+      }
+
+      assetCoreDB.put('serviceProviders', updatedRecord).catch(e => console.warn('IndexedDB provider update error:', e));
+      api.updateServiceProvider(id, updatedRecord).catch(e => console.warn('SQLite provider update error:', e));
+
+      addAuditEntry('Service Provider Updated', `Updated service provider ${(updatedRecord as ServiceProvider).technicianName} (${(updatedRecord as ServiceProvider).shopName}).`);
+      showToast(`Service provider "${(updatedRecord as ServiceProvider).technicianName}" updated successfully.`, 'success');
+      return { success: true, provider: updatedRecord };
+    } catch (err: any) {
+      showToast(`Failed to update service provider: ${err?.message || 'Unknown error'}`, 'error');
+      return { success: false, error: err?.message || 'Unknown error' };
+    }
+  };
+
+  const deleteServiceProvider: AppContextType['deleteServiceProvider'] = async id => {
+    try {
+      const target = serviceProviders.find(p => p.id === id);
+      const nextList = serviceProviders.filter(p => p.id !== id);
+      setServiceProviders(nextList);
+      if (selectedServiceProviderId === id) {
+        setSelectedServiceProviderId(null);
+      }
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify(nextList));
+      } catch (e) {
+        console.warn('LocalStorage error deleting service provider:', e);
+      }
+
+      assetCoreDB.delete('serviceProviders', id).catch(e => console.warn('IndexedDB provider delete error:', e));
+      api.deleteServiceProvider(id).catch(e => console.warn('SQLite provider delete error:', e));
+
+      addAuditEntry('Service Provider Deleted', `Removed service provider ${target?.technicianName || id} (${target?.shopName || ''}).`);
+      showToast(`Service provider "${target?.technicianName || id}" deleted successfully.`, 'info');
+      return { success: true };
+    } catch (err: any) {
+      showToast(`Failed to delete service provider: ${err?.message || 'Unknown error'}`, 'error');
+      return { success: false, error: err?.message || 'Unknown error' };
+    }
+  };
+
   // Reset to initial seed demo data
   // Reset to initial seed demo data
   const resetToDemoData = () => {
@@ -4113,6 +5083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSimCards(INITIAL_SIM_CARDS);
     setSimRecharges(INITIAL_SIM_RECHARGES);
     setSimRequests(INITIAL_SIM_REQUESTS);
+    setServiceProviders(INITIAL_SERVICE_PROVIDERS);
     setAssetRequests([
       {
         id: 'REQ-2026-101',
@@ -4171,6 +5142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(INITIAL_SIM_CARDS));
     localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(INITIAL_SIM_RECHARGES));
     localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify(INITIAL_SIM_REQUESTS));
+    localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify(INITIAL_SERVICE_PROVIDERS));
     localStorage.setItem(
       `${STORAGE_KEY}_ASSET_REQUESTS`,
       JSON.stringify([
@@ -4233,6 +5205,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await assetCoreDB.putAll('simCards', INITIAL_SIM_CARDS);
         await assetCoreDB.putAll('simRecharges', INITIAL_SIM_RECHARGES);
         await assetCoreDB.putAll('simRequests', INITIAL_SIM_REQUESTS);
+        await assetCoreDB.putAll('serviceProviders', INITIAL_SERVICE_PROVIDERS);
         const demoRequests = [
           {
             id: 'REQ-2026-101',
@@ -4338,6 +5311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         simCards: INITIAL_SIM_CARDS,
         simRecharges: INITIAL_SIM_RECHARGES,
         simRequests: INITIAL_SIM_REQUESTS,
+        serviceProviders: INITIAL_SERVICE_PROVIDERS,
       }).catch(err => console.warn('SQLite backend sync error during resetToDemoData:', err));
     })();
 
@@ -4459,8 +5433,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSimCards([]);
     setSimRecharges([]);
     setSimRequests([]);
+    setServiceProviders([]);
     setSelectedEmployeeId(null);
     setSelectedComputerId(null);
+    setActiveSystemSupportTicket(null);
+    setSelectedServiceProviderId(null);
 
     localStorage.setItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`, 'true');
     localStorage.setItem(`${STORAGE_KEY}_EMPLOYEES`, JSON.stringify([]));
@@ -4476,6 +5453,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify([]));
+    localStorage.removeItem(`${STORAGE_KEY}_ACTIVE_SUPPORT_TICKET`);
     localStorage.removeItem(`${STORAGE_KEY}_SELECTED_EMP`);
     localStorage.removeItem(`${STORAGE_KEY}_SELECTED_COMP`);
 
@@ -4511,6 +5490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       simCards,
       simRecharges,
       simRequests,
+      serviceProviders,
     };
 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
@@ -4572,6 +5552,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (fresh.simRequests) {
         setSimRequests(fresh.simRequests);
       }
+      if (fresh.serviceProviders) {
+        setServiceProviders(fresh.serviceProviders);
+      }
 
       // Sync restored archive into Central SQLite database
       api.syncAll({
@@ -4587,6 +5570,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         simCards: fresh.simCards || [],
         simRecharges: fresh.simRecharges || [],
         simRequests: fresh.simRequests || [],
+        serviceProviders: fresh.serviceProviders || [],
       }).catch(e => console.warn('SQLite sync error during restoreBackup:', e));
 
       const stats = await assetCoreDB.getStats();
@@ -4751,12 +5735,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     simCards,
     simRecharges,
     simRequests,
+    serviceProviders,
+    activeSystemSupportTicket,
+    selectedServiceProviderId,
     userRole,
     currentEmployeeId,
     activeTab,
     selectedEmployeeId,
     selectedComputerId,
     highlightedRequestId,
+    simManagementSubTab,
+    highlightedSimRequestId,
     theme,
     toasts,
     globalFilters,
@@ -4770,6 +5759,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedEmployeeId,
     setSelectedComputerId,
     setHighlightedRequestId,
+    setSimManagementSubTab,
+    setHighlightedSimRequestId,
+    setActiveSystemSupportTicket,
+    setSelectedServiceProviderId,
     setGlobalFilters,
     resetGlobalFilters,
     toggleTheme,
@@ -4787,6 +5780,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addCompanyAsset,
     assignAsset,
     returnAsset,
+    moveToBufferStock,
     updateCompanyAsset,
     removeCompanyAsset,
     assignComputerToEmployee,
@@ -4806,6 +5800,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     removeAssetRequest,
     addSimCard,
     updateSimCard,
+    assignSimCard,
+    unassignSimCard,
     suspendSimCard,
     reactivateSimCard,
     removeSimCard,
@@ -4814,6 +5810,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     submitSimRequest,
     updateSimRequestStatus,
     removeSimRequest,
+    addServiceProvider,
+    updateServiceProvider,
+    deleteServiceProvider,
     resetToDemoData,
     clearAllData,
     exportAllData,

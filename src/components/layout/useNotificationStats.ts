@@ -18,7 +18,14 @@ export function useNotificationStats() {
         e.key === STORAGE_READ_KEY ||
         e.key === STORAGE_DISMISSED_KEY ||
         e.key === 'assetcore_request_broadcast' ||
-        (e.key && e.key.endsWith('_ASSET_REQUESTS'))
+        e.key === 'assetcore_sim_request_broadcast' ||
+        e.key === 'assetcore_service_broadcast' ||
+        e.key === 'assetcore_photo_broadcast' ||
+        (e.key && e.key.endsWith('_ASSET_REQUESTS')) ||
+        (e.key && e.key.endsWith('_SIM_REQUESTS')) ||
+        (e.key && e.key.endsWith('_SERVICES')) ||
+        (e.key && e.key.endsWith('_COMPUTERS')) ||
+        (e.key && e.key.endsWith('_ASSETS'))
       ) {
         setSyncVersion(v => v + 1);
       }
@@ -30,9 +37,15 @@ export function useNotificationStats() {
 
     window.addEventListener('storage', handleStorage);
     window.addEventListener('assetcore:new_request', handleCustomReq);
+    window.addEventListener('assetcore:new_sim_request', handleCustomReq);
+    window.addEventListener('assetcore:new_service_record', handleCustomReq);
+    window.addEventListener('assetcore:new_photo_audit', handleCustomReq);
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('assetcore:new_request', handleCustomReq);
+      window.removeEventListener('assetcore:new_sim_request', handleCustomReq);
+      window.removeEventListener('assetcore:new_service_record', handleCustomReq);
+      window.removeEventListener('assetcore:new_photo_audit', handleCustomReq);
     };
   }, []);
 
@@ -65,16 +78,16 @@ export function useNotificationStats() {
         }
       });
 
-      // 0.5. SIM Requisitions & Suspension Requests
+      // 0.5. SIM Requisitions, Suspensions & Issue Reports
       simRequests.forEach(req => {
         const shouldCount = isEmployee ? (req.employeeId === (currentUser?.id || currentUser?.employeeId)) : true;
         if (!shouldCount) return;
 
-        if (req.status === 'Pending') {
+        if (req.status === 'Pending' || req.status === 'In Progress') {
           const id = `sim-req-${req.id}`;
           if (!dismissedIds.has(id)) {
             total++;
-            if (req.requestType === 'Suspend SIM') {
+            if (req.requestType === 'Suspend SIM' || req.requestType === 'Report Issue' || req.urgency === 'Urgent' || req.urgency === 'Critical') {
               hasCrit = true;
             }
             if (!readIds.has(id)) unread++;

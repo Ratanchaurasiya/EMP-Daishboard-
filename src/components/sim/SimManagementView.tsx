@@ -28,11 +28,12 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { SimCard, SimPurpose, SimStatus, SIM_PURPOSES } from '../../types';
-import { getSimPurposeStyle, getSimStatusStyle, formatINR, generateSimRequestWhatsAppUrl, generateSimSuspensionWhatsAppUrl } from '../../utils/simUtils';
+import { getSimPurposeStyle, getSimStatusStyle, formatINR, generateSimRequestWhatsAppUrl, generateSimSuspensionWhatsAppUrl, generateSimIssueWhatsAppUrl } from '../../utils/simUtils';
 import { AddEditSimModal } from './AddEditSimModal';
 import { SuspendSimModal } from './SuspendSimModal';
 import { AddRechargeModal } from './AddRechargeModal';
 import { RequestSimModal } from './RequestSimModal';
+import { AssignSimModal } from './AssignSimModal';
 
 interface SimManagementViewProps {
   onSelectEmployee?: (employeeId: string) => void;
@@ -47,14 +48,33 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
     employees,
     userRole,
     currentUser,
+    setSelectedEmployeeId,
     reactivateSimCard,
     removeSimCard,
+    assignSimCard,
+    unassignSimCard,
     removeSimRecharge,
     updateSimRequestStatus,
     removeSimRequest,
+    simManagementSubTab,
+    setSimManagementSubTab,
+    highlightedSimRequestId,
+    setHighlightedSimRequestId,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'recharges' | 'requests' | 'history'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'recharges' | 'requests' | 'history'>(simManagementSubTab || 'inventory');
+
+  // Sync with global subtab state if set from notifications or dashboard
+  React.useEffect(() => {
+    if (simManagementSubTab && simManagementSubTab !== activeTab) {
+      setActiveTab(simManagementSubTab);
+    }
+  }, [simManagementSubTab]);
+
+  const handleTabChange = (tab: 'inventory' | 'recharges' | 'requests' | 'history') => {
+    setActiveTab(tab);
+    setSimManagementSubTab(tab);
+  };
 
   // Inventory Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,6 +91,9 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
   // Modals state
   const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
   const [editingSim, setEditingSim] = useState<SimCard | null>(null);
+
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignModalSimId, setAssignModalSimId] = useState<string | null>(null);
 
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
   const [suspendingSim, setSuspendingSim] = useState<SimCard | null>(null);
@@ -230,6 +253,17 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
             <>
               <button
                 onClick={() => {
+                  setAssignModalSimId(null);
+                  setIsAssignModalOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-sm font-medium transition-colors flex items-center space-x-2"
+              >
+                <User className="w-4 h-4" />
+                <span>Assign SIM</span>
+              </button>
+
+              <button
+                onClick={() => {
                   setRechargeTargetSim(null);
                   setIsRechargeModalOpen(true);
                 }}
@@ -350,7 +384,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
       <div className="border-b border-zinc-800 flex items-center justify-between overflow-x-auto">
         <div className="flex space-x-1">
           <button
-            onClick={() => setActiveTab('inventory')}
+            onClick={() => handleTabChange('inventory')}
             className={`px-4 py-3 text-sm font-medium border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${
               activeTab === 'inventory'
                 ? 'border-orange-500 text-orange-400 bg-orange-500/5'
@@ -365,7 +399,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
           </button>
 
           <button
-            onClick={() => setActiveTab('recharges')}
+            onClick={() => handleTabChange('recharges')}
             className={`px-4 py-3 text-sm font-medium border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${
               activeTab === 'recharges'
                 ? 'border-orange-500 text-orange-400 bg-orange-500/5'
@@ -380,7 +414,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
           </button>
 
           <button
-            onClick={() => setActiveTab('requests')}
+            onClick={() => handleTabChange('requests')}
             className={`px-4 py-3 text-sm font-medium border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${
               activeTab === 'requests'
                 ? 'border-orange-500 text-orange-400 bg-orange-500/5'
@@ -397,7 +431,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
           </button>
 
           <button
-            onClick={() => setActiveTab('history')}
+            onClick={() => handleTabChange('history')}
             className={`px-4 py-3 text-sm font-medium border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap ${
               activeTab === 'history'
                 ? 'border-orange-500 text-orange-400 bg-orange-500/5'
@@ -595,8 +629,12 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (onSelectEmployee && sim.assignedEmployeeId) {
-                                    onSelectEmployee(sim.assignedEmployeeId);
+                                  if (sim.assignedEmployeeId) {
+                                    if (onSelectEmployee) {
+                                      onSelectEmployee(sim.assignedEmployeeId);
+                                    } else {
+                                      setSelectedEmployeeId(sim.assignedEmployeeId);
+                                    }
                                   }
                                 }}
                                 className="flex items-center space-x-2 text-left group cursor-pointer"
@@ -673,6 +711,32 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
                           {/* Actions */}
                           <td className="px-5 py-4 text-right">
                             <div className="flex items-center justify-end space-x-1.5">
+                              {/* Assign to Employee (if unassigned) or Release (if assigned) */}
+                              {isAdmin && !sim.assignedEmployeeId ? (
+                                <button
+                                  onClick={() => {
+                                    setAssignModalSimId(sim.id);
+                                    setIsAssignModalOpen(true);
+                                  }}
+                                  title="Assign SIM to an Employee"
+                                  className="p-1.5 rounded-lg bg-zinc-800/80 hover:bg-blue-500/20 text-zinc-400 hover:text-blue-400 transition-colors"
+                                >
+                                  <User className="w-4 h-4" />
+                                </button>
+                              ) : isAdmin && sim.assignedEmployeeId ? (
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Release SIM ${sim.contactNumber} from ${sim.assignedEmployeeName} back to Available buffer?`)) {
+                                      unassignSimCard(sim.id, `Released from ${sim.assignedEmployeeName} via SIM Master`);
+                                    }
+                                  }}
+                                  title="Release / Unassign SIM back to inventory"
+                                  className="p-1.5 rounded-lg bg-zinc-800/80 hover:bg-amber-500/20 text-zinc-400 hover:text-amber-400 transition-colors"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </button>
+                              ) : null}
+
                               {/* Quick Recharge */}
                               {isAdmin && (
                                 <button
@@ -956,63 +1020,112 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
       )}
 
       {/* ==================== TAB 3: REQUESTS & APPROVAL CENTER ==================== */}
-      {activeTab === 'requests' && (
+      {activeTab === 'requests' && (() => {
+        const issueReqs = simRequests.filter(r => r.requestType === 'Report Issue');
+        const openIssues = issueReqs.filter(r => r.status === 'Pending' || r.status === 'In Progress').length;
+        const urgentIssues = issueReqs.filter(r => r.urgency === 'Urgent' && r.status !== 'Resolved' && r.status !== 'Rejected').length;
+        const inProgressIssues = issueReqs.filter(r => r.status === 'In Progress').length;
+        const resolvedIssues = issueReqs.filter(r => r.status === 'Resolved').length;
+
+        return (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-white">Employee SIM Requisitions & Suspension Requests</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <span>Employee SIM Requisitions, Suspensions &amp; Incident Reports</span>
+                {openIssues > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                    {openIssues} Open Issue{openIssues > 1 ? 's' : ''}
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-zinc-400">Track and process SIM requisitions, blockage reports, data failures, and suspension tickets</p>
+            </div>
+
             <button
               onClick={() => {
                 setRequestType('Additional SIM');
                 setIsRequestModalOpen(true);
               }}
-              className="px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-medium shadow-md transition-colors flex items-center space-x-1.5"
+              className="px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-medium shadow-md transition-colors flex items-center space-x-1.5 self-start sm:self-auto"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Submit Requisition</span>
             </button>
           </div>
 
+          {/* SIM Issue Incident Telemetry Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Open SIM Issues</span>
+              <span className="text-xl font-bold font-mono text-amber-400">{openIssues}</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-zinc-900 border border-rose-500/30 bg-rose-500/5 space-y-1">
+              <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block">Urgent SIM Issues</span>
+              <span className="text-xl font-bold font-mono text-rose-400">{urgentIssues}</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-zinc-900 border border-blue-500/30 bg-blue-500/5 space-y-1">
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">In Progress</span>
+              <span className="text-xl font-bold font-mono text-blue-400">{inProgressIssues}</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-zinc-900 border border-emerald-500/30 bg-emerald-500/5 space-y-1">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Resolved Issues</span>
+              <span className="text-xl font-bold font-mono text-emerald-400">{resolvedIssues}</span>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-4">
             {simRequests.length === 0 ? (
               <div className="p-12 text-center bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-500">
                 <Send className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No SIM requests submitted yet.</p>
+                <p className="text-sm">No SIM requests or issue tickets submitted yet.</p>
               </div>
             ) : (
               simRequests.map(req => {
                 const isPending = req.status === 'Pending';
+                const isInProgress = req.status === 'In Progress';
+                const isResolved = req.status === 'Resolved';
                 const isApproved = req.status === 'Approved';
                 const isRejected = req.status === 'Rejected';
+                const isIssueReport = req.requestType === 'Report Issue';
 
                 return (
                   <div
                     key={req.id}
                     className={`p-5 rounded-2xl border transition-all ${
-                      isPending
+                      isIssueReport
+                        ? req.urgency === 'Urgent'
+                          ? 'bg-zinc-900/90 border-rose-500/50 shadow-lg shadow-rose-500/10'
+                          : 'bg-zinc-900/80 border-amber-500/40'
+                        : isPending
                         ? 'bg-zinc-900/90 border-amber-500/30 shadow-lg'
-                        : isApproved
+                        : isApproved || isResolved
                         ? 'bg-zinc-900/70 border-emerald-500/20'
                         : 'bg-zinc-900/70 border-zinc-800'
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center space-x-2.5">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                              req.requestType === 'Suspend SIM'
-                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                              isIssueReport
+                                ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                : req.requestType === 'Suspend SIM'
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                                 : 'bg-orange-500/10 text-orange-400 border-orange-500/30'
                             }`}
                           >
-                            {req.requestType}
+                            {isIssueReport ? `🔴 ${req.issueType || 'SIM Issue'}` : req.requestType}
                           </span>
 
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                               isPending
                                 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse'
-                                : isApproved
+                                : isInProgress
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                                : isApproved || isResolved
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                                 : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                             }`}
@@ -1020,32 +1133,63 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
                             {req.status}
                           </span>
 
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            req.urgency === 'Urgent' ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          }`}>
+                            {req.urgency || 'Normal'} Priority
+                          </span>
+
                           <span className="text-xs text-zinc-500 font-mono">#{req.id}</span>
                         </div>
 
-                        <h4 className="text-base font-bold text-white">
-                          {req.employeeName} ({req.companyEmployeeNumber || req.employeeId})
-                        </h4>
+                        <div className="flex items-center gap-2 pt-1">
+                          <h4 className="text-base font-bold text-white">
+                            {req.employeeName} ({req.companyEmployeeNumber || req.employeeId})
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onSelectEmployee && req.employeeId) {
+                                onSelectEmployee(req.employeeId);
+                              } else if (req.employeeId) {
+                                setSelectedEmployeeId(req.employeeId);
+                              }
+                            }}
+                            className="text-xs text-blue-400 hover:underline font-semibold"
+                          >
+                            View Employee
+                          </button>
+                        </div>
 
                         <p className="text-xs text-zinc-300">
-                          <span className="text-zinc-500">Reason / Justification: </span>
+                          <span className="text-zinc-500">Issue Description / Details: </span>
                           {req.reason}
                         </p>
 
-                        {req.purpose && (
+                        {req.project && (
                           <p className="text-xs text-zinc-400">
-                            <span className="text-zinc-500">Intended Purpose: </span>
-                            <span className="text-orange-400 font-medium">
-                              {req.purpose === 'Other' && req.customPurpose ? `Other (${req.customPurpose})` : req.purpose}
-                            </span>
+                            <span className="text-zinc-500">Assigned Project: </span>
+                            <span className="text-orange-400 font-medium">📁 {req.project}</span>
                           </p>
                         )}
 
                         {req.contactNumber && (
                           <p className="text-xs text-zinc-400">
-                            <span className="text-zinc-500">Target Line: </span>
-                            <span className="text-rose-400 font-mono font-medium">{req.contactNumber}</span>
+                            <span className="text-zinc-500">SIM / Contact Number: </span>
+                            <span className="text-rose-400 font-mono font-bold">📱 {req.contactNumber}</span>
                           </p>
+                        )}
+
+                        {req.resolutionRemarks && (
+                          <div className="p-2 rounded.xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 mt-2">
+                            <strong>Resolution Remarks:</strong> {req.resolutionRemarks}
+                          </div>
+                        )}
+
+                        {req.adminRemarks && (
+                          <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 mt-1">
+                            <strong>Admin Note:</strong> {req.adminRemarks}
+                          </div>
                         )}
                       </div>
 
@@ -1054,25 +1198,52 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
                         {/* WhatsApp Notify */}
                         <button
                           onClick={() => {
-                            const waUrl = generateSimRequestWhatsAppUrl(req);
+                            const waUrl = isIssueReport
+                              ? generateSimIssueWhatsAppUrl(req, '9328594724', 'admin')
+                              : generateSimRequestWhatsAppUrl(req);
                             window.open(waUrl, '_blank', 'noopener,noreferrer');
                           }}
                           className="px-3 py-1.5 rounded-lg border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-medium transition-colors flex items-center space-x-1.5"
-                          title="Open WhatsApp Notification"
+                          title="Open pre-filled WhatsApp Alert"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
-                          <span>WhatsApp</span>
+                          <span>WhatsApp Alert</span>
                         </button>
 
-                        {isAdmin && isPending && (
+                        {isAdmin && (isPending || isInProgress) && (
                           <>
-                            <button
-                              onClick={() => updateSimRequestStatus(req.id, 'Approved', 'Approved by IT Administrator')}
-                              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-colors flex items-center space-x-1.5"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Approve</span>
-                            </button>
+                            {isIssueReport ? (
+                              <>
+                                {isPending && (
+                                  <button
+                                    onClick={() => updateSimRequestStatus(req.id, 'In Progress', 'Issue report assigned for investigation')}
+                                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition-colors flex items-center space-x-1.5"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>Mark In Progress</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => {
+                                    const remarks = prompt('Enter resolution remarks for this SIM issue:') || 'SIM issue resolved by IT Admin';
+                                    updateSimRequestStatus(req.id, 'Resolved', undefined, remarks);
+                                  }}
+                                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-colors flex items-center space-x-1.5"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Resolve Issue</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => updateSimRequestStatus(req.id, 'Approved', 'Approved by IT Administrator')}
+                                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-colors flex items-center space-x-1.5"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                              </button>
+                            )}
 
                             <button
                               onClick={() => {
@@ -1107,7 +1278,8 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ==================== TAB 4: AUDIT TRAIL & HISTORY ==================== */}
       {activeTab === 'history' && (
@@ -1182,6 +1354,15 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
         isOpen={isRequestModalOpen}
         onClose={() => setIsRequestModalOpen(false)}
         defaultType={requestType}
+      />
+
+      <AssignSimModal
+        isOpen={isAssignModalOpen}
+        onClose={() => {
+          setIsAssignModalOpen(false);
+          setAssignModalSimId(null);
+        }}
+        preselectedSimId={assignModalSimId || undefined}
       />
     </div>
   );

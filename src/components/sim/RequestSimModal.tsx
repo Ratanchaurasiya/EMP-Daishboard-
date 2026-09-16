@@ -135,266 +135,268 @@ export const RequestSimModal: React.FC<RequestSimModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100 flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-4 bg-black/70 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-200">
+      <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100 max-h-[calc(100vh-2rem)] sm:max-h-[88vh] flex flex-col my-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80">
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20">
+            <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 shrink-0">
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-base sm:text-lg font-semibold text-white leading-tight">
                 {requestType === 'Additional SIM' ? 'Request Additional SIM Card' : 'Request SIM Suspension'}
               </h2>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-400 mt-0.5">
                 Submit telecom requisition to IT Administration with live notification routing
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-          {error && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+        {/* Body Form */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+            {error && (
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-          {/* Employee Selector for Admin */}
-          {currentUser?.role === 'admin' && !preselectedEmployeeId && (
+            {/* Employee Selector for Admin */}
+            {currentUser?.role === 'admin' && !preselectedEmployeeId && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  Target Employee <span className="text-orange-500">*</span>
+                </label>
+                <select
+                  value={selectedEmpId}
+                  onChange={e => setSelectedEmpId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                >
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name} ({emp.employeeId}) — {emp.department}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Request Type Selector */}
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Target Employee <span className="text-orange-500">*</span>
+                Requisition Type
               </label>
-              <select
-                value={selectedEmpId}
-                onChange={e => setSelectedEmpId(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-              >
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name} ({emp.employeeId}) — {emp.department}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRequestType('Additional SIM')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                    requestType === 'Additional SIM'
+                      ? 'border-orange-500 bg-orange-500/10 text-orange-400 shadow-sm'
+                      : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  📱 Additional SIM Requisition
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequestType('Suspend SIM')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                    requestType === 'Suspend SIM'
+                      ? 'border-rose-500 bg-rose-500/10 text-rose-400 shadow-sm'
+                      : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  ⚠️ Suspend Active SIM
+                </button>
+              </div>
             </div>
-          )}
 
-          {/* Request Type Selector */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-              Requisition Type
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setRequestType('Additional SIM')}
-                className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all ${
-                  requestType === 'Additional SIM'
-                    ? 'border-orange-500 bg-orange-500/10 text-orange-400 shadow-sm'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
-                }`}
-              >
-                📱 Additional SIM Requisition
-              </button>
-              <button
-                type="button"
-                onClick={() => setRequestType('Suspend SIM')}
-                className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all ${
-                  requestType === 'Suspend SIM'
-                    ? 'border-rose-500 bg-rose-500/10 text-rose-400 shadow-sm'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
-                }`}
-              >
-                ⚠️ Suspend Active SIM
-              </button>
-            </div>
-          </div>
+            {requestType === 'Additional SIM' ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Required SIM Quantity */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                      Quantity <span className="text-orange-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={quantity}
+                      onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 font-mono"
+                    />
+                  </div>
 
-          {requestType === 'Additional SIM' ? (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Required SIM Quantity */}
-                <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                    Quantity <span className="text-orange-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={quantity}
-                    onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 font-mono"
-                  />
+                  {/* Intended Purpose */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                      Purpose <span className="text-orange-500">*</span>
+                    </label>
+                    <select
+                      value={purpose}
+                      onChange={e => setPurpose(e.target.value as SimPurpose)}
+                      className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                    >
+                      {SIM_PURPOSES.map(p => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Urgency */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                      Urgency Level
+                    </label>
+                    <select
+                      value={urgency}
+                      onChange={e => setUrgency(e.target.value as RequestUrgency)}
+                      className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                    >
+                      <option value="Normal">Normal</option>
+                      <option value="High">High</option>
+                      <option value="Critical">Critical (Immediate Need)</option>
+                    </select>
+                  </div>
                 </div>
 
-                {/* Intended Purpose */}
+                {/* Project for which SIM is required */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                    Purpose <span className="text-orange-500">*</span>
+                    Project Name <span className="text-orange-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. ABC Project, Lead Generation, Field Ops"
+                    value={project}
+                    onChange={e => setProject(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                {/* Target SIM Selector for Suspension */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                    Select SIM Number to Suspend <span className="text-rose-400">*</span>
                   </label>
                   <select
-                    value={purpose}
-                    onChange={e => setPurpose(e.target.value as SimPurpose)}
-                    className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                    value={selectedSimId}
+                    onChange={e => setSelectedSimId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-colors"
                   >
-                    {SIM_PURPOSES.map(p => (
-                      <option key={p} value={p}>
-                        {p}
+                    <option value="">-- Choose Assigned SIM --</option>
+                    {(employeeAssignedSims.length > 0 ? employeeAssignedSims : simCards).map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.contactNumber} — {s.purpose} {s.project ? `(${s.project})` : ''} [{s.status}]
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Urgency */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                    Urgency Level
+                    Project (Optional Reference)
                   </label>
-                  <select
-                    value={urgency}
-                    onChange={e => setUrgency(e.target.value as RequestUrgency)}
-                    className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                  >
-                    <option value="Normal">Normal</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical (Immediate Need)</option>
-                  </select>
+                  <input
+                    type="text"
+                    placeholder="e.g. ABC Project"
+                    value={project}
+                    onChange={e => setProject(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500"
+                  />
                 </div>
               </div>
+            )}
 
-              {/* Project for which SIM is required */}
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                  Project Name <span className="text-orange-500">*</span>
+            {/* Custom Purpose If Other */}
+            {requestType === 'Additional SIM' && purpose === 'Other' && (
+              <div className="p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                <label className="block text-xs font-medium text-orange-400 mb-1.5">
+                  Please specify the purpose <span className="text-orange-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. ABC Project, Lead Generation, Field Ops"
-                  value={project}
-                  onChange={e => setProject(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  placeholder="Enter exact purpose of the SIM card..."
+                  value={customPurpose}
+                  onChange={e => setCustomPurpose(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-zinc-950 border border-orange-500/30 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 transition-colors"
                 />
               </div>
-            </>
-          ) : (
-            <div className="space-y-4">
-              {/* Target SIM Selector for Suspension */}
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                  Select SIM Number to Suspend <span className="text-rose-400">*</span>
-                </label>
-                <select
-                  value={selectedSimId}
-                  onChange={e => setSelectedSimId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-colors"
-                >
-                  <option value="">-- Choose Assigned SIM --</option>
-                  {(employeeAssignedSims.length > 0 ? employeeAssignedSims : simCards).map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.contactNumber} — {s.purpose} {s.project ? `(${s.project})` : ''} [{s.status}]
-                    </option>
-                  ))}
-                </select>
-              </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                  Project (Optional Reference)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. ABC Project"
-                  value={project}
-                  onChange={e => setProject(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500"
-                />
-              </div>
+            {/* Reason / Requirement Details */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                Reason / Requirement Details <span className="text-orange-500">*</span>
+              </label>
+              <textarea
+                required
+                rows={2}
+                placeholder="Enter why this SIM is needed or why suspension is requested (mandatory)..."
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors resize-none"
+              />
             </div>
-          )}
 
-          {/* Custom Purpose If Other */}
-          {requestType === 'Additional SIM' && purpose === 'Other' && (
-            <div className="p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/20">
-              <label className="block text-xs font-medium text-orange-400 mb-1.5">
-                Please specify the purpose <span className="text-orange-500">*</span>
+            {/* Remarks */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                Remarks (Optional)
               </label>
               <input
                 type="text"
-                required
-                placeholder="Enter exact purpose of the SIM card..."
-                value={customPurpose}
-                onChange={e => setCustomPurpose(e.target.value)}
-                className="w-full px-3.5 py-2 bg-zinc-950 border border-orange-500/30 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 transition-colors"
+                placeholder="Any additional notes or instructions..."
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+                className="w-full px-3.5 py-2 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
               />
             </div>
-          )}
 
-          {/* Reason / Requirement Details */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-              Reason / Requirement Details <span className="text-orange-500">*</span>
+            <label className="flex items-center space-x-2.5 cursor-pointer select-none text-xs text-zinc-300 pt-1">
+              <input
+                type="checkbox"
+                checked={sendWhatsApp}
+                onChange={e => setSendWhatsApp(e.target.checked)}
+                className="rounded border-zinc-700 text-emerald-500 focus:ring-emerald-500 w-4 h-4 bg-zinc-950"
+              />
+              <span className="flex items-center space-x-1.5 text-emerald-400">
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Send WhatsApp notification link to IT Administrator immediately</span>
+              </span>
             </label>
-            <textarea
-              required
-              rows={2}
-              placeholder="Enter why this SIM is needed or why suspension is requested (mandatory)..."
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors resize-none"
-            />
           </div>
 
-          {/* Remarks */}
-          <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-              Remarks (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="Any additional notes or instructions..."
-              value={remarks}
-              onChange={e => setRemarks(e.target.value)}
-              className="w-full px-3.5 py-2 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500"
-            />
-          </div>
-
-          <label className="flex items-center space-x-2.5 cursor-pointer select-none text-xs text-zinc-300 pt-1">
-            <input
-              type="checkbox"
-              checked={sendWhatsApp}
-              onChange={e => setSendWhatsApp(e.target.checked)}
-              className="rounded border-zinc-700 text-emerald-500 focus:ring-emerald-500 w-4 h-4 bg-zinc-950"
-            />
-            <span className="flex items-center space-x-1.5 text-emerald-400">
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Send WhatsApp notification link to IT Administrator immediately</span>
-            </span>
-          </label>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-zinc-800">
+          {/* Fixed Footer Actions */}
+          <div className="shrink-0 flex items-center justify-end space-x-3 px-6 py-4 border-t border-zinc-800 bg-zinc-900/95 backdrop-blur-sm">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 text-sm font-medium transition-colors"
+              className="px-4 py-2 rounded-xl border border-zinc-700 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 text-sm font-medium transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium shadow-lg shadow-orange-600/20 transition-all flex items-center space-x-2"
+              className="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium shadow-lg shadow-orange-600/20 transition-all flex items-center space-x-2 cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>Submit Requisition</span>

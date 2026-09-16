@@ -34,14 +34,19 @@ import {
   Filter,
   CheckCircle2,
   Share2,
+  Signal,
+  PhoneCall,
+  Plus,
 } from 'lucide-react';
 import { formatDateDisplay } from '../../utils/formatters';
+import { calculateSimMonthlyExpense, formatINR } from '../../utils/simUtils';
 import { Employee } from '../../types';
 import { EditEmployeeModal } from './EditEmployeeModal';
 import { RemoveEmployeeModal } from './RemoveEmployeeModal';
 import { DeactivateEmployeeModal } from './DeactivateEmployeeModal';
 import { AddEmployeeOnlyModal } from './AddEmployeeOnlyModal';
 import { ShareEmployeeModal } from './ShareEmployeeModal';
+import { AssignSimModal } from '../sim/AssignSimModal';
 
 interface EmployeeListProps {
   onSelectEmployee: (id: string) => void;
@@ -57,6 +62,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     computers,
     assets,
     serviceRecords,
+    simCards,
     userRole,
     globalFilters,
     reactivateEmployee,
@@ -80,6 +86,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   const [deactivatingEmployeeId, setDeactivatingEmployeeId] = useState<string | null>(null);
   const [removingEmployeeId, setRemovingEmployeeId] = useState<string | null>(null);
   const [sharingEmployee, setSharingEmployee] = useState<Employee | null>(null);
+  const [assigningSimEmployeeId, setAssigningSimEmployeeId] = useState<string | null>(null);
 
   const handleCopy = (text: string, label: string, key: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -605,6 +612,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
             );
             const empPhones = empAssets.filter(a => a.assetType === 'Mobile Phone');
             const empPeripherals = empAssets.filter(a => a.assetType !== 'Mobile Phone');
+            const empSims = simCards.filter(
+              s => s.assignedEmployeeId === emp.id || s.assignedEmployeeId === emp.employeeId
+            );
             const empServices = serviceRecords.filter(
               s =>
                 s.employeeId === emp.employeeId ||
@@ -927,6 +937,75 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                     )}
                   </div>
 
+                  {/* SECTION: ASSIGNED SIM CARDS & MOBILE FLEET */}
+                  {(() => {
+                    const cardSimExpense = calculateSimMonthlyExpense(empSims.length);
+                    return (
+                      <div className="p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 space-y-1.5 mb-2 text-xs">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="flex items-center gap-1 font-semibold text-emerald-800 dark:text-emerald-300 flex-wrap">
+                            <Signal className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>SIM Fleet ({empSims.length})</span>
+                            {empSims.length > 0 && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300/40">
+                                {formatINR(cardSimExpense.totalExpense)}/mo
+                              </span>
+                            )}
+                          </span>
+
+                          {userRole === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                setAssigningSimEmployeeId(emp.id);
+                              }}
+                              className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white dark:bg-[#101726] border border-emerald-300/60 dark:border-emerald-700/60 shadow-2xs hover:bg-emerald-50 transition-colors cursor-pointer"
+                              title="Assign SIM card to this employee"
+                            >
+                              <Plus className="w-2.5 h-2.5" />
+                              <span>Assign SIM</span>
+                            </button>
+                          )}
+                        </div>
+
+                    {empSims.length > 0 ? (
+                      <div className="space-y-1 mt-1">
+                        {empSims.map(sim => (
+                          <div
+                            key={sim.id}
+                            className="p-1.5 rounded-md bg-white dark:bg-[#101726] border border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between text-[10px]"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono font-bold text-slate-800 dark:text-slate-100 truncate">
+                                {sim.contactNumber}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold text-[9px]">
+                                {sim.purpose}
+                              </span>
+                              {sim.project && (
+                                <span className="text-slate-400 truncate max-w-[90px]">
+                                  • {sim.project}
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                sim.status === 'Suspended'
+                                  ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                              }`}
+                            >
+                              {sim.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+                  })()}
+
                   {/* SECTION: SERVICE / MAINTENANCE HISTORY BADGE */}
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px]">
                     <span className="flex items-center gap-1 font-medium text-slate-500 dark:text-slate-400">
@@ -991,6 +1070,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   <th className="py-2.5 px-3 font-semibold">Identifiers</th>
                   <th className="py-2.5 px-3 font-semibold">Role & Dept</th>
                   <th className="py-2.5 px-3 font-semibold">Workstation (Laptop/PC)</th>
+                  <th className="py-2.5 px-3 font-semibold">SIM & Telecom Fleet</th>
                   <th className="py-2.5 px-3 font-semibold">Mobile Phone</th>
                   <th className="py-2.5 px-3 font-semibold">Peripherals</th>
                   <th className="py-2.5 px-3 font-semibold">Service History</th>
@@ -1000,7 +1080,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                 {filteredEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
+                    <td colSpan={9} className="py-12 text-center text-slate-400 text-xs">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Users className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                         <p className="font-semibold text-slate-700 dark:text-slate-300">
@@ -1022,6 +1102,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                     );
                     const empPhones = empAssets.filter(a => a.assetType === 'Mobile Phone');
                     const empPeripherals = empAssets.filter(a => a.assetType !== 'Mobile Phone');
+                    const empSims = simCards.filter(
+                      s => s.assignedEmployeeId === emp.id || s.assignedEmployeeId === emp.employeeId
+                    );
                     const empServices = serviceRecords.filter(
                       s =>
                         s.employeeId === emp.employeeId ||
@@ -1102,6 +1185,47 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                             </div>
                           ) : (
                             <span className="text-[11px] text-slate-400 italic">No workstation</span>
+                          )}
+                        </td>
+
+                        {/* 4b. SIM & Telecom Fleet */}
+                        <td className="py-2.5 px-3">
+                          {empSims.length > 0 ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400 text-xs">
+                                <Signal className="w-3.5 h-3.5 shrink-0" />
+                                <span>{empSims.length} SIM{empSims.length > 1 ? 's' : ''}</span>
+                              </div>
+                              {empSims.slice(0, 2).map(s => (
+                                <div key={s.id} className="text-[10px] font-mono flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                                  <span className="font-bold">{s.contactNumber}</span>
+                                  <span className="px-1 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[9px] font-sans">
+                                    {s.purpose}
+                                  </span>
+                                </div>
+                              ))}
+                              {empSims.length > 2 && (
+                                <div className="text-[9px] text-slate-400 font-medium">
+                                  +{empSims.length - 2} more SIM(s)
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[11px] text-slate-400 italic">No SIMs</span>
+                              {userRole === 'admin' && (
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setAssigningSimEmployeeId(emp.id);
+                                  }}
+                                  className="text-[10px] text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer hover:underline ml-1"
+                                >
+                                  + Assign
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
 
@@ -1274,6 +1398,15 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           assignedAssets={assets.filter(
             a => a.assignedEmployeeId === sharingEmployee.id || a.assignedEmployeeId === sharingEmployee.employeeId
           )}
+        />
+      )}
+
+      {/* Assign SIM Card Modal */}
+      {assigningSimEmployeeId && (
+        <AssignSimModal
+          isOpen={!!assigningSimEmployeeId}
+          onClose={() => setAssigningSimEmployeeId(null)}
+          preselectedEmployeeId={assigningSimEmployeeId}
         />
       )}
 

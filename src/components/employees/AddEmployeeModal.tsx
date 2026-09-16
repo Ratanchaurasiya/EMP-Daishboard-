@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
-import { AssetCondition, EmployeeStatus, AssetType, AssetStatus, ProblemCategory, ServiceStatus, CORPORATE_DEPARTMENTS } from '../../types';
+import { AssetCondition, EmployeeStatus, AssetType, AssetStatus, ProblemCategory, ServiceStatus, CORPORATE_DEPARTMENTS, SimPurpose, SIM_PURPOSES } from '../../types';
 import {
   X,
   User,
@@ -12,6 +12,12 @@ import {
   Sparkles,
   Upload,
   Wrench,
+  Smartphone,
+  Signal,
+  Plus,
+  Trash2,
+  PhoneCall,
+  Layers,
 } from 'lucide-react';
 import { EmployeeAvatar, CORPORATE_AVATAR_PRESETS } from '../common/EmployeeAvatar';
 import { DualDateInput } from '../common/DualDateInput';
@@ -22,7 +28,7 @@ interface AddEmployeeModalProps {
 }
 
 export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose }) => {
-  const { employees, addEmployee, showToast } = useApp();
+  const { employees, computers, simCards, addEmployee, showToast } = useApp();
 
   // Auto-calculate next sequential Employee ID (e.g. EMP009)
   const nextSuggestedId = React.useMemo(() => {
@@ -35,6 +41,16 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
     return `EMP${String(maxNum + 1).padStart(3, '0')}`;
   }, [employees]);
+
+  // Available buffer SIMs for assignment
+  const availableSims = React.useMemo(() => {
+    return simCards.filter(s => s.status === 'Available' || !s.assignedEmployeeId);
+  }, [simCards]);
+
+  // Available buffer computers / laptops for assignment
+  const availableStockComputers = React.useMemo(() => {
+    return computers.filter(c => c.status === 'Available' || !c.assignedEmployeeId);
+  }, [computers]);
 
   // Scroll lock and Escape listener
   useEffect(() => {
@@ -51,7 +67,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     }
   }, [isOpen, onClose]);
 
-  const [activeStep, setActiveStep] = useState<'employee' | 'computer' | 'assets'>('employee');
+  const [activeStep, setActiveStep] = useState<'employee' | 'computer' | 'assets' | 'sim'>('employee');
 
   // Step 1: Employee Details
   const [employeeId, setEmployeeId] = useState('');
@@ -77,12 +93,21 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
 
   // Step 2: Computer Details (Optional provisioning)
   const [includeComputer, setIncludeComputer] = useState(true);
+  const [computerSource, setComputerSource] = useState<'stock' | 'new'>('stock');
+  const [selectedStockCompId, setSelectedStockCompId] = useState<string>('');
   const [deviceName, setDeviceName] = useState('');
   const [compManufacturer, setCompManufacturer] = useState('Dell');
   const [compModel, setCompModel] = useState('Latitude 5430');
   const [compAssetNumber, setCompAssetNumber] = useState('');
   const [compSerialNumber, setCompSerialNumber] = useState('');
   const [deviceType, setDeviceType] = useState<'Laptop' | 'Desktop'>('Laptop');
+
+  // Auto-select first available computer when stock opens
+  useEffect(() => {
+    if (availableStockComputers.length > 0 && !selectedStockCompId) {
+      setSelectedStockCompId(availableStockComputers[0].id);
+    }
+  }, [availableStockComputers, selectedStockCompId]);
   
   // Processor specs
   const [processorName, setProcessorName] = useState('12th Gen Intel(R) Core(TM) i5-1245U');
@@ -94,8 +119,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
   const [usableRAM, setUsableRAM] = useState('15.75 GB');
 
   // Graphics specs
-  const graphicsCard = 'Intel(R) Iris(R) Xe Graphics';
-  const graphicsMemory = '512 MB';
+  const [graphicsCard, setGraphicsCard] = useState('Intel(R) Iris(R) Xe Graphics');
+  const [graphicsMemory, setGraphicsMemory] = useState('512 MB');
 
   // Storage specs
   const [storageTotal, setStorageTotal] = useState('512 GB');
@@ -156,6 +181,62 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus>('Completed');
   const [serviceRemarks, setServiceRemarks] = useState('Initial onboarding deployment inspection');
 
+  // Step 4: SIM & Mobile Fleet Allocation
+  const [includeSimAllocation, setIncludeSimAllocation] = useState(false);
+  const [simAllocations, setSimAllocations] = useState<Array<{
+    id: string;
+    isExistingSimId?: string;
+    contactNumber: string;
+    simNumber: string;
+    carrier: string;
+    purpose: SimPurpose;
+    customPurpose: string;
+    project: string;
+    remarks: string;
+  }>>([
+    {
+      id: 'sim-entry-1',
+      isExistingSimId: '',
+      contactNumber: '',
+      simNumber: '',
+      carrier: 'Airtel',
+      purpose: 'Calling',
+      customPurpose: '',
+      project: '',
+      remarks: '',
+    },
+  ]);
+
+  const handleAddSimRow = () => {
+    setSimAllocations(prev => [
+      ...prev,
+      {
+        id: 'sim-entry-' + Date.now() + '-' + Math.random().toString(36).substring(2, 5),
+        isExistingSimId: '',
+        contactNumber: '',
+        simNumber: '',
+        carrier: 'Airtel',
+        purpose: 'Calling',
+        customPurpose: '',
+        project: department || '',
+        remarks: '',
+      },
+    ]);
+  };
+
+  const handleRemoveSimRow = (id: string) => {
+    setSimAllocations(prev => (prev.length > 1 ? prev.filter(s => s.id !== id) : prev));
+  };
+
+  const handleUpdateSimRow = (id: string, updates: Partial<(typeof simAllocations)[0]>) => {
+    setSimAllocations(prev =>
+      prev.map(s => {
+        if (s.id !== id) return s;
+        return { ...s, ...updates };
+      })
+    );
+  };
+
   if (!isOpen) return null;
 
   // Auto-generate sample values helper
@@ -205,6 +286,21 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     setServiceStatus('Completed');
     setServiceRemarks('Pre-deployment verification completed.');
 
+    setIncludeSimAllocation(true);
+    setSimAllocations([
+      {
+        id: 'sim-entry-1',
+        isExistingSimId: '',
+        contactNumber: `98200${randomSuffix}`,
+        simNumber: `8991002233${randomSuffix}`,
+        carrier: 'Airtel',
+        purpose: 'WhatsApp',
+        customPurpose: '',
+        project: 'Platform Core',
+        remarks: 'Dedicated business WhatsApp communication line',
+      },
+    ]);
+
     showToast('Sample enterprise values auto-filled!', 'info');
   };
 
@@ -218,46 +314,60 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
     }
 
     // Build computer data if requested
-    const computerTag = compAssetNumber.trim() || (deviceType === 'Desktop' ? `DSK-${employeeId.trim()}` : `LAP-${employeeId.trim()}`);
-    const computerData = includeComputer ? {
-      assetNumber: computerTag,
-      deviceName: deviceName.trim() || `${name.replace(/\s+/g, '_')}_PC`,
-      manufacturer: compManufacturer,
-      model: compModel,
-      deviceType,
-      serialNumber: compSerialNumber.trim() || `SN-${computerTag}`,
-      processor: {
-        name: processorName,
-        generation: processorGen,
-        speed: processorSpeed,
-      },
-      memory: {
-        installedRAM,
-        usableRAM,
-      },
-      graphics: {
-        card: graphicsCard,
-        memory: graphicsMemory,
-      },
-      storage: {
-        total: storageTotal,
-        used: storageUsed,
-        free: storageFree,
-        type: storageType,
-      },
-      system: {
-        os,
-        systemType,
-        processorArchitecture,
-        deviceId,
-        productId,
-        penAndTouch,
-      },
-      condition: compCondition,
-      status: 'Assigned' as const,
-      assignedDate: joiningDate,
-      remarks: 'Allocated on joining',
-    } : null;
+    let computerData = null;
+    if (includeComputer) {
+      if (computerSource === 'stock' && selectedStockCompId) {
+        const matchedStock = availableStockComputers.find(c => c.id === selectedStockCompId) || availableStockComputers[0];
+        if (matchedStock) {
+          computerData = {
+            ...matchedStock,
+            isExistingComputerId: matchedStock.id,
+            assignedDate: joiningDate,
+          };
+        }
+      } else {
+        const computerTag = compAssetNumber.trim() || (deviceType === 'Desktop' ? `DSK-${employeeId.trim()}` : `LAP-${employeeId.trim()}`);
+        computerData = {
+          assetNumber: computerTag,
+          deviceName: deviceName.trim() || `${name.replace(/\s+/g, '_')}_PC`,
+          manufacturer: compManufacturer,
+          model: compModel,
+          deviceType,
+          serialNumber: compSerialNumber.trim() || `SN-${computerTag}`,
+          processor: {
+            name: processorName,
+            generation: processorGen,
+            speed: processorSpeed,
+          },
+          memory: {
+            installedRAM,
+            usableRAM,
+          },
+          graphics: {
+            card: graphicsCard,
+            memory: graphicsMemory,
+          },
+          storage: {
+            total: storageTotal,
+            used: storageUsed,
+            free: storageFree,
+            type: storageType,
+          },
+          system: {
+            os,
+            systemType,
+            processorArchitecture,
+            deviceId,
+            productId,
+            penAndTouch,
+          },
+          condition: compCondition,
+          status: 'Assigned' as const,
+          assignedDate: joiningDate,
+          remarks: 'Allocated on joining',
+        };
+      }
+    }
 
     // Build peripheral assets
     const assetsData: Array<{
@@ -348,6 +458,21 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
       remarks: serviceRemarks.trim() || 'Onboarding inspection record',
     } : null;
 
+    const simCardsData = includeSimAllocation
+      ? simAllocations
+          .filter(s => s.contactNumber.trim() || s.isExistingSimId)
+          .map(s => ({
+            contactNumber: s.contactNumber.trim(),
+            simNumber: s.simNumber.trim() || s.contactNumber.trim(),
+            carrier: s.carrier,
+            purpose: s.purpose,
+            customPurpose: s.customPurpose.trim(),
+            project: s.project.trim() || department,
+            remarks: s.remarks.trim(),
+            isExistingSimId: s.isExistingSimId || undefined,
+          }))
+      : null;
+
     const res = addEmployee(
       {
         employeeId: employeeId.trim(),
@@ -365,7 +490,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
       },
       computerData,
       assetsData,
-      serviceRecordData
+      serviceRecordData,
+      simCardsData
     );
 
     if (res.success) {
@@ -495,16 +621,35 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
             <Headphones className="w-3.5 h-3.5" />
             <span>3. Assets & Phone</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveStep('sim')}
+            className={`flex items-center gap-2 py-2 px-3 font-semibold border-b-2 transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+              activeStep === 'sim'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-500'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <Signal className="w-3.5 h-3.5" />
+            <span>4. SIM & Mobile Fleet</span>
+            {includeSimAllocation && (
+              <span className="ml-1 px-1.5 py-0.2 bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] rounded-full font-bold">
+                {simAllocations.filter(s => s.contactNumber || s.isExistingSimId).length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Form Body */}
         <form
           onSubmit={handleSubmit}
           onKeyDown={e => {
-            if (e.key === 'Enter' && activeStep !== 'assets' && (e.target as HTMLElement).tagName.toLowerCase() !== 'textarea') {
+            if (e.key === 'Enter' && activeStep !== 'sim' && (e.target as HTMLElement).tagName.toLowerCase() !== 'textarea') {
               e.preventDefault();
               if (activeStep === 'employee') setActiveStep('computer');
               else if (activeStep === 'computer') setActiveStep('assets');
+              else if (activeStep === 'assets') setActiveStep('sim');
             }
           }}
           className="flex-1 overflow-y-auto p-5 space-y-3.5"
@@ -802,20 +947,156 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
 
               {includeComputer && (
                 <div className="space-y-3.5">
-                  {/* Basic Device Identifiers */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                        Computer Asset Number *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. LAP-010"
-                        value={compAssetNumber}
-                        onChange={e => setCompAssetNumber(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-blue-600 dark:text-blue-400 rounded-lg text-xs font-mono font-bold focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
-                      />
-                    </div>
+                  {/* Source Segmented Control: Choose from Stock vs Register New */}
+                  <div className="p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setComputerSource('stock')}
+                      className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        computerSource === 'stock'
+                          ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <span>📦 Select from Buffer Stock ({availableStockComputers.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComputerSource('new')}
+                      className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        computerSource === 'new'
+                          ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <span>✨ Register New Workstation Unit</span>
+                    </button>
+                  </div>
+
+                  {computerSource === 'stock' ? (
+                    /* STOCK LAPTOP SELECTION */
+                    availableStockComputers.length === 0 ? (
+                      <div className="p-6 text-center bg-slate-50 dark:bg-[#0d131f] rounded-xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2.5">
+                        <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto font-bold">
+                          📦
+                        </div>
+                        <p className="font-bold text-slate-800 dark:text-slate-200">No unassigned laptops in Buffer Stock</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                          All workstation inventory is currently deployed. You can register and provision a brand new workstation unit for this employee.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setComputerSource('new')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-500 cursor-pointer"
+                        >
+                          <span>Switch to Register New Workstation</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                            Choose Available Workstation from Stock *
+                          </label>
+                          <select
+                            value={selectedStockCompId || (availableStockComputers[0]?.id || '')}
+                            onChange={e => setSelectedStockCompId(e.target.value)}
+                            required
+                            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
+                          >
+                            {availableStockComputers.map(comp => (
+                              <option key={comp.id} value={comp.id}>
+                                [{comp.assetNumber}] {comp.manufacturer} {comp.model} ({comp.deviceType}) — Condition: {comp.condition} | RAM: {comp.memory?.installedRAM || '16 GB'} | {comp.processor?.name || 'Intel Core'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Selected Stock Laptop Card Preview */}
+                        {(() => {
+                          const selectedComp = availableStockComputers.find(c => c.id === selectedStockCompId) || availableStockComputers[0];
+                          if (!selectedComp) return null;
+                          return (
+                            <div className="p-4 rounded-xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 space-y-3 animate-fade-in">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                                    <Laptop className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-sm text-slate-900 dark:text-white">
+                                        {selectedComp.manufacturer} {selectedComp.model}
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+                                        {selectedComp.assetNumber}
+                                      </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                                      Hostname: {selectedComp.deviceName} • S/N: {selectedComp.serialNumber}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  Condition: {selectedComp.condition}
+                                </span>
+                              </div>
+
+                              {/* Specs breakdown */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-amber-500/10 text-[11px]">
+                                <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                                  <span className="text-[10px] text-slate-400 block">Processor (CPU)</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                                    {selectedComp.processor?.name || 'Intel Core i5/i7'}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                                  <span className="text-[10px] text-slate-400 block">Memory (RAM)</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                                    {selectedComp.memory?.installedRAM || '16 GB'}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                                  <span className="text-[10px] text-slate-400 block">Graphics (GPU)</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                                    {selectedComp.graphics?.card || 'Integrated Graphics'} ({selectedComp.graphics?.memory || 'Shared'})
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                                  <span className="text-[10px] text-slate-400 block">Storage (SSD)</span>
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                                    {selectedComp.storage?.total || '512 GB'} {selectedComp.storage?.type || 'SSD'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                <span>
+                                  This existing unit will be removed from Buffer Stock and assigned to <strong>{name || 'the new employee'}</strong>.
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )
+                  ) : (
+                    /* REGISTER NEW WORKSTATION FORM */
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                            Computer Asset Number *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. LAP-010"
+                            value={compAssetNumber}
+                            onChange={e => setCompAssetNumber(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-blue-600 dark:text-blue-400 rounded-lg text-xs font-mono font-bold focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
+                          />
+                        </div>
 
                     <div>
                       <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
@@ -962,6 +1243,39 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                     </div>
                   </div>
 
+                  {/* Graphics Card */}
+                  <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0d131f] border border-slate-200 dark:border-[#1e293b] space-y-2">
+                    <span className="font-bold text-slate-900 dark:text-white block">
+                      Graphics Card
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] text-slate-500 dark:text-slate-400 block mb-0.5">
+                          Graphics Card / GPU Model
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Intel(R) Iris(R) Xe Graphics or NVIDIA GeForce RTX 4060"
+                          value={graphicsCard}
+                          onChange={e => setGraphicsCard(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md font-mono text-xs focus:outline-hidden focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-500 dark:text-slate-400 block mb-0.5">
+                          Graphics / Video Memory (VRAM)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 512 MB or 8 GB Dedicated"
+                          value={graphicsMemory}
+                          onChange={e => setGraphicsMemory(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md font-mono text-xs focus:outline-hidden focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Security Device ID & Product ID */}
                   <div className="p-3.5 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-2">
                     <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-bold">
@@ -989,8 +1303,10 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                       </div>
                     </div>
                   </div>
-                </div>
+                </>
               )}
+            </div>
+          )}
 
               <div className="flex justify-between pt-2">
                 <button
@@ -1384,18 +1700,338 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                 )}
               </div>
 
-              {/* Submit Buttons */}
-              <div className="flex justify-between pt-3 border-t border-slate-100 dark:border-[#1e293b]">
+              {/* Navigation & Action Buttons */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-[#1e293b]">
                 <button
                   type="button"
                   onClick={() => setActiveStep('computer')}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#101726] dark:hover:bg-slate-800 border border-slate-200 dark:border-[#1e293b] text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors"
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#101726] dark:hover:bg-slate-800 border border-slate-200 dark:border-[#1e293b] text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors cursor-pointer text-xs"
                 >
                   ← Back to Computer
                 </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                    title="Skip SIM allocation and save employee now"
+                  >
+                    Quick Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep('sim')}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    <span>Next: SIM & Fleet (4/4) →</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: SIM & MOBILE FLEET ALLOCATION */}
+          {activeStep === 'sim' && (
+            <div className="space-y-4 text-xs animate-fade-in">
+              {/* Section Master Toggle */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 dark:border-emerald-500/30">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-xs">
+                      <Signal className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                          SIM & Mobile Fleet Allocation
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60">
+                          {availableSims.length} Available in Buffer
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Allocate one or multiple SIM cards / contact numbers to this employee during onboarding
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={includeSimAllocation}
+                      onChange={e => setIncludeSimAllocation(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              {includeSimAllocation ? (
+                <div className="space-y-3.5">
+                  {simAllocations.map((item, index) => {
+                    const isOther = item.purpose === 'Other';
+                    const isBufferMode = Boolean(item.isExistingSimId);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-4 rounded-xl bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] space-y-3 relative group"
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-slate-800/70">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">
+                              {index + 1}
+                            </span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                              SIM / Contact Number #{index + 1}
+                            </span>
+                            {item.contactNumber && (
+                              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold ml-1">
+                                {item.contactNumber}
+                              </span>
+                            )}
+                          </div>
+
+                          {simAllocations.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSimRow(item.id)}
+                              className="p-1 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                              title="Remove this SIM allocation"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Mode Toggle: Available Buffer vs New SIM */}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateSimRow(item.id, {
+                                isExistingSimId: availableSims[0]?.id || '',
+                                contactNumber: availableSims[0]?.contactNumber || '',
+                                simNumber: availableSims[0]?.simNumber || '',
+                                carrier: availableSims[0]?.carrier || 'Airtel',
+                                purpose: availableSims[0]?.purpose || 'Calling',
+                              });
+                            }}
+                            className={`px-2.5 py-1 text-[11px] font-medium rounded-lg border transition-all cursor-pointer ${
+                              isBufferMode
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white dark:bg-[#101726] border-slate-200 dark:border-[#1e293b] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            📦 Select from Available Inventory ({availableSims.length})
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateSimRow(item.id, {
+                                isExistingSimId: '',
+                                contactNumber: '',
+                                simNumber: '',
+                                carrier: 'Airtel',
+                                purpose: 'Calling',
+                              });
+                            }}
+                            className={`px-2.5 py-1 text-[11px] font-medium rounded-lg border transition-all cursor-pointer ${
+                              !isBufferMode
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white dark:bg-[#101726] border-slate-200 dark:border-[#1e293b] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            ➕ Enter New Contact / SIM Number
+                          </button>
+                        </div>
+
+                        {/* Fields Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {isBufferMode ? (
+                            <div className="sm:col-span-2">
+                              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                                Available Buffer SIM *
+                              </label>
+                              <select
+                                value={item.isExistingSimId}
+                                onChange={e => {
+                                  const selSim = availableSims.find(s => s.id === e.target.value);
+                                  handleUpdateSimRow(item.id, {
+                                    isExistingSimId: e.target.value,
+                                    contactNumber: selSim?.contactNumber || '',
+                                    simNumber: selSim?.simNumber || '',
+                                    carrier: selSim?.carrier || 'Airtel',
+                                    purpose: selSim?.purpose || 'Calling',
+                                  });
+                                }}
+                                className="w-full px-2.5 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono focus:outline-hidden focus:border-emerald-500"
+                              >
+                                {availableSims.length === 0 ? (
+                                  <option value="">No available SIMs in buffer (use New SIM option)</option>
+                                ) : (
+                                  availableSims.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.contactNumber} — {s.carrier || 'Carrier'} ({s.purpose})
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                                  Contact / Mobile Number *
+                                </label>
+                                <input
+                                  type="tel"
+                                  placeholder="e.g. 9820012345"
+                                  value={item.contactNumber}
+                                  onChange={e => handleUpdateSimRow(item.id, { contactNumber: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono focus:outline-hidden focus:border-emerald-500"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                                  Carrier / Telecom Network
+                                </label>
+                                <select
+                                  value={item.carrier}
+                                  onChange={e => handleUpdateSimRow(item.id, { carrier: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-emerald-500"
+                                >
+                                  <option value="Airtel">Airtel</option>
+                                  <option value="Jio">Jio (Reliance)</option>
+                                  <option value="Vodafone Idea">Vodafone Idea (Vi)</option>
+                                  <option value="BSNL">BSNL</option>
+                                  <option value="Other">Other Telecom</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                                  SIM Card / ICCID Number (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. 89918721098234"
+                                  value={item.simNumber}
+                                  onChange={e => handleUpdateSimRow(item.id, { simNumber: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono focus:outline-hidden focus:border-emerald-500"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* Purpose Selection */}
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                              Purpose / Allocation Reason *
+                            </label>
+                            <select
+                              value={item.purpose}
+                              onChange={e => handleUpdateSimRow(item.id, { purpose: e.target.value as SimPurpose })}
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-emerald-500"
+                            >
+                              {SIM_PURPOSES.map(p => (
+                                <option key={p} value={p}>
+                                  {p}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Custom purpose field if Other is selected */}
+                          {isOther && (
+                            <div>
+                              <label className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 block mb-1">
+                                Specify Purpose *
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Field Operations Hotline"
+                                value={item.customPurpose}
+                                onChange={e => handleUpdateSimRow(item.id, { customPurpose: e.target.value })}
+                                className="w-full px-2.5 py-1.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-amber-500"
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                              Project / Department
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={department || 'e.g. Project Alpha'}
+                              value={item.project}
+                              onChange={e => handleUpdateSimRow(item.id, { project: e.target.value })}
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-emerald-500"
+                            />
+                          </div>
+
+                          <div className={isOther ? 'sm:col-span-3' : 'sm:col-span-2'}>
+                            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                              Allocation Remarks
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Allocated on onboarding for client support"
+                              value={item.remarks}
+                              onChange={e => handleUpdateSimRow(item.id, { remarks: e.target.value })}
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-emerald-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add Another SIM Button */}
+                  <button
+                    type="button"
+                    onClick={handleAddSimRow}
+                    className="w-full py-2.5 border-2 border-dashed border-emerald-300 dark:border-emerald-800/80 hover:border-emerald-500 rounded-xl text-emerald-700 dark:text-emerald-400 font-semibold text-xs flex items-center justify-center gap-1.5 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/40 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add Another SIM Card / Contact Number</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-6 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-2">
+                  <Signal className="w-8 h-8 text-slate-400 mx-auto opacity-60" />
+                  <p className="text-slate-600 dark:text-slate-400 text-xs font-medium">
+                    No SIM cards will be allocated at this time.
+                  </p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    You can toggle the switch above to assign SIM cards now, or allocate SIMs to this employee anytime later via the SIM Master or Employee Profile.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIncludeSimAllocation(true)}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-semibold text-xs border border-emerald-200/60 dark:border-emerald-800/60 hover:bg-emerald-100 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Enable SIM Allocation</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Step 4 Footer Buttons */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-[#1e293b]">
+                <button
+                  type="button"
+                  onClick={() => setActiveStep('assets')}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#101726] dark:hover:bg-slate-800 border border-slate-200 dark:border-[#1e293b] text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors cursor-pointer text-xs"
+                >
+                  ← Back to Assets & Phone
+                </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg shadow-xs transition-colors"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 hover:shadow-lg transition-all cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   <span>Finalize & Register Employee</span>

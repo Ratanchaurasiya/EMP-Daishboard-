@@ -17,6 +17,7 @@ import { AssetInventory } from './components/assets/AssetInventory';
 import { PhoneInventory } from './components/phones/PhoneInventory';
 import { AssetAssignModal } from './components/assets/AssetAssignModal';
 import { AssetReturnModal } from './components/assets/AssetReturnModal';
+import { AddToBufferModal } from './components/common/AddToBufferModal';
 import { ServiceList } from './components/services/ServiceList';
 import { AddServiceModal } from './components/services/AddServiceModal';
 import { AuditLogView } from './components/audit/AuditLogView';
@@ -25,6 +26,7 @@ import { PurchaseManagementView } from './components/purchases/PurchaseManagemen
 import { AssetRequestList } from './components/requests/AssetRequestList';
 import { ServiceFlowchartView } from './components/flowchart/ServiceFlowchartView';
 import { SimManagementView } from './components/sim/SimManagementView';
+import { SystemPcSupportView } from './components/support/SystemPcSupportView';
 import { ToastContainer } from './components/common/Toast';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { SharedEmployeeView } from './components/employees/SharedEmployeeView';
@@ -34,6 +36,7 @@ import { AssetType } from './types';
 const DashboardContent: React.FC = () => {
   const {
     activeTab,
+    setActiveTab,
     selectedEmployeeId,
     setSelectedEmployeeId,
     selectedComputerId,
@@ -57,10 +60,15 @@ const DashboardContent: React.FC = () => {
   const [assignTargetType, setAssignTargetType] = useState<AssetType | undefined>(undefined);
   const [showReturnAsset, setShowReturnAsset] = useState(false);
   const [returnTargetAssetId, setReturnTargetAssetId] = useState<string | null>(null);
+  const [showAddToBuffer, setShowAddToBuffer] = useState(false);
 
   const handleSelectEmployee = (empId: string) => {
     setSelectedEmployeeId(empId);
     setSelectedComputerId(null);
+    setActiveTab('employees');
+    if (typeof window !== 'undefined') {
+      window.location.hash = '#/employees';
+    }
   };
 
   const handleSelectComputer = (compId: string) => {
@@ -134,6 +142,7 @@ const DashboardContent: React.FC = () => {
           onOpenAddEmployee={() => setShowAddEmployee(true)}
           onOpenAddService={() => handleOpenAddService()}
           onOpenAddComputer={() => setShowAddComputer(true)}
+          onOpenAddToBuffer={() => setShowAddToBuffer(true)}
           toggleSidebar={() => setSidebarOpen(prev => !prev)}
         />
 
@@ -161,6 +170,7 @@ const DashboardContent: React.FC = () => {
                   onOpenAddComputer={() => setShowAddComputer(true)}
                   onOpenAssignAsset={handleOpenAssignAsset}
                   onOpenAddService={handleOpenAddService}
+                  onOpenAddToBuffer={() => setShowAddToBuffer(true)}
                 />
               )}
 
@@ -268,6 +278,11 @@ const DashboardContent: React.FC = () => {
                   onSelectEmployee={handleSelectEmployee}
                 />
               )}
+
+              {/* TAB 11: SYSTEM / PC SUPPORT & SERVICE PROVIDERS */}
+              {(activeTab === 'system-support' || activeTab === 'pc-support') && (
+                <SystemPcSupportView />
+              )}
             </>
           )}
         </main>
@@ -278,6 +293,7 @@ const DashboardContent: React.FC = () => {
         onOpenAddEmployee={() => setShowAddEmployee(true)}
         onOpenAddComputer={() => setShowAddComputer(true)}
         onOpenAddService={() => handleOpenAddService()}
+        onOpenAddToBuffer={() => setShowAddToBuffer(true)}
       />
 
       {/* Floating System Toasts */}
@@ -331,6 +347,13 @@ const DashboardContent: React.FC = () => {
             setShowReturnAsset(false);
             setReturnTargetAssetId(null);
           }}
+        />
+      )}
+
+      {!isEmployee && showAddToBuffer && (
+        <AddToBufferModal
+          isOpen={showAddToBuffer}
+          onClose={() => setShowAddToBuffer(false)}
         />
       )}
 

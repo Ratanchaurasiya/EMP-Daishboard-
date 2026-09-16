@@ -416,8 +416,8 @@ export const SharedEmployeeView: React.FC<SharedEmployeeViewProps> = ({
                       <Cpu className="w-3.5 h-3.5" />
                       <span>Processor (CPU)</span>
                     </div>
-                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.processor.name}</div>
-                    <div className="text-[10px] text-slate-500 font-mono">{assignedComputer.processor.speed}</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.processor?.name || 'Standard Processor'}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">{assignedComputer.processor?.speed || '2.4 GHz'}</div>
                   </div>
 
                   <div className="p-3 rounded-lg bg-slate-50/70 dark:bg-[#0d131f]/70 border border-slate-200/60 dark:border-[#1e293b] space-y-1">
@@ -425,8 +425,8 @@ export const SharedEmployeeView: React.FC<SharedEmployeeViewProps> = ({
                       <Activity className="w-3.5 h-3.5" />
                       <span>Installed Memory (RAM)</span>
                     </div>
-                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.memory.installedRAM}</div>
-                    <div className="text-[10px] text-slate-500 font-mono">Usable: {assignedComputer.memory.usableRAM}</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.memory?.installedRAM || '8 GB'}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">Usable: {assignedComputer.memory?.usableRAM || assignedComputer.memory?.installedRAM || '8 GB'}</div>
                   </div>
 
                   <div className="p-3 rounded-lg bg-slate-50/70 dark:bg-[#0d131f]/70 border border-slate-200/60 dark:border-[#1e293b] space-y-1">
@@ -434,8 +434,8 @@ export const SharedEmployeeView: React.FC<SharedEmployeeViewProps> = ({
                       <HardDrive className="w-3.5 h-3.5" />
                       <span>Storage Drive</span>
                     </div>
-                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.storage.total} ({assignedComputer.storage.type})</div>
-                    <div className="text-[10px] text-slate-500 font-mono">{assignedComputer.storage.free} free of {assignedComputer.storage.total}</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.storage?.total || '256 GB'} ({assignedComputer.storage?.type || 'SSD'})</div>
+                    <div className="text-[10px] text-slate-500 font-mono">{assignedComputer.storage?.free || '180 GB'} free of {assignedComputer.storage?.total || '256 GB'}</div>
                   </div>
 
                   <div className="p-3 rounded-lg bg-slate-50/70 dark:bg-[#0d131f]/70 border border-slate-200/60 dark:border-[#1e293b] space-y-1">
@@ -443,8 +443,8 @@ export const SharedEmployeeView: React.FC<SharedEmployeeViewProps> = ({
                       <Laptop className="w-3.5 h-3.5" />
                       <span>Operating System</span>
                     </div>
-                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.system.os}</div>
-                    <div className="text-[10px] text-slate-500 font-mono">{assignedComputer.system.processorArchitecture}</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200">{assignedComputer.system?.os || 'Windows 11'}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">{assignedComputer.system?.processorArchitecture || 'x64-based processor'}</div>
                   </div>
 
                   <div className="p-3 rounded-lg bg-slate-50/70 dark:bg-[#0d131f]/70 border border-slate-200/60 dark:border-[#1e293b] space-y-1">
@@ -452,8 +452,8 @@ export const SharedEmployeeView: React.FC<SharedEmployeeViewProps> = ({
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Device ID</span>
                     </div>
-                    <div className="font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate">{assignedComputer.system.deviceId}</div>
-                    <div className="text-[10px] text-slate-500 font-mono">Product ID: {assignedComputer.system.productId}</div>
+                    <div className="font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate">{assignedComputer.system?.deviceId || 'DEV-N/A'}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">Product ID: {assignedComputer.system?.productId || 'PRD-N/A'}</div>
                   </div>
 
                   <div className="p-3 rounded-lg bg-slate-50/70 dark:bg-[#0d131f]/70 border border-slate-200/60 dark:border-[#1e293b] space-y-1">

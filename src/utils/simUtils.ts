@@ -36,6 +36,50 @@ export function formatINR(amount: number): string {
     maximumFractionDigits: 2,
   }).format(amount);
 }
+export const BASE_MONTHLY_RECHARGE = 399;
+export const DEFAULT_GST_PERCENT = 18;
+
+/**
+ * Calculates monthly SIM recharge cost breakdown given number of assigned SIMs.
+ * Per SIM: Base ₹399 + 18% GST (₹71.82) = ₹470.82 total per SIM
+ */
+export function calculateSimMonthlyExpense(
+  simCount: number,
+  baseRatePerSim: number = BASE_MONTHLY_RECHARGE,
+  gstPercentage: number = DEFAULT_GST_PERCENT
+): {
+  simCount: number;
+  baseRatePerSim: number;
+  gstPercentage: number;
+  gstPerSim: number;
+  totalPerSim: number;
+  baseRecharge: number;
+  gstAmount: number;
+  totalExpense: number;
+} {
+  const count = Math.max(0, simCount || 0);
+  const baseRate = Math.max(0, Number(baseRatePerSim) || 0);
+  const gstPct = Math.max(0, Number(gstPercentage) || 0);
+
+  const gstPerSim = Number(((baseRate * gstPct) / 100).toFixed(2));
+  const totalPerSim = Number((baseRate + gstPerSim).toFixed(2));
+
+  const baseRecharge = Number((count * baseRate).toFixed(2));
+  const gstAmount = Number(((baseRecharge * gstPct) / 100).toFixed(2));
+  const totalExpense = Number((baseRecharge + gstAmount).toFixed(2));
+
+  return {
+    simCount: count,
+    baseRatePerSim: baseRate,
+    gstPercentage: gstPct,
+    gstPerSim,
+    totalPerSim,
+    baseRecharge,
+    gstAmount,
+    totalExpense,
+  };
+}
+
 export const DEFAULT_ADMIN_WHATSAPP_NUMBER = '9328594724';
 
 /**
@@ -208,6 +252,49 @@ export function generateSimSuspensionWhatsAppUrl(
     `━━━━━━━━━━━━━━━━━━━━━━━━`,
     `🔗 *Review in Admin Panel:* ${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5174'}/#/sim-management`,
   ];
+
+  const message = lines.join('\n');
+  const encoded = encodeURIComponent(message);
+  const cleanPhone = recipientPhone.replace(/\D/g, '');
+  const formattedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+  return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encoded}`;
+}
+
+/**
+ * Generates WhatsApp notification URL for SIM Issue Reports
+ */
+export function generateSimIssueWhatsAppUrl(
+  request: SimRequest,
+  recipientPhone: string = DEFAULT_ADMIN_WHATSAPP_NUMBER,
+  senderRole: 'employee' | 'admin' = 'employee'
+): string {
+  const isEmployee = senderRole === 'employee';
+  const header = isEmployee
+    ? `🚨 *ASSETCORE: SIM ISSUE REPORT*`
+    : `🔴 *SIM ISSUE ALERT*`;
+
+  const lines = [
+    header,
+    `━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `👤 *Employee:* ${request.employeeName} (${request.companyEmployeeNumber || request.employeeId})`,
+    `📞 *SIM / Contact Number:* ${request.contactNumber || 'N/A'}`,
+    `📁 *Project:* ${request.project || 'General Operations'}`,
+    `⚠️ *Issue Type:* ${request.issueType || 'SIM Issue'}`,
+    `🔥 *Priority:* ${request.urgency || 'Normal'}`,
+    `📝 *Description:* ${request.reason}`,
+  ];
+
+  if (request.adminRemarks) {
+    lines.push(`💬 *Admin Remarks:* ${request.adminRemarks}`);
+  }
+  if (request.resolutionRemarks) {
+    lines.push(`🟢 *Resolution:* ${request.resolutionRemarks}`);
+  }
+
+  lines.push(`📅 *Recorded:* ${new Date(request.createdAt).toLocaleString('en-IN')}`);
+  lines.push(`🔑 *Ticket ID:* ${request.id}`);
+  lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`Please check and resolve this SIM issue.`);
 
   const message = lines.join('\n');
   const encoded = encodeURIComponent(message);

@@ -17,6 +17,7 @@ import {
   Calendar,
   Building,
   CheckCircle2,
+  Smartphone,
 } from 'lucide-react';
 import { formatDateDisplay } from '../../utils/formatters';
 
@@ -38,6 +39,9 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
     computers,
     assets,
     serviceRecords,
+    simCards,
+    simRecharges,
+    simRequests,
     removeEmployeePermanently,
     userRole,
   } = useApp();
@@ -84,6 +88,11 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
     a =>
       a.assignedEmployeeId === employee.id ||
       a.assignedEmployeeId === employee.employeeId
+  );
+  const assignedSims = simCards.filter(
+    s =>
+      s.assignedEmployeeId === employee.id ||
+      s.assignedEmployeeId === employee.employeeId
   );
   const assignedServices = serviceRecords.filter(
     s =>
@@ -398,6 +407,41 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
                 </span>
               </div>
 
+              {/* Corporate SIM Cards */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0c121e] border border-slate-200/80 dark:border-[#1e293b] flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-white block text-xs">
+                      Corporate SIM Cards & Mobile Fleet ({assignedSims.length})
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                      {assignedSims.length > 0
+                        ? assignedSims
+                            .map(s => `${s.carrier} ${s.contactNumber} [${s.purpose}]`)
+                            .join(', ')
+                        : 'No corporate SIM cards assigned to this employee'}
+                    </span>
+                    {assignedSims.length > 0 && (
+                      <span className="inline-block mt-1 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                        ✗ All {assignedSims.length} SIM card(s), recharge records, and requests will be permanently deleted from database
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                    assignedSims.length > 0
+                      ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {assignedSims.length > 0 ? `${assignedSims.length} Permanently Deleted` : 'None'}
+                </span>
+              </div>
+
               {/* Service & Maintenance Tickets */}
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0c121e] border border-slate-200/80 dark:border-[#1e293b] flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5">
@@ -471,7 +515,7 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
                 <strong className="text-slate-900 dark:text-white font-semibold">
                   {employee.name}
                 </strong>{' '}
-                ({employee.employeeId}) and all associated records from the database, including personal details, professional information, laptop/computer details, phone information, assigned assets, peripherals, and service/maintenance records.
+                ({employee.employeeId}) and all associated records from the database, including personal details, professional information, assigned SIM cards & telecom records, laptop/computer details, phone information, assigned assets, peripherals, and service/maintenance records.
               </p>
             </div>
 
@@ -502,7 +546,7 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
                 className="mt-0.5 rounded text-red-600 focus:ring-red-500 focus:ring-1 cursor-pointer w-4 h-4"
               />
               <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 leading-snug">
-                I understand that this action is irreversible and permanently removes this employee and all linked records (computer, phone, peripherals, and maintenance history) from the database.
+                I understand that this action is irreversible and permanently removes this employee and all linked records (SIM cards, telecom info, computer, phone, peripherals, and maintenance history) from the database.
               </span>
             </label>
 

@@ -46,6 +46,7 @@ interface HardwareAssetDashboardProps {
   onOpenAddComputer: () => void;
   onOpenAssignAsset: (empId?: string, assetId?: string, assetType?: any) => void;
   onOpenAddService: (compId?: string) => void;
+  onOpenAddToBuffer?: () => void;
 }
 
 export const HardwareAssetDashboard: React.FC<HardwareAssetDashboardProps> = ({
@@ -54,6 +55,7 @@ export const HardwareAssetDashboard: React.FC<HardwareAssetDashboardProps> = ({
   onOpenAddComputer,
   onOpenAssignAsset,
   onOpenAddService,
+  onOpenAddToBuffer,
 }) => {
   const {
     employees,
@@ -1648,6 +1650,16 @@ export const HardwareAssetDashboard: React.FC<HardwareAssetDashboardProps> = ({
 
             {/* Search, Condition & Category Filter for Available Units */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
+              {onOpenAddToBuffer && (
+                <button
+                  type="button"
+                  onClick={onOpenAddToBuffer}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-xs transition-colors cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add to Buffer Stock</span>
+                </button>
+              )}
               <div className="relative">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -1728,8 +1740,16 @@ export const HardwareAssetDashboard: React.FC<HardwareAssetDashboardProps> = ({
           {filteredAvailableUnits.length === 0 ? (
             <div className="p-8 text-center text-slate-500 bg-slate-50 dark:bg-[#0d131f] rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
               <PackageCheck className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-xs font-semibold">No equipment currently in available buffer.</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">All devices are currently allocated to staff or under service.</p>
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">No equipment currently in available buffer.</p>
+              <p className="text-[11px] text-slate-400 mt-0.5 mb-3.5">All devices are currently allocated to staff or under service.</p>
+              <button
+                type="button"
+                onClick={onOpenAddComputer}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Workstation to Buffer Stock</span>
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">

@@ -200,8 +200,8 @@ export const WeeklyPhotoUploadModal: React.FC<WeeklyPhotoUploadModalProps> = ({
     // Dynamic Discovery: Check actual assigned assets for selected employee
     const assignedAssets = getEmployeeAssignedCompanyAssets(selectedEmployee, computers, assets);
 
-    // Map strictly assigned assets into audit cards (Zero phantom/dummy assets synthesized)
-    const cards: TempAssetCard[] = assignedAssets.map(a => ({
+    // Map assigned assets into audit cards; if none assigned, provide a default workstation verification card
+    let cards: TempAssetCard[] = assignedAssets.map(a => ({
       id: `card-${a.id}`,
       assetId: a.originalComputerId || a.originalAssetId || a.id,
       assetType: a.assetType,
@@ -217,8 +217,56 @@ export const WeeklyPhotoUploadModal: React.FC<WeeklyPhotoUploadModalProps> = ({
       notes: '',
     }));
 
+    if (cards.length === 0) {
+      cards = [
+        {
+          id: `card-general-${Date.now()}`,
+          assetType: 'Laptop',
+          assetNumber: 'WRK-DOC-01',
+          assetName: 'Workstation & Physical Equipment Verification',
+          photoUrl: '',
+          fileName: undefined,
+          fileSize: undefined,
+          fileType: undefined,
+          uploadType: 'file',
+          googleDriveLink: '',
+          condition: 'Good',
+          notes: 'Weekly workstation & hardware physical inspection',
+        },
+      ];
+    }
+
     setAssetCards(cards);
   }, [isOpen, selectedEmpId, editingRecord, selectedEmployee, computers, assets]);
+
+  const handleAddCustomCard = () => {
+    const newCardId = `card-custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    setAssetCards(prev => [
+      ...prev,
+      {
+        id: newCardId,
+        assetType: 'Other',
+        assetNumber: `DOC-${String(prev.length + 1).padStart(3, '0')}`,
+        assetName: 'Additional Asset / Equipment Document',
+        photoUrl: '',
+        fileName: undefined,
+        fileSize: undefined,
+        fileType: undefined,
+        uploadType: 'file',
+        googleDriveLink: '',
+        condition: 'Good',
+        notes: '',
+      },
+    ]);
+  };
+
+  const handleRemoveCard = (cardId: string) => {
+    if (assetCards.length <= 1) {
+      showToast('At least one verification item is required.', 'info');
+      return;
+    }
+    setAssetCards(prev => prev.filter(c => c.id !== cardId));
+  };
 
   if (!isOpen) return null;
 
@@ -362,7 +410,7 @@ export const WeeklyPhotoUploadModal: React.FC<WeeklyPhotoUploadModalProps> = ({
         weekStartDate: weekInfo.startDate,
         weekEndDate: weekInfo.endDate,
         googleDriveLink: overallDriveLink.trim() || undefined,
-        conductedBy: conductedBy.trim() || 'IT Administrator',
+        conductedBy: conductedBy.trim() || currentUser?.name || 'IT Administrator',
         overallRemarks: overallRemarks.trim() || undefined,
         assetPhotos: assetPhotoEntries,
       });
@@ -380,8 +428,10 @@ export const WeeklyPhotoUploadModal: React.FC<WeeklyPhotoUploadModalProps> = ({
         weekStartDate: weekInfo.startDate,
         weekEndDate: weekInfo.endDate,
         inspectionDate,
+        uploadDate: inspectionDate || now.substring(0, 10),
+        status: 'Pending Review',
         googleDriveLink: overallDriveLink.trim() || undefined,
-        conductedBy: conductedBy.trim() || 'IT Administrator',
+        conductedBy: conductedBy.trim() || currentUser?.name || selectedEmployee.name || 'Employee',
         overallRemarks: overallRemarks.trim() || undefined,
         assetPhotos: assetPhotoEntries,
       });
@@ -555,9 +605,19 @@ export const WeeklyPhotoUploadModal: React.FC<WeeklyPhotoUploadModalProps> = ({
                   </div>
                 </div>
 
-                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-white/80 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/60 shadow-2xs">
-                  Max {assetCards.length} {assetCards.length === 1 ? 'Photo' : 'Photos'} (1 per asset)
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddCustomCard}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800/80 hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-colors shadow-2xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Extra File / Asset</span>
+                  </button>
+                  <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-white/80 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/60 shadow-2xs">
+                    {assetCards.length} {assetCards.length === 1 ? 'Upload Option' : 'Upload Options'}
+                  </span>
+                </div>
               </div>
 
               {assetCards.length === 0 ? (
@@ -655,17 +715,29 @@ export const WeeklyPhotoUploadModal: React.FC<WeeklyPhotoUploadModalProps> = ({
                               )}
                             </div>
 
-                            {hasFile ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Photo Uploaded</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60">
-                                <AlertCircle className="w-3 h-3" />
-                                <span>Photo Pending</span>
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {assetCards.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCard(card.id)}
+                                  className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                                  title="Remove this upload card"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {hasFile ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Uploaded</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60">
+                                  <AlertCircle className="w-3 h-3" />
+                                  <span>Pending</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* Prominent Asset Name Display */}

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../utils/formatters';
+import { calculateSimMonthlyExpense, formatINR } from '../../utils/simUtils';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
 import {
   Activity,
@@ -35,6 +36,13 @@ import {
   Layers,
   ShoppingBag,
   Phone,
+  Inbox,
+  CheckCheck,
+  Check,
+  XCircle,
+  ExternalLink,
+  ShieldAlert,
+  Bell,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -73,14 +81,24 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     assets,
     serviceRecords,
     purchases,
+    assetRequests,
     simCards,
     simRequests,
     simRecharges,
     globalFilters,
     setGlobalFilters,
     setActiveTab,
+    setHighlightedRequestId,
+    setSimManagementSubTab,
+    setHighlightedSimRequestId,
+    setActiveSystemSupportTicket,
+    updateAssetRequestStatus,
+    updateSimRequestStatus,
+    showToast,
     exportFleetCSV,
   } = useApp();
+
+  const [requestPanelFilter, setRequestPanelFilter] = useState<'all' | 'sim' | 'hardware' | 'service'>('all');
 
   // Spend Trend Timeframe, Stream & Contact Number Controls
   type SpendGranularity = 'weekly' | 'monthly' | 'yearly';
@@ -161,9 +179,28 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const activeSims = simCards.filter(s => s.status === 'Active').length;
   const suspendedSims = simCards.filter(s => s.status === 'Suspended').length;
   const availableSims = simCards.filter(s => s.status === 'Available').length;
-  const pendingSimRequests = simRequests.filter(r => r.status === 'Pending').length;
-  const pendingSuspensionRequests = simRequests.filter(r => r.status === 'Pending' && r.requestType === 'Suspend SIM').length;
-  const pendingAdditionalSimRequests = simRequests.filter(r => r.status === 'Pending' && r.requestType === 'Additional SIM').length;
+  
+  const pendingAssetRequests = useMemo(() => assetRequests.filter(r => r.status === 'Pending'), [assetRequests]);
+  const pendingSimRequests = useMemo(() => simRequests.filter(r => r.status === 'Pending' || r.status === 'In Progress'), [simRequests]);
+  const pendingSuspensionRequests = useMemo(() => simRequests.filter(r => r.status === 'Pending' && r.requestType === 'Suspend SIM').length, [simRequests]);
+  const pendingAdditionalSimRequests = useMemo(() => simRequests.filter(r => r.status === 'Pending' && r.requestType === 'Additional SIM').length, [simRequests]);
+  const totalPendingActionableRequests = pendingAssetRequests.length + pendingSimRequests.length + underServiceComputers.length;
+
+  const simIssueRequests = useMemo(() => simRequests.filter(r => r.requestType === 'Report Issue'), [simRequests]);
+  const openSimIssues = useMemo(() => simIssueRequests.filter(r => r.status === 'Pending' || r.status === 'In Progress').length, [simIssueRequests]);
+  const urgentSimIssues = useMemo(() => simIssueRequests.filter(r => r.urgency === 'Urgent' && r.status !== 'Resolved' && r.status !== 'Rejected').length, [simIssueRequests]);
+  const inProgressSimIssues = useMemo(() => simIssueRequests.filter(r => r.status === 'In Progress').length, [simIssueRequests]);
+  const resolvedSimIssues = useMemo(() => simIssueRequests.filter(r => r.status === 'Resolved').length, [simIssueRequests]);
+
+  const assignedSimCards = useMemo(() => {
+    return simCards.filter(
+      s => s.assignedEmployeeId != null && s.status !== 'Available' && s.status !== 'Deactivated'
+    );
+  }, [simCards]);
+
+  const adminSimExpense = useMemo(() => {
+    return calculateSimMonthlyExpense(assignedSimCards.length);
+  }, [assignedSimCards]);
 
   const totalSimRechargeSpend = useMemo(() => {
     return simRecharges.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0);
@@ -1135,79 +1172,423 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
       </div>
 
-      {/* ACTIVE SERVICE ALERT BANNER (If any computer is under repair) */}
-      {underServiceComputers.length > 0 && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
-            <div>
-              <span className="font-bold text-amber-900 dark:text-amber-200">
-                Action Alert: {underServiceComputers.length} Computer Unit Currently Under Active Maintenance
-              </span>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-400 mt-0.5">
-                {underServiceComputers.map(c => `${c.deviceName} (${c.assetNumber})`).join(', ')} is undergoing diagnostic repair at the IT desk.
-              </p>
+      {/* ========================================================================= */}
+      {/* 1.5 LIVE NOTIFICATION COMMAND MODULE: PENDING EMPLOYEE REQUESTS TO ADMIN  */}
+      {/* ========================================================================= */}
+      {totalPendingActionableRequests > 0 ? (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-rose-500/10 border-2 border-amber-500/30 dark:border-amber-500/25 shadow-xl space-y-4 animate-in fade-in duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-amber-500/20">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <Inbox className="w-5 h-5" />
+                </div>
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#0b101b] animate-ping" />
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#0b101b]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Action Required: Pending Requests to Admin</span>
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-500 text-white shadow-xs">
+                    {totalPendingActionableRequests} Pending Requisition{totalPendingActionableRequests > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                  Employees have submitted telecom, hardware, and service requisitions awaiting IT Admin review &amp; fulfillment.
+                </p>
+              </div>
             </div>
-          </div>
-          <button
-            onClick={() => setActiveTab('services')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors shrink-0 shadow-xs cursor-pointer"
-          >
-            <span>Review Service Desk</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
-      {/* SIM CARD SUSPENSION & REQUISITION ACTION ALERT BANNERS */}
-      {pendingSuspensionRequests > 0 && (
-        <div className="p-3.5 rounded-xl bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in cursor-pointer hover:bg-rose-500/15 transition-all" onClick={() => setActiveTab('sim-management')}>
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
-            <div>
-              <span className="font-bold text-rose-900 dark:text-rose-200">
-                ⚠️ {pendingSuspensionRequests} SIM Card{pendingSuspensionRequests > 1 ? 's' : ''} Require Suspension Action
-              </span>
-              <p className="text-[11px] text-rose-800/80 dark:text-rose-400 mt-0.5">
-                Employees or administrators have submitted suspension requisitions with mandatory reasons. Review and take action now.
-              </p>
+            {/* Quick Category Filter Pills */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => setRequestPanelFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  requestPanelFilter === 'all'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                All ({totalPendingActionableRequests})
+              </button>
+              {pendingSimRequests.length > 0 && (
+                <button
+                  onClick={() => setRequestPanelFilter('sim')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    requestPanelFilter === 'sim'
+                      ? 'bg-orange-500 text-white shadow-xs'
+                      : 'bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  📱 SIM Requests ({pendingSimRequests.length})
+                </button>
+              )}
+              {pendingAssetRequests.length > 0 && (
+                <button
+                  onClick={() => setRequestPanelFilter('hardware')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    requestPanelFilter === 'hardware'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  💻 Equipment Requests ({pendingAssetRequests.length})
+                </button>
+              )}
+              {underServiceComputers.length > 0 && (
+                <button
+                  onClick={() => setRequestPanelFilter('service')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    requestPanelFilter === 'service'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-white/60 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  🔧 Maintenance ({underServiceComputers.length})
+                </button>
+              )}
             </div>
           </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveTab('sim-management');
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors shrink-0 shadow-xs cursor-pointer"
-          >
-            <span>Review Suspension Requests</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
-      {pendingAdditionalSimRequests > 0 && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in">
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-            <div>
-              <span className="font-bold text-amber-900 dark:text-amber-200">
-                📱 {pendingAdditionalSimRequests} Pending Additional SIM {pendingAdditionalSimRequests === 1 ? 'Requisition' : 'Requisitions'}
-              </span>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-400 mt-0.5">
-                Personnel have requested company SIM allocations for marketing, calling, or holding operations.
-              </p>
-            </div>
+          {/* Pending Request Cards List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {/* 1. SIM Requests & Issues */}
+            {(requestPanelFilter === 'all' || requestPanelFilter === 'sim') &&
+              pendingSimRequests.map(req => {
+                const isIssue = req.requestType === 'Report Issue';
+                const isSuspension = req.requestType === 'Suspend SIM';
+                const emp = employees.find(e => e.id === req.employeeId || e.employeeId === req.employeeId);
+
+                return (
+                  <div
+                    key={`dash-sim-${req.id}`}
+                    className="p-4 rounded-xl bg-white dark:bg-[#0c121e] border border-amber-500/30 dark:border-amber-500/20 shadow-sm flex flex-col justify-between hover:border-amber-500/60 transition-all group"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${
+                              isIssue
+                                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                                : isSuspension
+                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                                : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                            }`}
+                          >
+                            {isIssue ? `🔴 SIM Issue: ${req.issueType || 'Incident'}` : isSuspension ? '⚠️ SIM Suspension' : '📱 Additional SIM Requisition'}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500">#{req.id}</span>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            req.urgency === 'Critical' || req.urgency === 'Urgent'
+                              ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                          }`}
+                        >
+                          {req.urgency || 'Normal'}
+                        </span>
+                      </div>
+
+                      {/* Employee Info Strip */}
+                      <div className="flex items-center gap-2.5 pt-0.5">
+                        <EmployeeAvatar name={req.employeeName} photoUrl={emp?.photoUrl} size="sm" />
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                            {req.employeeName}
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {emp?.department || 'Staff'} • {req.companyEmployeeNumber || req.employeeId}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                        {!isIssue && !isSuspension && (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Qty &amp; Purpose:</span>
+                            <span className="font-bold text-slate-900 dark:text-white">
+                              {req.quantity || 1}x SIM ({req.purpose || 'Calling'})
+                            </span>
+                          </div>
+                        )}
+                        {(isIssue || isSuspension) && (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Target Contact Number:</span>
+                            <span className="font-mono font-bold text-orange-500">
+                              📱 {req.contactNumber || 'N/A'}
+                            </span>
+                          </div>
+                        )}
+                        {req.project && (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Project Name:</span>
+                            <span className="font-semibold text-slate-900 dark:text-slate-200">
+                              📁 {req.project}
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 italic pt-0.5 line-clamp-2">
+                          "{req.reason}"
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {req.createdAt ? new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            updateSimRequestStatus(req.id, 'Approved', 'Approved by Admin');
+                            showToast(`SIM Request #${req.id} approved.`, 'success');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-500/20 text-[11px] font-bold transition-all cursor-pointer"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveTab('sim-management');
+                            setSimManagementSubTab('requests');
+                            setHighlightedSimRequestId(req.id);
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <span>Review Request</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* 2. Hardware / Equipment Requisitions */}
+            {(requestPanelFilter === 'all' || requestPanelFilter === 'hardware') &&
+              pendingAssetRequests.map(req => {
+                const totalItems = req.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+                const itemsSummary = req.items.map(i => `${i.quantity || 1}x ${i.assetType}`).join(', ');
+                const emp = employees.find(e => e.id === req.employeeId || e.employeeId === req.employeeId);
+
+                return (
+                  <div
+                    key={`dash-req-${req.id}`}
+                    className="p-4 rounded-xl bg-white dark:bg-[#0c121e] border border-blue-500/30 dark:border-blue-500/20 shadow-sm flex flex-col justify-between hover:border-blue-500/60 transition-all group"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                            💻 Equipment Requisition ({totalItems} Units)
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500">#{req.id}</span>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            req.urgency === 'Critical'
+                              ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                              : req.urgency === 'High'
+                              ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          {req.urgency || 'Normal'}
+                        </span>
+                      </div>
+
+                      {/* Employee Info Strip */}
+                      <div className="flex items-center gap-2.5 pt-0.5">
+                        <EmployeeAvatar name={req.employeeName} photoUrl={emp?.photoUrl} size="sm" />
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                            {req.employeeName}
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {req.department} • {req.companyEmployeeNumber || req.employeeId}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500">Requested Gear:</span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {itemsSummary}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 italic pt-0.5 line-clamp-2">
+                          "{req.reason}"
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {req.createdAt ? new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : req.requestDate}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            const isSystemRelated =
+                              req.items?.some(i =>
+                                ['Laptop', 'Desktop', 'Computer', 'Monitor'].includes(i.assetType)
+                              ) ||
+                              (req.reason &&
+                                (req.reason.toLowerCase().includes('pc') ||
+                                  req.reason.toLowerCase().includes('laptop') ||
+                                  req.reason.toLowerCase().includes('computer') ||
+                                  req.reason.toLowerCase().includes('screen') ||
+                                  req.reason.toLowerCase().includes('workstation') ||
+                                  req.reason.toLowerCase().includes('system') ||
+                                  req.reason.toLowerCase().includes('repair')));
+
+                            updateAssetRequestStatus(req.id, 'Approved', 'Approved by Admin');
+
+                            if (isSystemRelated) {
+                              setActiveSystemSupportTicket({
+                                requestId: req.id,
+                                employeeId: req.employeeId,
+                                employeeName: req.employeeName,
+                                assetType: req.items?.map(i => i.assetType).join(', ') || 'Computer/Laptop',
+                                assetNumber: 'Requisition',
+                                problemDescription: req.reason || 'Hardware / System Setup Requisition',
+                                urgency: req.urgency,
+                                status: 'Approved',
+                                createdAt: req.createdAt || req.requestDate,
+                              });
+                              setActiveTab('system-support');
+                              showToast(`Equipment Requisition #${req.id} approved. Dedicated System/PC Support page opened.`, 'success');
+                            } else {
+                              showToast(`Equipment Requisition #${req.id} approved.`, 'success');
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-500/20 text-[11px] font-bold transition-all cursor-pointer"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveSystemSupportTicket({
+                              requestId: req.id,
+                              employeeId: req.employeeId,
+                              employeeName: req.employeeName,
+                              assetType: req.items?.map(i => i.assetType).join(', ') || 'Computer/Laptop',
+                              assetNumber: 'Requisition',
+                              problemDescription: req.reason || 'Hardware / System Setup Requisition',
+                              urgency: req.urgency,
+                              status: 'Pending',
+                              createdAt: req.createdAt || req.requestDate,
+                            });
+                            setActiveTab('system-support');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-600/10 hover:bg-indigo-600 text-indigo-600 dark:text-indigo-400 hover:text-white border border-indigo-500/20 text-[11px] font-bold transition-all cursor-pointer"
+                          title="Open in System / PC Support Hub"
+                        >
+                          PC Support
+                        </button>
+                        <button
+                          onClick={() => {
+                            setActiveTab('requests');
+                            setHighlightedRequestId(req.id);
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <span>Review</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* 3. Under Service Computers */}
+            {(requestPanelFilter === 'all' || requestPanelFilter === 'service') &&
+              underServiceComputers.map(comp => {
+                const emp = employees.find(e => e.id === comp.assignedEmployeeId || e.employeeId === comp.assignedEmployeeId);
+
+                return (
+                  <div
+                    key={`dash-srv-${comp.id}`}
+                    className="p-4 rounded-xl bg-white dark:bg-[#0c121e] border border-rose-500/30 dark:border-rose-500/20 shadow-sm flex flex-col justify-between hover:border-rose-500/60 transition-all group"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                          🔧 Workstation In Repair ({comp.assetNumber})
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                          Under Service
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 pt-0.5">
+                        <EmployeeAvatar name={emp?.name || comp.deviceName || 'Stock'} photoUrl={emp?.photoUrl} size="sm" />
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                            {comp.deviceName || comp.model}
+                          </span>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Assigned to: {emp?.name || 'Unassigned Stock'} ({emp?.department || 'Inventory'})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 text-xs text-slate-700 dark:text-slate-300">
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                          Unit is currently undergoing diagnostic servicing or parts replacement at the IT desk.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-mono">Status: In Progress</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setActiveSystemSupportTicket({
+                              requestId: `SRV-${comp.assetNumber}`,
+                              employeeId: comp.assignedEmployeeId || 'Stock',
+                              employeeName: emp?.name || 'Stock / IT Desk',
+                              deviceName: comp.deviceName || `${comp.manufacturer || ''} ${comp.model || ''}`.trim(),
+                              assetType: comp.deviceType || 'Laptop/PC',
+                              assetNumber: comp.assetNumber,
+                              problemDescription: `Workstation ${comp.deviceName || comp.assetNumber} is undergoing maintenance. Needs service provider repair dispatch.`,
+                              urgency: 'High',
+                              status: 'Under Service',
+                              createdAt: new Date().toISOString(),
+                            });
+                            setActiveTab('system-support');
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <span>PC Support Vendors</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('services')}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <span>Service Desk</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
-          <button
-            onClick={() => setActiveTab('sim-management')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors shrink-0 shadow-xs cursor-pointer"
-          >
-            <span>Process Requisitions</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
         </div>
-      )}
+      ) : null}
 
       {/* 2. HERO EXECUTIVE TELEMETRY RIBBON (5 Precision KPI Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -1375,6 +1756,85 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           >
             <span>Manage SIM Fleet →</span>
           </button>
+        </div>
+
+        {/* Overall SIM Recharge Expense Breakdown Card (Requirement 3) */}
+        <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-transparent border border-emerald-500/20 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <IndianRupee className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Overall Monthly SIM Recharge Expense (Assigned SIMs Only)</span>
+            </span>
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+              Per SIM: ₹399 + 18% GST (₹71.82) = ₹470.82
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+            <div className="p-3 rounded-lg bg-white/70 dark:bg-[#0b101b]/80 border border-slate-200/60 dark:border-slate-800">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total Assigned SIMs</span>
+              <span className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                {adminSimExpense.simCount} SIMs
+              </span>
+              <span className="text-[10px] text-slate-400">Excludes unassigned stock</span>
+            </div>
+
+            <div className="p-3 rounded-lg bg-white/70 dark:bg-[#0b101b]/80 border border-slate-200/60 dark:border-slate-800">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Base Recharge Expense</span>
+              <span className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5 block">
+                {formatINR(adminSimExpense.baseRecharge)}
+              </span>
+              <span className="text-[10px] text-slate-400">{adminSimExpense.simCount} × ₹399.00</span>
+            </div>
+
+            <div className="p-3 rounded-lg bg-white/70 dark:bg-[#0b101b]/80 border border-slate-200/60 dark:border-slate-800">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total GST (18%)</span>
+              <span className="text-xl font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5 block">
+                {formatINR(adminSimExpense.gstAmount)}
+              </span>
+              <span className="text-[10px] text-slate-400">{adminSimExpense.simCount} × ₹71.82</span>
+            </div>
+
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+              <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300 tracking-wider block">Total Monthly Expense</span>
+              <span className="text-xl font-black font-mono text-blue-600 dark:text-blue-400 mt-0.5 block">
+                {formatINR(adminSimExpense.totalExpense)}
+              </span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400">{adminSimExpense.simCount} × ₹470.82</span>
+            </div>
+          </div>
+
+          {/* SIM Issues Incident Telemetry Strip */}
+          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div
+              onClick={() => setActiveTab('sim-management')}
+              className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:border-amber-500/40 transition-colors"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block">Open SIM Issues</span>
+              <span className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400">{openSimIssues}</span>
+            </div>
+            <div
+              onClick={() => setActiveTab('sim-management')}
+              className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 cursor-pointer hover:border-rose-500/40 transition-colors"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 block">Urgent SIM Issues</span>
+              <span className="text-lg font-mono font-bold text-rose-600 dark:text-rose-400">{urgentSimIssues}</span>
+            </div>
+            <div
+              onClick={() => setActiveTab('sim-management')}
+              className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 cursor-pointer hover:border-blue-500/40 transition-colors"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block">In Progress</span>
+              <span className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">{inProgressSimIssues}</span>
+            </div>
+            <div
+              onClick={() => setActiveTab('sim-management')}
+              className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40 transition-colors"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">Resolved</span>
+              <span className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400">{resolvedSimIssues}</span>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 pt-4">
@@ -2853,10 +3313,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                             {row.computer ? (
                               <div className="space-y-0.5 font-mono text-[11px]">
                                 <div className="text-slate-800 dark:text-slate-200">
-                                  {row.computer.memory.installedRAM}
+                                  {row.computer.memory?.installedRAM || '8 GB RAM'}
                                 </div>
                                 <div className="text-slate-500 text-[10px]">
-                                  {row.computer.storage.total} {row.computer.storage.type}
+                                  {row.computer.storage?.total || '256 GB'} {row.computer.storage?.type || 'SSD'}
                                 </div>
                               </div>
                             ) : (
@@ -3007,7 +3467,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                           </span>
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          RAM: {row.computer.memory.installedRAM} • SSD: {row.computer.storage.total}
+                          RAM: {row.computer.memory?.installedRAM || '8 GB'} • SSD: {row.computer.storage?.total || '256 GB'}
                         </div>
                       </div>
                     ) : (

@@ -9,7 +9,7 @@ import {
   ServiceStatusBadge,
 } from '../common/Badge';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
-import { ProblemCategory } from '../../types';
+import { ProblemCategory, SimCard, ServiceRecord } from '../../types';
 import {
   User,
   Shield,
@@ -43,6 +43,11 @@ import {
   Camera,
   Loader2,
   IndianRupee,
+  FileText,
+  UploadCloud,
+  Eye,
+  Paperclip,
+  Building2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -62,8 +67,10 @@ import {
 import { getEmployeeAssignedCompanyAssets } from '../../utils/assetUtils';
 import { SubmitAssetRequestModal } from '../requests/SubmitAssetRequestModal';
 import { RequestSimModal } from '../sim/RequestSimModal';
-import { getSimStatusStyle, getSimPurposeStyle, generateSimSuspensionWhatsAppUrl } from '../../utils/simUtils';
-import { SimCard } from '../../types';
+import { ReportSimIssueModal } from '../sim/ReportSimIssueModal';
+import { ServiceReceiptPreviewModal } from '../services/ServiceReceiptPreviewModal';
+import { UploadServiceReceiptModal } from '../services/UploadServiceReceiptModal';
+import { getSimStatusStyle, getSimPurposeStyle, generateSimSuspensionWhatsAppUrl, calculateSimMonthlyExpense, formatINR } from '../../utils/simUtils';
 
 interface EmployeeDashboardProps {
   onOpenReportIssue?: () => void;
@@ -79,7 +86,6 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     assetRequests,
     simCards,
     simRequests,
-    simRecharges,
     currentUser,
     userRole,
     updateEmployee,
@@ -101,6 +107,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
   // SIM Modal States
   const [showSimRequestModal, setShowSimRequestModal] = useState<boolean>(false);
   const [simModalDefaultType, setSimModalDefaultType] = useState<'Additional SIM' | 'Suspend SIM'>('Additional SIM');
+  const [showReportIssueModal, setShowReportIssueModal] = useState<boolean>(false);
+  const [selectedSimForIssue, setSelectedSimForIssue] = useState<SimCard | null>(null);
 
   // Sync activeSection whenever activeTab changes from Sidebar or URL
   useEffect(() => {
@@ -127,6 +135,13 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
   const [problemDescription, setProblemDescription] = useState('');
   const [issueUrgency, setIssueUrgency] = useState<'Normal' | 'High' | 'Critical'>('Normal');
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
+  const [reportRepairCost, setReportRepairCost] = useState<number>(0);
+  const [reportReceiptNumber, setReportReceiptNumber] = useState<string>('');
+  const [reportReceiptDate, setReportReceiptDate] = useState<string>(new Date().toISOString().substring(0, 10));
+  const [reportReceiptFileName, setReportReceiptFileName] = useState<string>('');
+  const [reportReceiptFileUrl, setReportReceiptFileUrl] = useState<string>('');
+  const [reportReceiptFileSize, setReportReceiptFileSize] = useState<number>(0);
+  const [reportReceiptError, setReportReceiptError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedTicketResult, setSubmittedTicketResult] = useState<{
     ticketId: string;
@@ -142,6 +157,10 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     subject: string;
     ticketId: string;
   } | null>(null);
+
+  // Receipt Modal States
+  const [previewReceiptRecord, setPreviewReceiptRecord] = useState<ServiceRecord | null>(null);
+  const [uploadReceiptRecordId, setUploadReceiptRecordId] = useState<string | null>(null);
 
   // State for Asset Repair & Maintenance Graph
   const [repairMetricMode, setRepairMetricMode] = useState<'both' | 'repairs' | 'cost'>('cost');
@@ -599,6 +618,43 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  // Handle receipt file upload in employee issue report modal
+  const handleReportReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReportReceiptError('');
+
+    if (file.size > 10 * 1024 * 1024) {
+      setReportReceiptError('File size is too large. Please select a receipt under 10MB.');
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|webp|gif|pdf)$/i)) {
+      setReportReceiptError('Unsupported file format. Please upload JPG, PNG, or PDF.');
+      return;
+    }
+
+    setReportReceiptFileName(file.name);
+    setReportReceiptFileSize(file.size);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setReportReceiptFileUrl(reader.result as string);
+    };
+    reader.onerror = () => {
+      setReportReceiptError('Failed to read file. Please try another image or PDF.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveReportReceiptFile = () => {
+    setReportReceiptFileName('');
+    setReportReceiptFileUrl('');
+    setReportReceiptFileSize(0);
+    setReportReceiptError('');
+  };
+
   // Submit issue report ticket to Admin
   const handleReportIssue = (e: React.FormEvent) => {
     e.preventDefault();
@@ -654,7 +710,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       serialNumber: targetSerialNumber,
       problemCategory,
       urgency: issueUrgency,
-      issueDescription: problemDescription.trim(),
+      issueDescription: `${problemDescription.trim()}${reportRepairCost > 0 ? `\n[Reported Repair Cost]: ₹${reportRepairCost}` : ''}${reportReceiptFileName ? `\n[Receipt Attached]: ${reportReceiptFileName}` : ''}`,
       serviceDate: currentDate,
       processor: comp?.processor?.name,
       installedRAM: comp?.memory?.installedRAM,
@@ -665,7 +721,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     // Prepare dispatch links without intrusive popup
     const dispatchResult = dispatchServiceTicketEmail(emailPayload, false);
 
-    // 2. Persist record in database for Admin review
+    // 2. Persist record in database for Admin review with repair cost & receipt document
     const res = addServiceRecord({
       computerId: comp ? comp.id : (targetAsset ? targetAsset.id : (assignedComputer?.id || 'comp-general')),
       assetNumber: targetAssetNumber,
@@ -678,10 +734,16 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       workPerformed: `Request submitted by ${employee.name} (${employee.employeeId}) via employee portal. Awaiting IT Admin review and technician assignment.`,
       partsReplaced: 'None',
       technician: 'IT Admin / Helpdesk',
-      serviceCost: 0,
+      serviceCost: Number(reportRepairCost) || 0,
       serviceStatus: 'In Progress',
       resolution: 'Awaiting IT service desk inspection and triage.',
-      remarks: `Submitted by ${employee.name} (${employee.employeeId}) • Contact: ${employee.phone || employee.email} • Routed to ${IT_SUPPORT_EMAIL}`,
+      remarks: `Submitted by ${employee.name} (${employee.employeeId}) • Contact: ${employee.phone || employee.email}${reportReceiptFileName ? ` • Receipt: ${reportReceiptFileName}` : ''} • Routed to ${IT_SUPPORT_EMAIL}`,
+      receiptNumber: reportReceiptNumber.trim() || undefined,
+      receiptDate: reportReceiptDate || currentDate,
+      receiptFileName: reportReceiptFileName || undefined,
+      receiptFileUrl: reportReceiptFileUrl || undefined,
+      receiptFileSize: reportReceiptFileSize || undefined,
+      receiptFileType: reportReceiptFileName?.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
     });
 
     setIsSubmitting(false);
@@ -701,7 +763,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
         ticketId: dispatchResult.ticketId,
       });
       showToast(
-        `Support request "${dispatchResult.ticketId}" submitted to Admin successfully!`,
+        `Support request "${dispatchResult.ticketId}" with repair details submitted to Admin!`,
         'success'
       );
     }
@@ -743,10 +805,10 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
 
   // Calculate storage percentage if workstation exists
   const storageTotalGb = assignedComputer
-    ? parseInt(assignedComputer.storage.total.replace(/\D/g, '')) || 512
+    ? parseInt(assignedComputer.storage?.total?.replace(/\D/g, '') || '512') || 512
     : 512;
   const storageUsedGb = assignedComputer
-    ? parseInt(assignedComputer.storage.used.replace(/\D/g, '')) || 120
+    ? parseInt(assignedComputer.storage?.used?.replace(/\D/g, '') || '120') || 120
     : 120;
   const storagePercentage = Math.round((storageUsedGb / storageTotalGb) * 100);
 
@@ -1851,14 +1913,14 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                           <Cpu className="w-3.5 h-3.5 text-blue-500" /> Processor (CPU)
                         </span>
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold">
-                          {assignedComputer.processor.generation}
+                          {assignedComputer.processor?.generation || 'Standard'}
                         </span>
                       </div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white">
-                        {assignedComputer.processor.name}
+                        {assignedComputer.processor?.name || 'High Performance Processor'}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        Clock Speed: <span className="font-mono text-slate-700 dark:text-slate-300">{assignedComputer.processor.speed}</span>
+                        Clock Speed: <span className="font-mono text-slate-700 dark:text-slate-300">{assignedComputer.processor?.speed || '2.4 GHz'}</span>
                       </div>
                     </div>
 
@@ -1869,11 +1931,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                           <CircuitBoard className="w-3.5 h-3.5 text-emerald-500" /> Installed RAM (Memory)
                         </span>
                         <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                          {assignedComputer.memory.installedRAM}
+                          {assignedComputer.memory?.installedRAM || '8 GB'}
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Usable System Memory: <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{assignedComputer.memory.usableRAM}</span>
+                        Usable System Memory: <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{assignedComputer.memory?.usableRAM || '7.8 GB'}</span>
                       </div>
                       <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
                         <div className="bg-emerald-500 h-full rounded-full w-[96%]" />
@@ -1884,15 +1946,15 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                     <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                          <HardDrive className="w-3.5 h-3.5 text-amber-500" /> Storage Capacity ({assignedComputer.storage.type})
+                          <HardDrive className="w-3.5 h-3.5 text-amber-500" /> Storage Capacity ({assignedComputer.storage?.type || 'SSD'})
                         </span>
                         <span className="text-xs font-bold text-slate-900 dark:text-white font-mono">
-                          {assignedComputer.storage.total}
+                          {assignedComputer.storage?.total || '256 GB'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                        <span>Used: <strong className="text-slate-700 dark:text-slate-200">{assignedComputer.storage.used}</strong></span>
-                        <span>Free Space: <strong className="text-emerald-600 dark:text-emerald-400">{assignedComputer.storage.free}</strong></span>
+                        <span>Used: <strong className="text-slate-700 dark:text-slate-200">{assignedComputer.storage?.used || '120 GB'}</strong></span>
+                        <span>Free Space: <strong className="text-emerald-600 dark:text-emerald-400">{assignedComputer.storage?.free || '136 GB'}</strong></span>
                       </div>
                       <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full mt-2 overflow-hidden flex">
                         <div
@@ -1919,11 +1981,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                           <Layers className="w-3.5 h-3.5 text-purple-500" /> Graphics Adapter (GPU)
                         </span>
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 font-bold">
-                          {assignedComputer.graphics.memory}
+                          {assignedComputer.graphics?.memory || 'Integrated'}
                         </span>
                       </div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white">
-                        {assignedComputer.graphics.card}
+                        {assignedComputer.graphics?.card || 'Intel UHD / Iris Xe Graphics'}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
                         Display output calibrated for enterprise workloads
@@ -1936,13 +1998,13 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                         Operating System Edition
                       </div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white">
-                        {assignedComputer.system.os}
+                        {assignedComputer.system?.os || 'Windows 11 Pro / Enterprise'}
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1">
-                        System Type: <span className="text-slate-700 dark:text-slate-300">{assignedComputer.system.systemType}</span>
+                        System Type: <span className="text-slate-700 dark:text-slate-300">{assignedComputer.system?.systemType || '64-bit operating system, x64-based processor'}</span>
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
-                        Pen and Touch: <span className="text-slate-700 dark:text-slate-300">{assignedComputer.system.penAndTouch}</span>
+                        Pen and Touch: <span className="text-slate-700 dark:text-slate-300">{assignedComputer.system?.penAndTouch || 'No pen or touch input available'}</span>
                       </div>
                     </div>
 
@@ -1956,13 +2018,13 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                         <div className="flex items-center justify-between">
                           <span>Device ID:</span>
                           <span className="font-mono text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                            {maskSensitive(assignedComputer.system.deviceId, false)}
+                            {assignedComputer.system?.deviceId ? maskSensitive(assignedComputer.system.deviceId, false) : '••••••••-••••'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>Product ID:</span>
                           <span className="font-mono text-[10px] text-slate-400 bg-slate-200/60 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                            {maskSensitive(assignedComputer.system.productId, false)}
+                            {assignedComputer.system?.productId ? maskSensitive(assignedComputer.system.productId, false) : '•••••-•••••-•••••-•••••'}
                           </span>
                         </div>
                       </div>
@@ -2326,9 +2388,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                     <th className="py-2.5 px-3">Problem Category</th>
                     <th className="py-2.5 px-3">Reported Issue & Diagnostics</th>
                     <th className="py-2.5 px-3">Work Performed & Parts</th>
-                    <th className="py-2.5 px-3">Technician</th>
+                    <th className="py-2.5 px-3">Service Provider & Tech</th>
                     <th className="py-2.5 px-3">Repair Cost</th>
-                    <th className="py-2.5 px-3 rounded-r-lg">Status</th>
+                    <th className="py-2.5 px-3">Receipt / Invoice</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 rounded-r-lg text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -2374,14 +2438,85 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
-                        {record.technician}
+                      <td className="py-3 px-3">
+                        {record.serviceProviderShopName ? (
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                              <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span className="truncate max-w-[150px]">{record.serviceProviderShopName}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {record.technician || 'Technician'}
+                            </div>
+                            {record.serviceProviderPhone && (
+                              <a
+                                href={`https://wa.me/${record.serviceProviderPhone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                title="Chat on WhatsApp"
+                              >
+                                <span>+91 {record.serviceProviderPhone}</span>
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-slate-600 dark:text-slate-400 font-medium">
+                            {record.technician || 'Assigned Technician'}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">
                         {formatCurrency(record.serviceCost || 0)}
                       </td>
                       <td className="py-3 px-3">
+                        {record.receiptFileUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewReceiptRecord(record)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer group shadow-2xs"
+                            title="View uploaded repair receipt"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Receipt Attached</span>
+                            <Eye className="w-3 h-3 text-emerald-500 opacity-70 group-hover:opacity-100" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setUploadReceiptRecordId(record.id)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-dashed border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
+                            title="Attach receipt/invoice for this repair"
+                          >
+                            <UploadCloud className="w-3 h-3" />
+                            <span>Add Receipt</span>
+                          </button>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
                         <ServiceStatusBadge status={record.serviceStatus} />
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {record.receiptFileUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewReceiptRecord(record)}
+                              className="p-1 rounded text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="View / Download Receipt"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setUploadReceiptRecordId(record.id)}
+                            className="p-1 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-[11px] font-semibold flex items-center gap-1"
+                            title="Upload / Update Receipt & Cost"
+                          >
+                            <UploadCloud className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2665,153 +2800,241 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       )}
 
       {/* 7.8. MY ASSIGNED SIM CARDS & TELECOM FLEET */}
-      {(activeSection === 'all' || activeSection === 'sim-cards') && (
-        <div className="bg-white dark:bg-[#101726] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <Smartphone className="w-4 h-4" />
+      {(activeSection === 'all' || activeSection === 'sim-cards') &&
+        (() => {
+          const mySimExpense = calculateSimMonthlyExpense(mySimCards.length);
+        return (
+          <div className="p-5 rounded-2xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                    <span>My Assigned SIM Cards &amp; Mobile Numbers</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                      Total SIMs: {mySimCards.length}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                      Total Monthly SIM Expense: {formatINR(mySimExpense.totalExpense)}
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Track allocated corporate numbers, project assignments, and monthly SIM recharge expense
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>My Assigned SIM Cards &amp; Mobile Numbers</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                    {mySimCards.length} {mySimCards.length === 1 ? 'SIM' : 'SIMs'}
-                  </span>
-                </h2>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Track allocated corporate numbers, project assignments, and submit new SIM or suspension requests
+
+              <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimModalDefaultType('Suspend SIM');
+                    setShowSimRequestModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Request Suspension</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimModalDefaultType('Additional SIM');
+                    setShowSimRequestModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Request Additional SIM</span>
+                </button>
+              </div>
+            </div>
+
+            {/* SIM Recharge Cost Breakdown Telemetry Card */}
+            {mySimCards.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/5 via-blue-500/5 to-transparent border border-emerald-500/20">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Assigned SIMs</span>
+                  <p className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400">{mySimExpense.simCount} SIMs</p>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Monthly Base Recharge</span>
+                  <p className="text-lg font-mono font-bold text-slate-900 dark:text-white">{formatINR(mySimExpense.baseRecharge)}</p>
+                  <p className="text-[10px] text-slate-400">({mySimExpense.simCount} × ₹399.00)</p>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">GST Amount (18%)</span>
+                  <p className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400">{formatINR(mySimExpense.gstAmount)}</p>
+                  <p className="text-[10px] text-slate-400">({mySimExpense.simCount} × ₹71.82)</p>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Monthly SIM Expense</span>
+                  <p className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">{formatINR(mySimExpense.totalExpense)}</p>
+                  <p className="text-[10px] text-slate-400">({mySimExpense.simCount} × ₹470.82)</p>
+                </div>
+              </div>
+            )}
+
+            {/* SIM Table */}
+            {mySimCards.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50/60 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 space-y-2.5">
+                <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 flex items-center justify-center mx-auto">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                  No corporate SIM cards currently assigned
+                </div>
+                <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
+                  Need a dedicated calling, WhatsApp, or field operations SIM for a project? Submit a requisition directly to Admin.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimModalDefaultType('Additional SIM');
+                    setShowSimRequestModal(true);
+                  }}
+                  className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Request New SIM</span>
+                </button>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setSimModalDefaultType('Suspend SIM');
-                  setShowSimRequestModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
-              >
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                <span>Request Suspension</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSimModalDefaultType('Additional SIM');
-                  setShowSimRequestModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Request Additional SIM</span>
-              </button>
-            </div>
-          </div>
-
-          {/* SIM Table */}
-          {mySimCards.length === 0 ? (
-            <div className="p-8 text-center bg-slate-50/60 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-800 space-y-2.5">
-              <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 flex items-center justify-center mx-auto">
-                <Smartphone className="w-5 h-5" />
-              </div>
-              <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                No corporate SIM cards currently assigned
-              </div>
-              <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
-                Need a dedicated calling, WhatsApp, or field operations SIM for a project? Submit a requisition directly to Admin.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSimModalDefaultType('Additional SIM');
-                  setShowSimRequestModal(true);
-                }}
-                className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Request New SIM</span>
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50/70 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200/80 dark:border-slate-800 text-[11px] uppercase tracking-wider">
-                  <tr>
-                    <th className="py-2.5 px-4 font-semibold">Contact / Mobile No.</th>
-                    <th className="py-2.5 px-4 font-semibold">Purpose</th>
-                    <th className="py-2.5 px-4 font-semibold">Project</th>
-                    <th className="py-2.5 px-4 font-semibold">Status</th>
-                    <th className="py-2.5 px-4 font-semibold">Carrier / Plan</th>
-                    <th className="py-2.5 px-4 font-semibold">Remarks / Notes</th>
-                    <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                  {mySimCards.map(sim => (
-                    <tr key={sim.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">📱</span>
-                          <span>{sim.contactNumber}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getSimPurposeStyle(sim.purpose)}`}>
-                          {sim.purpose === 'Other' && sim.customPurpose ? `Other (${sim.customPurpose})` : sim.purpose}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs font-medium text-slate-700 dark:text-slate-300">
-                        {sim.project ? (
-                          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                            📁 {sim.project}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${getSimStatusStyle(sim.status)}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${sim.status === 'Active' ? 'bg-emerald-500' : sim.status === 'Suspended' ? 'bg-rose-500' : 'bg-blue-500'}`} />
-                          <span>{sim.status}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-[11px]">
-                        <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
-                      </td>
-                      <td className="py-3 px-4 text-[11px] text-slate-500 dark:text-slate-400 max-w-xs truncate">
-                        {sim.status === 'Suspended' && sim.suspensionReason ? (
-                          <span className="text-rose-600 dark:text-rose-400 font-medium">
-                            Reason: {sim.suspensionReason}
-                          </span>
-                        ) : (
-                          sim.remarks || '—'
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {sim.status === 'Active' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSimModalDefaultType('Suspend SIM');
-                              setShowSimRequestModal(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
-                            title="Request suspension of this SIM"
-                          >
-                            <span>Request Suspension</span>
-                          </button>
-                        )}
-                      </td>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50/70 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200/80 dark:border-slate-800 text-[11px] uppercase tracking-wider">
+                    <tr>
+                      <th className="py-2.5 px-4 font-semibold">Contact / Mobile No.</th>
+                      <th className="py-2.5 px-4 font-semibold">Purpose</th>
+                      <th className="py-2.5 px-4 font-semibold">Project</th>
+                      <th className="py-2.5 px-4 font-semibold">Status</th>
+                      <th className="py-2.5 px-4 font-semibold">Monthly Recharge Cost</th>
+                      <th className="py-2.5 px-4 font-semibold">Carrier / Plan</th>
+                      <th className="py-2.5 px-4 font-semibold">Remarks / Notes</th>
+                      <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                    {mySimCards.map(sim => (
+                      <tr key={sim.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">📱</span>
+                            <span>{sim.contactNumber}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getSimPurposeStyle(sim.purpose)}`}>
+                            {sim.purpose === 'Other' && sim.customPurpose ? `Other (${sim.customPurpose})` : sim.purpose}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-xs font-medium text-slate-700 dark:text-slate-300">
+                          {sim.project ? (
+                            <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              📁 {sim.project}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="space-y-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${getSimStatusStyle(sim.status)}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${sim.status === 'Active' ? 'bg-emerald-500' : sim.status === 'Suspended' ? 'bg-rose-500' : 'bg-blue-500'}`} />
+                              <span>{sim.status}</span>
+                            </span>
+
+                            {(() => {
+                              const activeIssue = mySimRequests.find(r => (r.simId === sim.id || r.contactNumber === sim.contactNumber) && r.requestType === 'Report Issue');
+                              if (activeIssue) {
+                                return (
+                                  <div className="p-1 rounded bg-rose-500/10 border border-rose-500/20 text-[10px]">
+                                    <div className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 flex-wrap">
+                                      <span>🔴 {activeIssue.issueType || 'Issue Reported'}</span>
+                                      <span className={`px-1.5 py-0.2 rounded font-mono text-[9px] ${
+                                        activeIssue.status === 'Resolved'
+                                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                                          : activeIssue.status === 'In Progress'
+                                          ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                                          : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                                      }`}>
+                                        Status: {activeIssue.status}
+                                      </span>
+                                    </div>
+                                    {activeIssue.resolutionRemarks && (
+                                      <div className="text-emerald-600 dark:text-emerald-400 font-medium text-[9px] mt-0.5">
+                                        🟢 Resolution: {activeIssue.resolutionRemarks}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        </td>
+                        {/* Monthly Recharge Breakdown */}
+                        <td className="py-3 px-4 text-[11px]">
+                          <div className="space-y-0.5 font-mono">
+                            <div className="text-slate-900 dark:text-white font-bold">
+                              Total: ₹470.82
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              Base: ₹399.00 + GST (18%): ₹71.82
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-[11px]">
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
+                        </td>
+                        <td className="py-3 px-4 text-[11px] text-slate-500 dark:text-slate-400 max-w-xs truncate">
+                          {sim.status === 'Suspended' && sim.suspensionReason ? (
+                            <span className="text-rose-600 dark:text-rose-400 font-medium">
+                              Reason: {sim.suspensionReason}
+                            </span>
+                          ) : (
+                            sim.remarks || '—'
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSimForIssue(sim);
+                                setShowReportIssueModal(true);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-md transition-colors cursor-pointer"
+                              title="Report SIM blockage, no service, or data issue to IT Admin"
+                            >
+                              <AlertTriangle className="w-3 h-3 text-amber-500" />
+                              <span>Report Issue</span>
+                            </button>
+
+                            {sim.status === 'Active' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSimModalDefaultType('Suspend SIM');
+                                  setShowSimRequestModal(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
+                                title="Submit Suspension Request for this SIM"
+                              >
+                                <span>Request Suspension</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
           {/* SIM Requests tracking */}
           {mySimRequests.length > 0 && (
@@ -2872,7 +3095,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
             </div>
           )}
         </div>
-      )}
+      );
+    })()}
 
       {/* 8. SELF-SERVICE WORKSTATION & ASSET ISSUE REPORTING MODAL */}
       {showReportModal && (assignedComputer || assignedAssets.length > 0) && (
@@ -3139,7 +3363,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                 {/* Problem Description */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Issue Description & Observed Symptoms *
+                    Issue Description &amp; Observed Symptoms *
                   </label>
                   <textarea
                     rows={3}
@@ -3151,6 +3375,117 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                   />
                 </div>
 
+                {/* Repair Cost & Receipt Info Section */}
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <IndianRupee className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Repair / Service Cost &amp; Receipt Upload</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">(Optional / If applicable)</span>
+                  </div>
+
+                  {/* Repair Cost Input */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Repair Cost Amount (₹)
+                    </label>
+                    <div className="relative rounded-lg shadow-2xs">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                        <IndianRupee className="w-3.5 h-3.5" />
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={reportRepairCost}
+                        onChange={e => setReportRepairCost(Number(e.target.value))}
+                        placeholder="Enter estimated or actual repair amount (₹)"
+                        className="w-full pl-8 pr-3 py-1.5 text-xs font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Receipt Number & Date */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
+                        Receipt / Invoice No.
+                      </label>
+                      <input
+                        type="text"
+                        value={reportReceiptNumber}
+                        onChange={e => setReportReceiptNumber(e.target.value)}
+                        placeholder="e.g. BILL-8890"
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
+                        Receipt Date
+                      </label>
+                      <input
+                        type="date"
+                        value={reportReceiptDate}
+                        onChange={e => setReportReceiptDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Receipt Upload File */}
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Upload Repair Receipt (JPG, PNG, PDF &lt; 10MB)
+                    </label>
+
+                    {!reportReceiptFileUrl ? (
+                      <label className="border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer bg-white dark:bg-slate-800/60 transition-colors">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          onChange={handleReportReceiptFileChange}
+                          className="hidden"
+                        />
+                        <UploadCloud className="w-5 h-5 text-emerald-500 mb-1" />
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                          Click to select repair receipt or invoice file
+                        </span>
+                        <span className="text-[9px] text-slate-400">JPG, PNG, or PDF up to 10MB</span>
+                      </label>
+                    ) : (
+                      <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <div className="overflow-hidden">
+                            <div className="font-semibold text-xs text-slate-800 dark:text-slate-200 truncate">
+                              {reportReceiptFileName}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {reportReceiptFileName.endsWith('.pdf') ? 'PDF Document' : 'Image File'} • {Math.round(reportReceiptFileSize / 1024)} KB
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveReportReceiptFile}
+                          className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors"
+                          title="Remove file"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {reportReceiptError && (
+                      <p className="text-[10px] text-rose-500 mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>{reportReceiptError}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 {/* Direct Admin Notification Notice */}
                 <div className="p-3 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 rounded-xl flex items-start gap-2.5 text-[11px] text-blue-950 dark:text-blue-200">
                   <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
@@ -3158,7 +3493,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                     <div className="font-bold flex items-center gap-1.5 flex-wrap">
                       <span>Direct Enterprise Delivery:</span>
                       <span className="font-mono bg-blue-100 dark:bg-blue-900/70 px-1.5 py-0.5 rounded text-blue-700 dark:text-blue-300 font-bold border border-blue-300/50">
-                        Admin Command Desk & {IT_SUPPORT_EMAIL}
+                        Admin Command Desk &amp; {IT_SUPPORT_EMAIL}
                       </span>
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed text-[11px]">
@@ -3174,6 +3509,12 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                     onClick={() => {
                       setShowReportModal(false);
                       setSubmittedTicketResult(null);
+                      setReportRepairCost(0);
+                      setReportReceiptFileName('');
+                      setReportReceiptFileUrl('');
+                      setReportReceiptFileSize(0);
+                      setReportReceiptNumber('');
+                      setReportReceiptError('');
                     }}
                     className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer"
                   >
@@ -3215,6 +3556,31 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
         onClose={() => setShowSimRequestModal(false)}
         defaultType={simModalDefaultType}
         preselectedEmployeeId={employee?.id}
+      />
+
+      {/* 11. REPORT SIM ISSUE MODAL */}
+      <ReportSimIssueModal
+        isOpen={showReportIssueModal}
+        onClose={() => {
+          setShowReportIssueModal(false);
+          setSelectedSimForIssue(null);
+        }}
+        targetSim={selectedSimForIssue}
+      />
+
+      {/* 12. SERVICE RECEIPT PREVIEW MODAL */}
+      <ServiceReceiptPreviewModal
+        isOpen={!!previewReceiptRecord}
+        record={previewReceiptRecord}
+        onClose={() => setPreviewReceiptRecord(null)}
+        onOpenUpload={(id) => setUploadReceiptRecordId(id)}
+      />
+
+      {/* 13. UPLOAD / UPDATE SERVICE RECEIPT MODAL */}
+      <UploadServiceReceiptModal
+        isOpen={!!uploadReceiptRecordId}
+        recordId={uploadReceiptRecordId}
+        onClose={() => setUploadReceiptRecordId(null)}
       />
     </div>
   );

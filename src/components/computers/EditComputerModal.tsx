@@ -106,30 +106,31 @@ export const EditComputerModal: React.FC<EditComputerModalProps> = ({
       status,
       remarks: remarks.trim(),
       processor: {
-        name: processorName.trim() || computer.processor.name,
-        generation: processorGen.trim() || computer.processor.generation,
-        speed: processorSpeed.trim() || computer.processor.speed,
+        name: processorName.trim() || computer.processor?.name || 'Intel Core i5-1135G7',
+        generation: processorGen.trim() || computer.processor?.generation || '11th Gen',
+        speed: processorSpeed.trim() || computer.processor?.speed || '2.40 GHz',
       },
       memory: {
-        installedRAM: installedRAM.trim() || computer.memory.installedRAM,
-        usableRAM: usableRAM.trim() || computer.memory.usableRAM,
+        installedRAM: installedRAM.trim() || computer.memory?.installedRAM || '16 GB',
+        usableRAM: usableRAM.trim() || computer.memory?.usableRAM || '15.8 GB',
       },
       graphics: {
-        card: graphicsCard.trim() || computer.graphics.card,
-        memory: graphicsMemory.trim() || computer.graphics.memory,
+        card: graphicsCard.trim() || computer.graphics?.card || 'Intel Iris Xe Graphics',
+        memory: graphicsMemory.trim() || computer.graphics?.memory || 'Integrated',
       },
       storage: {
-        total: storageTotal.trim() || computer.storage.total,
-        used: storageUsed.trim() || computer.storage.used,
-        free: storageFree.trim() || computer.storage.free,
-        type: storageType.trim() || computer.storage.type,
+        total: storageTotal.trim() || computer.storage?.total || '512 GB',
+        used: storageUsed.trim() || computer.storage?.used || '120 GB',
+        free: storageFree.trim() || computer.storage?.free || '392 GB',
+        type: storageType.trim() || computer.storage?.type || 'SSD NVMe',
       },
       system: {
-        ...computer.system,
-        os: os.trim() || computer.system.os,
-        systemType: systemType.trim() || computer.system.systemType,
-        deviceId: deviceId.trim() || computer.system.deviceId,
-        productId: productId.trim() || computer.system.productId,
+        os: os.trim() || computer.system?.os || 'Windows 11 Pro',
+        systemType: systemType.trim() || computer.system?.systemType || '64-bit operating system, x64-based processor',
+        processorArchitecture: computer.system?.processorArchitecture || 'x64-based processor',
+        penAndTouch: computer.system?.penAndTouch || 'No pen or touch input is available for this display',
+        deviceId: deviceId.trim() || computer.system?.deviceId || 'DEV-XXXXXXXX',
+        productId: productId.trim() || computer.system?.productId || 'PRD-XXXXXXXX',
       },
     });
 
@@ -384,28 +385,43 @@ export const EditComputerModal: React.FC<EditComputerModalProps> = ({
           </div>
 
           {/* Operating System */}
+          <div>
+            <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+              Operating System
+            </label>
+            <input
+              type="text"
+              value={os}
+              onChange={e => setOs(e.target.value)}
+              placeholder="e.g. Windows 11 Pro 64-bit"
+              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500"
+            />
+          </div>
+
+          {/* Graphics Card & Video Memory */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Operating System
-              </label>
-              <input
-                type="text"
-                value={os}
-                onChange={e => setOs(e.target.value)}
-                placeholder="e.g. Windows 11 Pro 64-bit"
-                className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Graphics Card
+                Graphics Card / GPU Model
               </label>
               <input
                 type="text"
                 value={graphicsCard}
                 onChange={e => setGraphicsCard(e.target.value)}
+                placeholder="e.g. Intel(R) Iris(R) Xe Graphics or NVIDIA RTX 4060"
                 className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Graphics / Video Memory (VRAM)
+              </label>
+              <input
+                type="text"
+                value={graphicsMemory}
+                onChange={e => setGraphicsMemory(e.target.value)}
+                placeholder="e.g. 512 MB or 8 GB Dedicated"
+                className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono focus:outline-hidden focus:border-blue-500"
               />
             </div>
           </div>

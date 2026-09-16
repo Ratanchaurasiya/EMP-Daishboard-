@@ -26,9 +26,14 @@ import {
   CheckCircle2,
   Trash2,
   UserMinus,
+  Building2,
+  FileText,
+  Eye,
 } from 'lucide-react';
 import { EditComputerModal } from './EditComputerModal';
 import { UnassignCustodianModal } from '../common/UnassignCustodianModal';
+import { ServiceReceiptPreviewModal } from '../services/ServiceReceiptPreviewModal';
+import { ServiceRecord } from '../../types';
 
 interface ComputerDetailModalProps {
   computerId: string;
@@ -59,6 +64,7 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [confirmDecommission, setConfirmDecommission] = useState<boolean>(false);
   const [showUnassignModal, setShowUnassignModal] = useState<boolean>(false);
+  const [previewReceiptRecord, setPreviewReceiptRecord] = useState<ServiceRecord | null>(null);
 
   const computer = computers.find(c => c.id === computerId);
 
@@ -310,10 +316,10 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
                     <span>Processor</span>
                   </div>
                   <div className="font-medium text-slate-800 dark:text-slate-200">
-                    {computer.processor.name}
+                    {computer.processor?.name || 'Standard Processor'}
                   </div>
                   <div className="text-[10px] text-slate-400">
-                    Speed: {computer.processor.speed}
+                    Speed: {computer.processor?.speed || '2.4 GHz'}
                   </div>
                 </div>
 
@@ -324,10 +330,10 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
                     <span>RAM</span>
                   </div>
                   <div className="font-mono text-base font-black text-slate-900 dark:text-white">
-                    {computer.memory.installedRAM}
+                    {computer.memory?.installedRAM || '8 GB'}
                   </div>
                   <div className="text-[10px] text-slate-400">
-                    Usable: {computer.memory.usableRAM}
+                    Usable: {computer.memory?.usableRAM || computer.memory?.installedRAM || '8 GB'}
                   </div>
                 </div>
 
@@ -338,10 +344,10 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
                     <span>Graphics Card</span>
                   </div>
                   <div className="font-medium text-slate-800 dark:text-slate-200">
-                    {computer.graphics.card}
+                    {computer.graphics?.card || 'Integrated Graphics'}
                   </div>
                   <div className="text-[10px] text-slate-400">
-                    VRAM: {computer.graphics.memory}
+                    VRAM: {computer.graphics?.memory || 'Shared'}
                   </div>
                 </div>
               </div>
@@ -351,9 +357,9 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
                   Windows Edition & Architecture
                 </span>
-                <div className="font-bold text-slate-900 dark:text-white">{computer.system.os}</div>
+                <div className="font-bold text-slate-900 dark:text-white">{computer.system?.os || 'Windows 11 Enterprise'}</div>
                 <div className="text-[11px] text-slate-500">
-                  {computer.system.systemType} • Pen & Touch: {computer.system.penAndTouch}
+                  {computer.system?.systemType || '64-bit operating system, x64-based processor'} • Pen & Touch: {computer.system?.penAndTouch || 'No pen or touch input available for this display'}
                 </div>
               </div>
 
@@ -503,9 +509,44 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
                         {service.workPerformed}
                       </p>
 
+                      {/* Service Provider / Electric Shop Banner */}
+                      {(service.serviceProviderShopName || service.technician) && (
+                        <div className="p-2 rounded-lg bg-amber-500/10 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                              {service.serviceProviderShopName || 'Local Tech Repair Center'}
+                            </span>
+                            <span className="text-slate-500 dark:text-slate-400">
+                              &bull; Tech: {service.technician || 'IT Support'}
+                            </span>
+                          </div>
+                          {service.serviceProviderPhone && (
+                            <a
+                              href={`https://wa.me/${service.serviceProviderPhone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#25D366] text-white shadow-2xs shrink-0"
+                            >
+                              WhatsApp
+                            </a>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-200/50 dark:border-slate-800">
-                        <span>Technician: {service.technician}</span>
                         <span>Date: {formatDateDisplay(service.serviceDate)}</span>
+                        {service.receiptFileUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewReceiptRecord(service)}
+                            className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>View Receipt Invoice</span>
+                            <Eye className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
@@ -537,6 +578,13 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
           onConfirm={handleConfirmUnassign}
         />
       )}
+
+      {/* Service Receipt Preview Modal */}
+      <ServiceReceiptPreviewModal
+        isOpen={!!previewReceiptRecord}
+        record={previewReceiptRecord}
+        onClose={() => setPreviewReceiptRecord(null)}
+      />
     </div>
   );
 };

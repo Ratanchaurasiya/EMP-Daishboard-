@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AssetCondition, AssetType } from '../../types';
 import {
@@ -99,12 +99,16 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
   preSelectedEmployeeId,
   preSelectedType,
 }) => {
-  const { assets, employees, assignAsset, addCompanyAsset, currentUser } = useApp();
+  const { assets, computers, employees, assignAsset, assignComputerToEmployee, addCompanyAsset, currentUser } = useApp();
 
   // Mode: 'issue' (Create brand-new asset directly to employee) vs 'pool' (Assign existing available stock)
   const [modalMode, setModalMode] = useState<'issue' | 'pool'>(
     preSelectedAssetId ? 'pool' : 'issue'
   );
+
+  const availableAssets = useMemo(() => {
+    return assets.filter(a => a.status === 'Available');
+  }, [assets]);
 
   // Common fields
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(preSelectedEmployeeId || '');
@@ -185,10 +189,54 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Available unassigned assets from fleet pool
-  const availableAssets = assets.filter(
-    a => a.status === 'Available' || a.id === selectedAssetId
-  );
+  // Available unassigned assets & computers from fleet pool
+  const availablePool = React.useMemo(() => {
+    const list: Array<{
+      id: string;
+      itemType: 'computer' | 'asset';
+      assetType: string;
+      assetNumber: string;
+      brand: string;
+      model: string;
+      condition: AssetCondition;
+    }> = [];
+
+    // 1. Available computers
+    computers.forEach(c => {
+      if (c.status === 'Available' || !c.assignedEmployeeId || c.id === selectedAssetId) {
+        list.push({
+          id: c.id,
+          itemType: 'computer',
+          assetType: c.deviceType || 'Laptop',
+          assetNumber: c.assetNumber,
+          brand: c.manufacturer,
+          model: c.model,
+          condition: c.condition,
+        });
+      }
+    });
+
+    // 2. Available peripheral assets
+    assets.forEach(a => {
+      // Avoid duplicate laptop listing if already in computers
+      if (a.assetType === 'Laptop' && computers.some(c => c.assetNumber.toLowerCase() === a.assetNumber.toLowerCase())) {
+        return;
+      }
+      if (a.status === 'Available' || !a.assignedEmployeeId || a.id === selectedAssetId) {
+        list.push({
+          id: a.id,
+          itemType: 'asset',
+          assetType: a.assetType,
+          assetNumber: a.assetNumber,
+          brand: a.brand,
+          model: a.model,
+          condition: a.condition,
+        });
+      }
+    });
+
+    return list;
+  }, [computers, assets, selectedAssetId]);
 
   const handleRegenerateTag = () => {
     const tag = generateTag(selectedType);
@@ -211,16 +259,33 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
 
     if (modalMode === 'pool') {
       if (!selectedAssetId) return;
-      const res = assignAsset(
-        selectedAssetId,
-        resolvedEmployeeId,
-        assignedDate,
-        condition,
-        issuedBy,
-        remarks
-      );
-      if (res.success) {
-        onClose();
+
+      const targetPoolItem = availablePool.find(p => p.id === selectedAssetId);
+      const isComputer = targetPoolItem?.itemType === 'computer' || computers.some(c => c.id === selectedAssetId);
+
+      if (isComputer) {
+        const res = assignComputerToEmployee(
+          selectedAssetId,
+          resolvedEmployeeId,
+          assignedDate,
+          condition,
+          remarks
+        );
+        if (res.success) {
+          onClose();
+        }
+      } else {
+        const res = assignAsset(
+          selectedAssetId,
+          resolvedEmployeeId,
+          assignedDate,
+          condition,
+          issuedBy,
+          remarks
+        );
+        if (res.success) {
+          onClose();
+        }
       }
     } else {
       // Direct Issue & Add Asset Mode
@@ -494,11 +559,11 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
           {modalMode === 'pool' && (
             <div>
               <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Choose Available Asset from Fleet Pool *
+                Choose Available Asset or Workstation from Stock Pool *
               </label>
-              {availableAssets.length === 0 ? (
+              {availablePool.length === 0 ? (
                 <div className="p-4 text-center rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
-                  <p className="font-semibold text-xs mb-1">No unassigned assets available in inventory stock.</p>
+                  <p className="font-semibold text-xs mb-1">No unassigned assets or computers available in stock.</p>
                   <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-2">
                     Switch to "Issue New Equipment" above to register and provision brand new hardware.
                   </p>
@@ -517,12 +582,33 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
                   onChange={e => setSelectedAssetId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
                 >
-                  <option value="">-- Select Asset from Pool ({availableAssets.length} Available) --</option>
-                  {availableAssets.map(a => (
-                    <option key={a.id} value={a.id}>
-                      [{a.assetType}] {a.assetNumber} - {a.brand} {a.model} ({a.condition})
-                    </option>
-                  ))}
+                  <option value="">-- Select from Stock ({availablePool.length} Available) --</option>
+                  
+                  {/* Group 1: Computers */}
+                  {availablePool.some(p => p.itemType === 'computer') && (
+                    <optgroup label="💻 Workstations & Laptops (Stock / Buffer)">
+                      {availablePool
+                        .filter(p => p.itemType === 'computer')
+                        .map(p => (
+                          <option key={p.id} value={p.id}>
+                            [{p.assetType}] {p.assetNumber} - {p.brand} {p.model} ({p.condition})
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+
+                  {/* Group 2: Peripherals */}
+                  {availablePool.some(p => p.itemType === 'asset') && (
+                    <optgroup label="📱 Peripherals, Phones & Accessories (Stock / Buffer)">
+                      {availablePool
+                        .filter(p => p.itemType === 'asset')
+                        .map(p => (
+                          <option key={p.id} value={p.id}>
+                            [{p.assetType}] {p.assetNumber} - {p.brand} {p.model} ({p.condition})
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
                 </select>
               )}
             </div>

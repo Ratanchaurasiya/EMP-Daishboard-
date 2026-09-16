@@ -57,6 +57,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     purchases,
     assetRequests,
     simCards,
+    simRequests,
+    serviceProviders,
     userRole,
     currentUser,
     selectedEmployeeId,
@@ -138,6 +140,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   }).length;
 
   const pendingRequestsCount = assetRequests.filter(r => r.status === 'Pending').length;
+  const pendingSimRequestsCount = simRequests.filter(r => r.status === 'Pending' || r.status === 'In Progress').length;
+  const totalActionableRequestsCount = pendingRequestsCount + pendingSimRequestsCount;
   const myRequestsCount = loggedEmployee
     ? assetRequests.filter(
         r =>
@@ -200,8 +204,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           label: 'SIM & Mobile Fleet',
           shortLabel: 'SIM Fleet',
           icon: Smartphone,
-          badge: simCards.length > 0 ? `${simCards.length}` : null,
-          badgeColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+          badge: pendingSimRequestsCount > 0 ? `${pendingSimRequestsCount} Pending` : (simCards.length > 0 ? `${simCards.length}` : null),
+          badgeColor: pendingSimRequestsCount > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+          isWarning: pendingSimRequestsCount > 0,
         },
         {
           id: 'assets',
@@ -246,6 +251,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           icon: Wrench,
           badge: underServiceCount > 0 ? `${underServiceCount} Active` : `${serviceRecords.length}`,
           isWarning: underServiceCount > 0,
+        },
+        {
+          id: 'system-support',
+          label: 'System / PC Support',
+          shortLabel: 'PC Support',
+          icon: Wrench,
+          badge: serviceProviders.length > 0 ? `${serviceProviders.length} Vendors` : null,
+          badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
         },
         {
           id: 'weekly-photos',

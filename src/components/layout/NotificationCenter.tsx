@@ -60,6 +60,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     setSelectedComputerId,
     setSelectedEmployeeId,
     setHighlightedRequestId,
+    setSimManagementSubTab,
+    setHighlightedSimRequestId,
     currentUser,
     userRole,
   } = useApp();
@@ -176,28 +178,49 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       const shouldShow = isEmployee ? (req.employeeId === (currentUser?.id || currentUser?.employeeId)) : true;
       if (!shouldShow) return;
 
-      const isPending = req.status === 'Pending';
+      const isPending = req.status === 'Pending' || req.status === 'In Progress';
       const isSuspension = req.requestType === 'Suspend SIM';
+      const isIssue = req.requestType === 'Report Issue';
+      const isUrgent = req.urgency === 'Urgent';
       const reqDateMillis = req.createdAt ? new Date(req.createdAt).getTime() : now;
       const dateDisplay = req.createdAt
         ? new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
         : 'Recent';
 
+      let title = `SIM Request ${req.status}: ${req.employeeName}`;
+      let severity: 'critical' | 'warning' | 'info' | 'success' = req.status === 'Approved' || req.status === 'Resolved' ? 'success' : 'info';
+
+      if (isPending) {
+        if (isIssue) {
+          title = `🔴 SIM Issue (${req.issueType || 'Issue'}): ${req.employeeName}`;
+          severity = isUrgent ? 'critical' : 'warning';
+        } else if (isSuspension) {
+          title = `⚠️ SIM Suspension Requested: ${req.employeeName}`;
+          severity = 'warning';
+        } else {
+          title = `📱 SIM Requisition: ${req.employeeName}`;
+          severity = 'info';
+        }
+      }
+
+      let description = `Requested new SIM for ${req.purpose || 'Calling'}. Purpose/Remarks: ${req.reason}`;
+      if (isIssue) {
+        description = `SIM: ${req.contactNumber || 'N/A'} | Project: ${req.project || 'General'} | Priority: ${req.urgency || 'Normal'}. Description: ${req.reason}`;
+      } else if (isSuspension) {
+        description = `Suspension requested for SIM ${req.contactNumber || ''}. Mandatory Reason: ${req.reason}`;
+      }
+
       items.push({
         id: `sim-req-${req.id}`,
         category: 'alerts',
-        severity: isPending ? (isSuspension ? 'warning' : 'info') : (req.status === 'Approved' ? 'success' : 'critical'),
-        title: isPending
-          ? `${isSuspension ? '⚠️ SIM Suspension Pending' : '📱 Additional SIM Requisition'}: ${req.employeeName}`
-          : `SIM Request ${req.status}: ${req.employeeName}`,
-        description: isSuspension
-          ? `Suspension requested for SIM ${req.contactNumber || ''}. Mandatory Reason: ${req.reason}`
-          : `Requested new SIM for ${req.purpose || 'Calling'}. Purpose/Remarks: ${req.reason}`,
+        severity,
+        title,
+        description,
         timestamp: dateDisplay || 'Recent',
         rawDate: isNaN(reqDateMillis) ? now : reqDateMillis,
         tabTarget: 'sim-management',
         targetId: req.id,
-        actionLabel: isPending ? 'Take SIM Action' : 'View SIM Records',
+        actionLabel: isPending ? 'Take Action' : 'View SIM Records',
       });
     });
 
@@ -390,6 +413,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           setSelectedEmployeeId(item.targetId);
         } else if (item.tabTarget === 'requests') {
           setHighlightedRequestId(item.targetId);
+        } else if (item.tabTarget === 'sim-management') {
+          setSimManagementSubTab('requests');
+          setHighlightedSimRequestId(item.targetId);
         }
       }
     }

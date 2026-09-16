@@ -21,6 +21,7 @@ import {
   Layers,
   Camera,
   ShoppingBag,
+  Box,
 } from 'lucide-react';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
 
@@ -28,12 +29,14 @@ interface BottomNavProps {
   onOpenAddEmployee: () => void;
   onOpenAddComputer: () => void;
   onOpenAddService: () => void;
+  onOpenAddToBuffer?: () => void;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   onOpenAddEmployee,
   onOpenAddComputer,
   onOpenAddService,
+  onOpenAddToBuffer,
 }) => {
   const {
     activeTab,
@@ -143,6 +146,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <span className="text-[10px] text-slate-400 font-normal">Repair or maintenance</span>
             </div>
           </button>
+
+          {onOpenAddToBuffer && (
+            <button
+              onClick={() => {
+                setShowQuickAddMenu(false);
+                onOpenAddToBuffer();
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-700 dark:text-amber-300 font-semibold transition-colors"
+            >
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Box className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block leading-tight">Add to Buffer Stock</span>
+                <span className="text-[10px] text-slate-400 font-normal">Move or register spares</span>
+              </div>
+            </button>
+          )}
         </div>
       )}
 

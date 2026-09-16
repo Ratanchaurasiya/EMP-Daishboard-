@@ -93,14 +93,16 @@ export const EmployeeWeeklyPhotoSection: React.FC<EmployeeWeeklyPhotoSectionProp
     });
 
     // 2. Scan historical records for audits & missing historical assets
-    employeeRecords.forEach(r => {
-      r.assetPhotos.forEach(p => {
-        const key = (p.assetNumber?.trim() || p.assetName).toLowerCase();
+    (employeeRecords || []).forEach(r => {
+      (r?.assetPhotos || []).forEach(p => {
+        if (!p) return;
+        const key = (p.assetNumber?.trim() || p.assetName || p.assetType || '').toLowerCase();
+        if (!key) return;
         let existing = map.get(key);
         if (!existing) {
           existing = {
             assetNumber: p.assetNumber || 'UNTAGGED',
-            assetName: p.assetName || p.assetType,
+            assetName: p.assetName || p.assetType || 'Asset',
             assetType: p.assetType,
             isCurrentlyAssigned: false,
             auditCount: 0,
@@ -123,15 +125,15 @@ export const EmployeeWeeklyPhotoSection: React.FC<EmployeeWeeklyPhotoSectionProp
   // Determine displayed records based on selected asset filter
   const displayedRecords = useMemo(() => {
     if (selectedAssetFilter === 'all') {
-      return employeeRecords;
+      return employeeRecords || [];
     }
     const filterLower = selectedAssetFilter.toLowerCase();
-    return employeeRecords.filter(r =>
-      r.assetPhotos.some(
+    return (employeeRecords || []).filter(r =>
+      (r?.assetPhotos || []).some(
         p =>
-          p.assetNumber?.toLowerCase() === filterLower ||
-          p.assetType?.toLowerCase() === filterLower ||
-          p.assetName?.toLowerCase().includes(filterLower)
+          p?.assetNumber?.toLowerCase() === filterLower ||
+          p?.assetType?.toLowerCase() === filterLower ||
+          p?.assetName?.toLowerCase().includes(filterLower)
       )
     );
   }, [employeeRecords, selectedAssetFilter]);
@@ -181,6 +183,13 @@ export const EmployeeWeeklyPhotoSection: React.FC<EmployeeWeeklyPhotoSectionProp
     setIsModalOpen(true);
   };
 
+  // Find any records flagged as 'Needs Attention' by admin
+  const needsAttentionRecords = useMemo(() => {
+    return employeeRecords.filter(
+      r => r.status === 'Needs Attention' || r.reviewStatus === 'Needs Attention'
+    );
+  }, [employeeRecords]);
+
   return (
     <div className="bg-white dark:bg-[#101726] rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
       {/* Section Header */}
@@ -194,21 +203,54 @@ export const EmployeeWeeklyPhotoSection: React.FC<EmployeeWeeklyPhotoSectionProp
             </span>
           </h3>
           <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-            {assignedAssets.length} Assigned {assignedAssets.length === 1 ? 'Asset' : 'Assets'} ({assignedAssets.length} Photo {assignedAssets.length === 1 ? 'Upload Option' : 'Upload Options'})
+            {assignedAssets.length > 0
+              ? `${assignedAssets.length} Assigned ${assignedAssets.length === 1 ? 'Asset' : 'Assets'}`
+              : 'General Verification Active'}
           </span>
         </div>
 
         <button
           type="button"
-          disabled={assignedAssets.length === 0}
           onClick={() => handleOpenUploadForAsset(undefined)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-xs transition-colors cursor-pointer"
-          title={assignedAssets.length === 0 ? "No assigned assets to document" : "Upload weekly asset verification documentation"}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-xs transition-colors cursor-pointer"
+          title="Upload weekly asset verification documentation"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Upload Weekly Documentation ({assignedAssets.length} {assignedAssets.length === 1 ? 'Photo' : 'Photos'})</span>
+          <span>
+            {assignedAssets.length > 0
+              ? `Upload Weekly Documentation (${assignedAssets.length} ${assignedAssets.length === 1 ? 'Asset' : 'Assets'})`
+              : 'Upload Weekly Verification File'}
+          </span>
         </button>
       </div>
+
+      {/* Admin Needs Attention Banner (if admin flagged any upload) */}
+      {needsAttentionRecords.length > 0 && (
+        <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-900/60 flex items-start gap-3 animate-in fade-in">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="font-bold text-rose-900 dark:text-rose-200 uppercase tracking-wider text-[11px]">
+                Administrator Feedback - Action Required ({needsAttentionRecords.length} upload{needsAttentionRecords.length === 1 ? '' : 's'})
+              </span>
+            </div>
+            <p className="text-rose-800 dark:text-rose-300 mt-1">
+              {needsAttentionRecords[0].adminRemarks
+                ? `Admin Remarks for ${needsAttentionRecords[0].weekLabel}: "${needsAttentionRecords[0].adminRemarks}"`
+                : `Your weekly upload for ${needsAttentionRecords[0].weekLabel} has been flagged for review. Please check or re-upload your verification file.`}
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenEdit(needsAttentionRecords[0])}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-2xs cursor-pointer"
+              >
+                <span>Update / Re-upload Documentation</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Asset Filter Tabs Bar */}
       {trackedAssets.length > 0 && (
@@ -345,9 +387,19 @@ export const EmployeeWeeklyPhotoSection: React.FC<EmployeeWeeklyPhotoSectionProp
               No weekly asset photo audits recorded yet for {employeeName}.
             </p>
             {assignedAssets.length === 0 ? (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                This employee does not have any company assets currently assigned. Photo upload options will automatically appear once assets (laptop, peripherals) are assigned.
-              </p>
+              <div className="space-y-2 mt-2">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  No company hardware is currently assigned. You can still upload your weekly verification photo, workstation setup, or documents.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleOpenUploadForAsset()}
+                  className="mt-1 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Upload Weekly Verification File</span>
+                </button>
+              </div>
             ) : (
               <>
                 <p className="text-[11px] text-slate-400">

@@ -38,6 +38,7 @@ interface HeaderProps {
   onOpenAddEmployee: () => void;
   onOpenAddService: () => void;
   onOpenAddComputer: () => void;
+  onOpenAddToBuffer?: () => void;
   toggleSidebar: () => void;
 }
 
@@ -45,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAddEmployee,
   onOpenAddService,
   onOpenAddComputer,
+  onOpenAddToBuffer,
   toggleSidebar,
 }) => {
   const {
@@ -1054,6 +1056,12 @@ export const Header: React.FC<HeaderProps> = ({
                     className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 cursor-pointer"
                   >
                     <span>🛠️</span> Log Service / Repair
+                  </button>
+                  <button
+                    onClick={onOpenAddToBuffer}
+                    className="w-full text-left px-3.5 py-2 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-600 dark:text-amber-400 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 cursor-pointer font-medium"
+                  >
+                    <span>📦</span> Add to Buffer Stock
                   </button>
                   <button
                     onClick={exportFleetCSV}
