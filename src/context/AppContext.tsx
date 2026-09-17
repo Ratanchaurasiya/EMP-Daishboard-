@@ -27,6 +27,10 @@ import {
   SimType,
   ServiceProvider,
   ActiveSystemSupportTicket,
+  AssetQuery,
+  AssetQueryStatus,
+  AssetQueryType,
+  AssetQueryHistoryItem,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -41,6 +45,7 @@ import {
   INITIAL_SIM_RECHARGES,
   INITIAL_SIM_REQUESTS,
   INITIAL_SERVICE_PROVIDERS,
+  INITIAL_ASSET_QUERIES,
 } from '../data/initialSeedData';
 import { getEmployeePhoneFirst6 } from '../utils/formatters';
 import { assetCoreDB, DatabaseStats } from '../db/indexedDB';
@@ -244,6 +249,22 @@ interface AppContextType {
     adminNotes?: string
   ) => void;
   removeAssetRequest: (requestId: string) => void;
+
+  // Staff Asset Query Management Actions
+  assetQueries: AssetQuery[];
+  addAssetQuery: (
+    queryData: Omit<AssetQuery, 'id' | 'createdAt' | 'history' | 'isStarred' | 'status'> & { isStarred?: boolean }
+  ) => { success: boolean; id?: string; message?: string };
+  acknowledgeAssetQuery: (queryId: string, adminName?: string) => { success: boolean; message?: string };
+  updateAssetQueryStatus: (
+    queryId: string,
+    status: AssetQueryStatus,
+    notes?: string,
+    updatedBy?: string
+  ) => { success: boolean; message?: string };
+  reportQueryStillUnresolved: (queryId: string, notes?: string) => { success: boolean; message?: string };
+  toggleStarAssetQuery: (queryId: string) => { success: boolean; isStarred?: boolean };
+  removeAssetQuery: (queryId: string) => { success: boolean };
 
   // SIM Card & Telecom Management Actions
   addSimCard: (
@@ -474,6 +495,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ];
     } catch {
       return [];
+    }
+  });
+
+  const [assetQueries, setAssetQueries] = useState<AssetQuery[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_ASSET_QUERIES`);
+      return saved ? JSON.parse(saved) : INITIAL_ASSET_QUERIES;
+    } catch {
+      return INITIAL_ASSET_QUERIES;
     }
   });
 
@@ -4451,6 +4481,254 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // -------------------------------------------------------------
+  // STAFF ASSET QUERY MANAGEMENT
+  // -------------------------------------------------------------
+  const addAssetQuery: AppContextType['addAssetQuery'] = queryData => {
+    const nextSeq = assetQueries.length + 1;
+    const queryId = `QRY-2026-${String(nextSeq).padStart(3, '0')}`;
+    const now = new Date().toISOString();
+
+    const newQuery: AssetQuery = {
+      ...queryData,
+      id: queryId,
+      isStarred: queryData.isStarred || false,
+      status: 'Pending Acknowledgement',
+      createdAt: now,
+      updatedAt: now,
+      history: [
+        {
+          id: `hist-${Date.now()}-1`,
+          timestamp: now,
+          status: 'Pending Acknowledgement',
+          updatedBy: queryData.employeeName,
+          notes: `Query raised regarding ${queryData.assetName} (${queryData.assetNumber}).`,
+        },
+      ],
+    };
+
+    const nextList = [newQuery, ...assetQueries];
+    setAssetQueries(nextList);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
+    } catch (e) {
+      console.warn('LocalStorage error saving asset query:', e);
+    }
+
+    addAuditEntry(
+      'Asset Query Submitted',
+      `Staff ${queryData.employeeName} (${queryData.employeeId}) raised asset query ${queryId} for ${queryData.assetName} [${queryData.assetNumber}]`
+    );
+
+    showToast(`Asset Query #${queryId} submitted successfully to Admin.`, 'success');
+    return { success: true, id: queryId, message: 'Query submitted successfully' };
+  };
+
+  const acknowledgeAssetQuery: AppContextType['acknowledgeAssetQuery'] = (queryId, adminName) => {
+    const existing = assetQueries.find(q => q.id === queryId);
+    if (!existing) return { success: false, message: 'Query not found' };
+
+    const now = new Date().toISOString();
+    const ackAdmin = adminName || currentUser?.name || 'IT Admin';
+
+    const nextList = assetQueries.map(q => {
+      if (q.id === queryId) {
+        return {
+          ...q,
+          status: 'Acknowledged' as AssetQueryStatus,
+          acknowledgedBy: ackAdmin,
+          acknowledgedAt: now,
+          updatedAt: now,
+          history: [
+            {
+              id: `hist-${Date.now()}`,
+              timestamp: now,
+              status: 'Acknowledged' as AssetQueryStatus,
+              updatedBy: ackAdmin,
+              notes: `Admin ${ackAdmin} explicitly acknowledged this query.`,
+            },
+            ...q.history,
+          ],
+        };
+      }
+      return q;
+    });
+
+    setAssetQueries(nextList);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
+    } catch (e) {
+      console.warn('LocalStorage error acknowledging asset query:', e);
+    }
+
+    addAuditEntry(
+      'Asset Query Acknowledged',
+      `Admin ${ackAdmin} acknowledged query ${queryId} from ${existing.employeeName}`
+    );
+
+    showToast(`Query ${queryId} acknowledged successfully by ${ackAdmin}.`, 'success');
+    return { success: true, message: 'Query acknowledged' };
+  };
+
+  const updateAssetQueryStatus: AppContextType['updateAssetQueryStatus'] = (queryId, status, notes, updatedBy) => {
+    const existing = assetQueries.find(q => q.id === queryId);
+    if (!existing) return { success: false, message: 'Query not found' };
+
+    const now = new Date().toISOString();
+    const updater = updatedBy || currentUser?.name || 'IT Admin';
+
+    const nextList = assetQueries.map(q => {
+      if (q.id === queryId) {
+        let handoverDate = q.handoverDate;
+        let resolvedAt = q.resolvedAt;
+        let resolvedBy = q.resolvedBy;
+
+        if (status === 'Handover Completed') {
+          handoverDate = now;
+        } else if (status === 'Resolved' || status === 'Closed') {
+          resolvedAt = now;
+          resolvedBy = updater;
+        }
+
+        return {
+          ...q,
+          status,
+          handoverDate,
+          resolvedAt,
+          resolvedBy,
+          resolutionNotes: notes || q.resolutionNotes,
+          updatedAt: now,
+          history: [
+            {
+              id: `hist-${Date.now()}`,
+              timestamp: now,
+              status,
+              updatedBy: updater,
+              notes: notes || `Status updated to ${status} by ${updater}.`,
+            },
+            ...q.history,
+          ],
+        };
+      }
+      return q;
+    });
+
+    setAssetQueries(nextList);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
+    } catch (e) {
+      console.warn('LocalStorage error updating asset query:', e);
+    }
+
+    addAuditEntry(
+      'Asset Query Status Updated',
+      `${updater} updated query ${queryId} status to "${status}" for ${existing.employeeName}`
+    );
+
+    showToast(`Query ${queryId} status updated to "${status}".`, 'success');
+    return { success: true, message: `Query status updated to ${status}` };
+  };
+
+  const reportQueryStillUnresolved: AppContextType['reportQueryStillUnresolved'] = (queryId, notes) => {
+    const existing = assetQueries.find(q => q.id === queryId);
+    if (!existing) return { success: false, message: 'Query not found' };
+
+    const now = new Date().toISOString();
+    const reporter = currentUser?.name || existing.employeeName;
+
+    const nextList = assetQueries.map(q => {
+      if (q.id === queryId) {
+        return {
+          ...q,
+          status: 'Still Unresolved' as AssetQueryStatus,
+          stillUnresolvedDate: now,
+          stillUnresolvedNotes: notes || 'Employee reported that the asset issue is still not resolved after handover.',
+          updatedAt: now,
+          history: [
+            {
+              id: `hist-${Date.now()}`,
+              timestamp: now,
+              status: 'Still Unresolved' as AssetQueryStatus,
+              updatedBy: reporter,
+              notes: notes || 'Employee flagged issue as Still Unresolved post-handover.',
+            },
+            ...q.history,
+          ],
+        };
+      }
+      return q;
+    });
+
+    setAssetQueries(nextList);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
+    } catch (e) {
+      console.warn('LocalStorage error updating asset query:', e);
+    }
+
+    addAuditEntry(
+      'Asset Query Still Unresolved',
+      `Staff ${reporter} reported query ${queryId} STILL UNRESOLVED for ${existing.assetName} [${existing.assetNumber}]`
+    );
+
+    showToast(`Reported Query #${queryId} as Still Unresolved. Admin notified.`, 'error');
+    return { success: true, message: 'Marked as Still Unresolved' };
+  };
+
+  const toggleStarAssetQuery: AppContextType['toggleStarAssetQuery'] = queryId => {
+    let newStarredState = false;
+    const existing = assetQueries.find(q => q.id === queryId);
+    if (!existing) return { success: false };
+
+    const nextList = assetQueries.map(q => {
+      if (q.id === queryId) {
+        newStarredState = !q.isStarred;
+        return {
+          ...q,
+          isStarred: newStarredState,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return q;
+    });
+
+    setAssetQueries(nextList);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
+    } catch (e) {
+      console.warn('LocalStorage error toggling star asset query:', e);
+    }
+
+    addAuditEntry(
+      'Asset Query Star Toggled',
+      `Query ${queryId} marked as ${newStarredState ? 'Starred/Important' : 'Normal'}`
+    );
+
+    showToast(`Query ${queryId} ${newStarredState ? 'starred as Important ⭐' : 'unstarred'}.`, 'info');
+    return { success: true, isStarred: newStarredState };
+  };
+
+  const removeAssetQuery: AppContextType['removeAssetQuery'] = queryId => {
+    const existing = assetQueries.find(q => q.id === queryId);
+    const nextList = assetQueries.filter(q => q.id !== queryId);
+    setAssetQueries(nextList);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
+    } catch (e) {
+      console.warn('LocalStorage error removing asset query:', e);
+    }
+
+    if (existing) {
+      addAuditEntry(
+        'Asset Query Removed',
+        `Asset query ${queryId} removed`
+      );
+    }
+
+    showToast(`Asset query ${queryId} deleted.`, 'info');
+    return { success: true };
+  };
+
+  // -------------------------------------------------------------
   // SIM CARD & TELECOM MANAGEMENT
   // -------------------------------------------------------------
   const addSimCard: AppContextType['addSimCard'] = simData => {
@@ -5818,6 +6096,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAssetRequest,
     updateAssetRequestStatus,
     removeAssetRequest,
+    assetQueries,
+    addAssetQuery,
+    acknowledgeAssetQuery,
+    updateAssetQueryStatus,
+    reportQueryStillUnresolved,
+    toggleStarAssetQuery,
+    removeAssetQuery,
     addSimCard,
     updateSimCard,
     assignSimCard,

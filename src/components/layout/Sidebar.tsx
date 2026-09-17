@@ -21,6 +21,7 @@ import {
   User,
   ShoppingBag,
   GitBranch,
+  HelpCircle,
 } from 'lucide-react';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
 import { getEmployeeAssignedCompanyAssets } from '../../utils/assetUtils';
@@ -56,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     weeklyPhotoRecords,
     purchases,
     assetRequests,
+    assetQueries,
     simCards,
     simRequests,
     serviceProviders,
@@ -243,6 +245,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount} Pending` : (assetRequests.length > 0 ? `${assetRequests.length}` : null),
           badgeColor: pendingRequestsCount > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' : undefined,
           isWarning: pendingRequestsCount > 0,
+        },
+        {
+          id: 'asset-queries',
+          label: 'Staff Asset Queries',
+          shortLabel: 'Queries',
+          icon: HelpCircle,
+          badge: (assetQueries?.filter(q => q.status === 'Pending Acknowledgement').length || 0) > 0
+            ? `${assetQueries.filter(q => q.status === 'Pending Acknowledgement').length} Ack Needed`
+            : (assetQueries && assetQueries.length > 0 ? `${assetQueries.length}` : null),
+          badgeColor: (assetQueries?.filter(q => q.status === 'Pending Acknowledgement').length || 0) > 0
+            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold'
+            : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+          isWarning: (assetQueries?.filter(q => q.status === 'Pending Acknowledgement').length || 0) > 0,
         },
         {
           id: 'services',

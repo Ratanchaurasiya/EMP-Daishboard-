@@ -24,6 +24,7 @@ import { AuditLogView } from './components/audit/AuditLogView';
 import { WeeklyPhotoAuditHub } from './components/documentation/WeeklyPhotoAuditHub';
 import { PurchaseManagementView } from './components/purchases/PurchaseManagementView';
 import { AssetRequestList } from './components/requests/AssetRequestList';
+import { AssetQueryList } from './components/queries/AssetQueryList';
 import { ServiceFlowchartView } from './components/flowchart/ServiceFlowchartView';
 import { SimManagementView } from './components/sim/SimManagementView';
 import { SystemPcSupportView } from './components/support/SystemPcSupportView';
@@ -237,6 +238,11 @@ const DashboardContent: React.FC = () => {
               {/* TAB: EQUIPMENT REQUISITIONS & REQUESTS */}
               {activeTab === 'requests' && (
                 <AssetRequestList />
+              )}
+
+              {/* TAB: STAFF ASSET QUERY MANAGEMENT */}
+              {activeTab === 'asset-queries' && (
+                <AssetQueryList />
               )}
 
               {/* TAB 5: SERVICE & REPAIRS */}

@@ -269,6 +269,12 @@ export interface AuditLog {
     | 'SIM Recharge Updated'
     | 'SIM Request Submitted'
     | 'SIM Request Status Updated'
+    | 'Asset Query Submitted'
+    | 'Asset Query Acknowledged'
+    | 'Asset Query Status Updated'
+    | 'Asset Query Still Unresolved'
+    | 'Asset Query Star Toggled'
+    | 'Asset Query Removed'
     | 'Service Provider Added'
     | 'Service Provider Updated'
     | 'Service Provider Deleted';
@@ -654,5 +660,62 @@ export interface ActiveSystemSupportTicket {
   urgency?: RequestUrgency;
   status?: string;
   createdAt?: string;
+}
+
+// ==================== STAFF ASSET QUERY MANAGEMENT ====================
+export type AssetQueryStatus =
+  | 'Pending Acknowledgement'
+  | 'Acknowledged'
+  | 'In Progress'
+  | 'Handover Completed'
+  | 'Still Unresolved'
+  | 'Resolved'
+  | 'Closed';
+
+export type AssetQueryType =
+  | 'Hardware Issue'
+  | 'Software / OS'
+  | 'Battery / Charger'
+  | 'Performance / Slow'
+  | 'Handover Followup'
+  | 'Physical Damage'
+  | 'Other';
+
+export interface AssetQueryHistoryItem {
+  id: string;
+  timestamp: string;
+  status: AssetQueryStatus;
+  updatedBy: string;
+  notes?: string;
+}
+
+export interface AssetQuery {
+  id: string; // e.g. "QRY-2026-001"
+  employeeId: string;
+  companyEmployeeNumber?: string;
+  employeeName: string;
+  employeeEmail: string;
+  employeePhone?: string;
+  department: string;
+  assetId?: string;
+  assetNumber: string; // e.g. "LAP-001"
+  assetName: string; // e.g. "Dell Latitude 5430"
+  assetType: 'Laptop' | 'Desktop' | 'Mobile Phone' | 'Monitor' | 'Other' | string;
+  queryType: AssetQueryType | string;
+  subject: string;
+  description: string;
+  isStarred: boolean;
+  status: AssetQueryStatus;
+  acknowledgedBy?: string;
+  acknowledgedAt?: string;
+  handoverDate?: string;
+  stillUnresolvedDate?: string;
+  stillUnresolvedNotes?: string;
+  resolutionNotes?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  createdAt: string;
+  updatedAt?: string;
+  history: AssetQueryHistoryItem[];
 }
 
