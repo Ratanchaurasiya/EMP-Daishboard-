@@ -78,6 +78,8 @@ export interface CompanyAsset {
   deviceName?: string;
   imeiNumber?: string;
   phoneNumber?: string;
+  securityFunctionAdded?: 'Yes' | 'No';
+  securityFunctionAddedDate?: string;
 }
 
 // Windows "About" / System Information for Desktop & Laptop
@@ -131,6 +133,8 @@ export interface Computer {
   status: AssetStatus;
   assignedDate: string | null;
   remarks?: string;
+  securityFunctionAdded?: 'Yes' | 'No';
+  securityFunctionAddedDate?: string;
 }
 
 // Historical record of asset issue and return
@@ -498,6 +502,9 @@ export interface AssetRequest {
 // ==================== SIM CARD & TELECOM MANAGEMENT ====================
 export type SimStatus = 'Available' | 'Assigned' | 'Active' | 'Suspended' | 'Deactivated';
 
+export const SIM_TYPES = ['Prepaid', 'Postpaid'] as const;
+export type SimType = (typeof SIM_TYPES)[number];
+
 export const SIM_PURPOSES = [
   'Holding',
   'WhatsApp',
@@ -519,6 +526,7 @@ export interface SimCard {
   status: SimStatus;
   purpose: SimPurpose;
   customPurpose?: string; // Exact purpose if purpose is 'Other'
+  simType?: SimType; // 'Prepaid' | 'Postpaid'
   project?: string; // Project for which SIM is allocated (e.g. "ABC Project", "HQ Ops")
   department?: string;
   carrier?: string; // e.g. "Airtel", "Jio", "Vodafone Idea", "BSNL"
@@ -583,6 +591,7 @@ export interface SimRequest {
   contactNumber?: string; // For suspend or issue requests
   purpose?: SimPurpose | string; // For additional SIM or issue report
   customPurpose?: string; // If 'Other' is selected
+  simType?: SimType; // 'Prepaid' | 'Postpaid'
   urgency: RequestUrgency;
   reason: string; // Mandatory requirement details / justification
   remarks?: string;

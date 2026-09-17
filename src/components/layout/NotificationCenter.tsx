@@ -20,6 +20,7 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react';
+import { isActiveAssignedSim } from '../../utils/simUtils';
 
 export interface NotificationItem {
   id: string;
@@ -56,6 +57,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     assetRequests,
     simRequests,
     simCards,
+    simRecharges,
     setActiveTab,
     setSelectedComputerId,
     setSelectedEmployeeId,
@@ -221,6 +223,38 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         tabTarget: 'sim-management',
         targetId: req.id,
         actionLabel: isPending ? 'Take Action' : 'View SIM Records',
+      });
+    });
+
+    // 0.6. SIM Recharge Notifications for Active Assigned SIMs ONLY
+    (simRecharges || []).forEach(rec => {
+      const targetSim = (simCards || []).find(s => s.id === rec.simId || s.contactNumber === rec.contactNumber);
+      // Exclude buffer stock, unassigned, suspended, inactive, or deactivated SIMs
+      if (!targetSim || !isActiveAssignedSim(targetSim)) return;
+
+      const empId = targetSim.assignedEmployeeId || rec.employeeId;
+      const currentEmpId = currentUser?.id || currentUser?.employeeId;
+      
+      const shouldShow = isEmployee
+        ? (empId === currentEmpId)
+        : true;
+
+      if (!shouldShow) return;
+
+      const recDateMillis = rec.createdAt ? new Date(rec.createdAt).getTime() : new Date(rec.rechargeDate).getTime();
+      const dateDisplay = rec.rechargeDate || 'Recent';
+
+      items.push({
+        id: `sim-rec-${rec.id}`,
+        category: 'alerts',
+        severity: 'success',
+        title: 'SIM Recharge Completed',
+        description: `Your assigned SIM (${rec.contactNumber}) has been successfully recharged by the admin. Plan: ${rec.planDescription || 'Monthly Allowance'} (Total: ₹${rec.totalAmount}).`,
+        timestamp: dateDisplay || 'Recent',
+        rawDate: isNaN(recDateMillis) ? now : recDateMillis,
+        tabTarget: isEmployee ? 'my-profile' : 'sim-management',
+        targetId: rec.id,
+        actionLabel: isEmployee ? 'View Dashboard' : 'View SIM Records',
       });
     });
 

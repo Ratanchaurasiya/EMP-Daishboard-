@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Smartphone, User, Tag, Calendar, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { SimCard, SimPurpose, SimStatus, SIM_PURPOSES } from '../../types';
+import { SimCard, SimPurpose, SimStatus, SimType, SIM_PURPOSES, SIM_TYPES } from '../../types';
 
 interface AddEditSimModalProps {
   isOpen: boolean;
@@ -21,6 +21,7 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
   const [contactNumber, setContactNumber] = useState('');
   const [simNumber, setSimNumber] = useState('');
   const [carrier, setCarrier] = useState('Airtel');
+  const [simType, setSimType] = useState<SimType>('Prepaid');
   const [project, setProject] = useState('');
   const [assignedEmployeeId, setAssignedEmployeeId] = useState('');
   const [status, setStatus] = useState<SimStatus>('Active');
@@ -35,6 +36,7 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
       setContactNumber(editSim.contactNumber || '');
       setSimNumber(editSim.simNumber || '');
       setCarrier(editSim.carrier || 'Airtel');
+      setSimType(editSim.simType || 'Prepaid');
       setProject(editSim.project || '');
       setAssignedEmployeeId(editSim.assignedEmployeeId || '');
       setStatus(editSim.status || 'Active');
@@ -46,6 +48,7 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
       setContactNumber('');
       setSimNumber('');
       setCarrier('Airtel');
+      setSimType('Prepaid');
       setProject('');
       setAssignedEmployeeId(preselectedEmployeeId || '');
       setStatus('Active');
@@ -78,6 +81,7 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
       contactNumber: cleanContact,
       simNumber: simNumber.trim() || undefined,
       carrier: carrier.trim() || undefined,
+      simType,
       project: project.trim() || undefined,
       assignedEmployeeId: assignedEmployeeId || null,
       status: assignedEmployeeId ? status : (status === 'Suspended' || status === 'Deactivated' ? status : 'Available'),
@@ -186,6 +190,37 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
                   <option value="BSNL">BSNL</option>
                   <option value="Other">Other Carrier</option>
                 </select>
+              </div>
+
+              {/* SIM Type */}
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                  SIM Type <span className="text-orange-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSimType('Prepaid')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                      simType === 'Prepaid'
+                        ? 'border-emerald-500/80 bg-emerald-500/10 text-emerald-400 font-semibold'
+                        : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    ⚡ Prepaid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSimType('Postpaid')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                      simType === 'Postpaid'
+                        ? 'border-indigo-500/80 bg-indigo-500/10 text-indigo-400 font-semibold'
+                        : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    📜 Postpaid
+                  </button>
+                </div>
               </div>
 
               {/* Project */}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Send, Smartphone, MessageSquare, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { SimPurpose, SimRequestType, RequestUrgency, SIM_PURPOSES } from '../../types';
+import { SimPurpose, SimRequestType, RequestUrgency, SimType, SIM_PURPOSES, SIM_TYPES } from '../../types';
 import { generateSimRequestWhatsAppUrl } from '../../utils/simUtils';
 
 interface RequestSimModalProps {
@@ -27,6 +27,7 @@ export const RequestSimModal: React.FC<RequestSimModalProps> = ({
   const [requestType, setRequestType] = useState<SimRequestType>(defaultType);
   const [selectedSimId, setSelectedSimId] = useState('');
   const [quantity, setQuantity] = useState<number>(1);
+  const [simType, setSimType] = useState<SimType>('Prepaid');
   const [project, setProject] = useState('');
   const [purpose, setPurpose] = useState<SimPurpose>('WhatsApp');
   const [customPurpose, setCustomPurpose] = useState('');
@@ -93,6 +94,7 @@ export const RequestSimModal: React.FC<RequestSimModalProps> = ({
       employeeEmail: currentEmp?.email || currentUser?.email,
       employeePhone: currentEmp?.phone,
       quantity: requestType === 'Additional SIM' ? Math.max(1, quantity) : 1,
+      simType: requestType === 'Additional SIM' ? simType : targetSim?.simType,
       project: requestType === 'Additional SIM' ? project.trim() : (targetSim?.project || project.trim() || 'General Operations'),
       requestType,
       simId: requestType === 'Suspend SIM' ? targetSim?.id : undefined,
@@ -223,8 +225,38 @@ export const RequestSimModal: React.FC<RequestSimModalProps> = ({
 
             {requestType === 'Additional SIM' ? (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Required SIM Quantity */}
+                {/* SIM Type & Quantity */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                      SIM Type <span className="text-orange-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSimType('Prepaid')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                          simType === 'Prepaid'
+                            ? 'border-emerald-500/80 bg-emerald-500/10 text-emerald-400 font-semibold'
+                            : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        ⚡ Prepaid
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSimType('Postpaid')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                          simType === 'Postpaid'
+                            ? 'border-indigo-500/80 bg-indigo-500/10 text-indigo-400 font-semibold'
+                            : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        📜 Postpaid
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-zinc-300 mb-1.5">
                       Quantity <span className="text-orange-500">*</span>
@@ -238,7 +270,9 @@ export const RequestSimModal: React.FC<RequestSimModalProps> = ({
                       className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 font-mono"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Intended Purpose */}
                   <div>
                     <label className="block text-xs font-medium text-zinc-300 mb-1.5">

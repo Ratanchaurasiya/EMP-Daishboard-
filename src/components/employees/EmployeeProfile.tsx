@@ -50,7 +50,7 @@ import { ShareEmployeeModal } from './ShareEmployeeModal';
 import { EmployeeWeeklyPhotoSection } from '../documentation/EmployeeWeeklyPhotoSection';
 import { getEmployeeAssignedCompanyAssets, UnifiedAssignedAsset } from '../../utils/assetUtils';
 import { SimCard, ServiceRecord } from '../../types';
-import { getSimStatusStyle, getSimPurposeStyle, calculateSimMonthlyExpense, formatINR } from '../../utils/simUtils';
+import { getSimStatusStyle, getSimPurposeStyle, getSimTypeBadgeStyle, calculateSimMonthlyExpense, formatINR, getEmployeeSimCards, getEmployeeActiveSimCards, getSimUsageBadgeStyle } from '../../utils/simUtils';
 import { AddEditSimModal } from '../sim/AddEditSimModal';
 import { SuspendSimModal } from '../sim/SuspendSimModal';
 import { RequestSimModal } from '../sim/RequestSimModal';
@@ -195,12 +195,7 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
   const assignedAssets = assets.filter(
     a => a.assignedEmployeeId === employee.id || a.assignedEmployeeId === employee.employeeId
   );
-  const employeeSims = simCards.filter(
-    s =>
-      s.assignedEmployeeId === employee.id ||
-      s.assignedEmployeeId === employee.employeeId ||
-      (s.assignedEmployeeName && s.assignedEmployeeName.trim().toLowerCase() === employee.name.trim().toLowerCase())
-  );
+  const employeeSims = getEmployeeSimCards(employee, simCards);
   const unifiedCompanyAssets = getEmployeeAssignedCompanyAssets(employee, assignedComputer, assets);
   const assignedPhones = assignedAssets.filter(a => a.assetType === 'Mobile Phone');
   const computerServices = assignedComputer
@@ -592,6 +587,24 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
                           Device: {asset.deviceName}
                         </div>
                       )}
+                      {(asset.assetType === 'Laptop' || asset.assetType === 'Desktop' || asset.assetType === 'Mobile Phone') && (
+                        <div className="mt-1 flex items-center gap-1 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              asset.securityFunctionAdded === 'No'
+                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                            }`}
+                          >
+                            🛡️ Security Function: {asset.securityFunctionAdded || 'Yes'}
+                          </span>
+                          {asset.securityFunctionAdded !== 'No' && asset.securityFunctionAddedDate && (
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              ({formatDateDisplay(asset.securityFunctionAddedDate)})
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
                       {asset.imeiNumber ? (
@@ -729,7 +742,9 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
 
       {/* 2.5 ASSIGNED SIM CARDS & CONTACT NUMBERS (Requirement 2 & Add +) */}
       {(() => {
-        const empSimExpense = calculateSimMonthlyExpense(employeeSims.length);
+        const activeEmpSims = getEmployeeActiveSimCards(employee, simCards);
+        const empSimExpense = calculateSimMonthlyExpense(activeEmpSims.length);
+        const usageBadge = getSimUsageBadgeStyle(employeeSims.length);
         return (
           <div className="bg-white dark:bg-[#101726] rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-emerald-500/5 to-transparent">
@@ -742,15 +757,16 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
                       Assigned SIM Cards & Mobile Fleet
                     </h3>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono border border-emerald-500/30">
-                      Total SIMs: {employeeSims.length}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${usageBadge.bg} ${usageBadge.text} ${usageBadge.border}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${usageBadge.dotColor}`} />
+                      {usageBadge.label}
                     </span>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 font-mono border border-blue-500/30">
                       Total Monthly SIM Expense: {formatINR(empSimExpense.totalExpense)}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {employee.name} — {employeeSims.length} {employeeSims.length === 1 ? 'SIM Card' : 'SIM Cards'} assigned • Base: {formatINR(empSimExpense.baseRecharge)} | GST (18%): {formatINR(empSimExpense.gstAmount)} | Total: {formatINR(empSimExpense.totalExpense)}
+                    {employee.name} — {usageBadge.label} • Base: {formatINR(empSimExpense.baseRecharge)} | GST (18%): {formatINR(empSimExpense.gstAmount)} | Total: {formatINR(empSimExpense.totalExpense)}
                   </p>
                 </div>
               </div>
@@ -868,8 +884,13 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
                           {sim.issueDate ? formatDateDisplay(sim.issueDate) : '—'}
                         </td>
                         <td className="py-3 px-4 text-[11px]">
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
-                          {sim.simNumber && <p className="text-[10px] text-slate-400 font-mono">ICCID: {sim.simNumber}</p>}
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${getSimTypeBadgeStyle(sim.simType).bg} ${getSimTypeBadgeStyle(sim.simType).text} ${getSimTypeBadgeStyle(sim.simType).border}`}>
+                              {getSimTypeBadgeStyle(sim.simType).label}
+                            </span>
+                          </div>
+                          {sim.simNumber && <p className="text-[10px] text-slate-400 font-mono mt-0.5">ICCID: {sim.simNumber}</p>}
                         </td>
                         <td className="py-3 px-4 text-[11px] text-slate-500 dark:text-slate-400 max-w-xs truncate">
                           {sim.status === 'Suspended' && sim.suspensionReason ? (

@@ -20,6 +20,8 @@ export interface UnifiedAssignedAsset {
   isPhone?: boolean;
   originalAssetId?: string;
   originalComputerId?: string;
+  securityFunctionAdded?: 'Yes' | 'No';
+  securityFunctionAddedDate?: string;
 }
 
 /**
@@ -81,6 +83,8 @@ export function getEmployeeAssignedCompanyAssets(
       specPill: comp.memory?.installedRAM ? `${comp.memory.installedRAM} RAM / ${comp.storage?.total || ''}` : (comp.deviceType || 'Workstation'),
       isComputer: true,
       originalComputerId: comp.id,
+      securityFunctionAdded: comp.securityFunctionAdded,
+      securityFunctionAddedDate: comp.securityFunctionAddedDate,
     });
   }
 
@@ -136,6 +140,8 @@ export function getEmployeeAssignedCompanyAssets(
       isComputer,
       isPhone,
       originalAssetId: a.id,
+      securityFunctionAdded: a.securityFunctionAdded,
+      securityFunctionAddedDate: a.securityFunctionAddedDate,
     });
   }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Smartphone, User, Check, AlertCircle, Plus, FolderKanban, Calendar, FileText } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { SimPurpose, SIM_PURPOSES } from '../../types';
+import { SimPurpose, SimType, SIM_PURPOSES, SIM_TYPES } from '../../types';
 
 interface AssignSimModalProps {
   isOpen: boolean;
@@ -30,6 +30,7 @@ export const AssignSimModal: React.FC<AssignSimModalProps> = ({
   const [newCarrier, setNewCarrier] = useState<string>('Airtel');
 
   // Common Assignment Fields
+  const [simType, setSimType] = useState<SimType>('Prepaid');
   const [purpose, setPurpose] = useState<SimPurpose>('WhatsApp');
   const [customPurpose, setCustomPurpose] = useState<string>('');
   const [project, setProject] = useState<string>('');
@@ -58,10 +59,13 @@ export const AssignSimModal: React.FC<AssignSimModalProps> = ({
           setPurpose(sim.purpose || 'WhatsApp');
           setCustomPurpose(sim.customPurpose || '');
           setProject(sim.project || '');
+          if (sim.simType) setSimType(sim.simType);
           setAllocationMode('existing');
         }
       } else if (availableSims.length > 0) {
         setSelectedSimId(availableSims[0].id);
+        const sim = availableSims[0];
+        if (sim.simType) setSimType(sim.simType);
         setAllocationMode('existing');
       } else {
         setAllocationMode('new');
@@ -101,7 +105,8 @@ export const AssignSimModal: React.FC<AssignSimModalProps> = ({
         purpose,
         purpose === 'Other' ? customPurpose.trim() : undefined,
         project.trim() || undefined,
-        remarks.trim() || undefined
+        remarks.trim() || undefined,
+        simType
       );
 
       if (!res.success) {
@@ -129,6 +134,7 @@ export const AssignSimModal: React.FC<AssignSimModalProps> = ({
         contactNumber: cleanContact,
         simNumber: newSimNumber.trim() || `8991${Date.now().toString().slice(-15)}`,
         carrier: newCarrier,
+        simType,
         status: 'Assigned',
         assignedEmployeeId: targetEmp.id,
         assignedEmployeeName: targetEmp.name,
@@ -317,6 +323,37 @@ export const AssignSimModal: React.FC<AssignSimModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* 3.5 SIM Type Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                SIM Type (Prepaid / Postpaid) <span className="text-rose-500">*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSimType('Prepaid')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                    simType === 'Prepaid'
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold'
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  ⚡ Prepaid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSimType('Postpaid')}
+                  className={`py-2 px-3 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                    simType === 'Postpaid'
+                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  📜 Postpaid
+                </button>
+              </div>
+            </div>
 
             {/* 4. Purpose & Project Assignment */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

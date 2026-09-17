@@ -132,6 +132,12 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
   const [newImei, setNewImei] = useState<string>('');
   const [newPhoneNumber, setNewPhoneNumber] = useState<string>('');
 
+  // Security Function fields for Laptop & Mobile
+  const [securityFunctionAdded, setSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
+  const [securityFunctionAddedDate, setSecurityFunctionAddedDate] = useState<string>(
+    new Date().toISOString().substring(0, 10)
+  );
+
   // Update employee/asset if props change
   useEffect(() => {
     if (preSelectedEmployeeId) {
@@ -269,7 +275,9 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
           resolvedEmployeeId,
           assignedDate,
           condition,
-          remarks
+          remarks,
+          securityFunctionAdded,
+          securityFunctionAddedDate
         );
         if (res.success) {
           onClose();
@@ -281,7 +289,9 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
           assignedDate,
           condition,
           issuedBy,
-          remarks
+          remarks,
+          securityFunctionAdded,
+          securityFunctionAddedDate
         );
         if (res.success) {
           onClose();
@@ -307,6 +317,8 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
         condition: condition,
         status: 'Assigned',
         remarks: remarks.trim() || (isPhone ? `Company Phone: ${newPhoneNumber.trim() || 'N/A'} (IMEI: ${newImei.trim() || 'N/A'})` : `Issued directly to ${targetEmp?.name || 'employee'} on ${assignedDate}`),
+        securityFunctionAdded,
+        securityFunctionAddedDate,
       });
 
       if (res.success) {
@@ -638,12 +650,48 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
                 onChange={e => setCondition(e.target.value as AssetCondition)}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors"
               >
-                <option value="New">New (Factory fresh)</option>
-                <option value="Good">Good (Minor normal use)</option>
+                <option value="New">New (Brand new unit)</option>
+                <option value="Good">Good (Operational)</option>
                 <option value="Fair">Fair (Operational with wear)</option>
               </select>
             </div>
           </div>
+
+          {/* Security Function Added & Date (ONLY for PC/Laptop & Mobile Phone) */}
+          {((modalMode === 'issue' && (selectedType === 'Laptop' || selectedType === 'Mobile Phone')) ||
+            (modalMode === 'pool' && (() => {
+              const selectedItem = availablePool.find(p => p.id === selectedAssetId);
+              return selectedItem?.itemType === 'computer' || selectedItem?.assetType === 'Laptop' || selectedItem?.assetType === 'Desktop' || selectedItem?.assetType === 'Mobile Phone';
+            })())) && (
+            <div className="grid grid-cols-2 gap-3 p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Security Function Added *
+                </label>
+                <select
+                  value={securityFunctionAdded}
+                  onChange={e => setSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                  className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-blue-500 transition-colors"
+                >
+                  <option value="Yes">Yes (Installed / Configured)</option>
+                  <option value="No">No (Not Installed)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Security Function Added Date
+                </label>
+                <input
+                  type="date"
+                  value={securityFunctionAddedDate}
+                  onChange={e => setSecurityFunctionAddedDate(e.target.value)}
+                  disabled={securityFunctionAdded === 'No'}
+                  className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 transition-colors disabled:opacity-50"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Issued By */}
           <div>

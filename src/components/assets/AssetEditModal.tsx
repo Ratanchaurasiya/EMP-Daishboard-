@@ -33,6 +33,8 @@ export const AssetEditModal: React.FC<AssetEditModalProps> = ({
   const [status, setStatus] = useState<AssetStatus>('Assigned');
   const [assignedEmployeeId, setAssignedEmployeeId] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
+  const [securityFunctionAdded, setSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
+  const [securityFunctionAddedDate, setSecurityFunctionAddedDate] = useState<string>('');
 
   useEffect(() => {
     if (asset) {
@@ -50,6 +52,8 @@ export const AssetEditModal: React.FC<AssetEditModalProps> = ({
       setStatus(asset.status);
       setAssignedEmployeeId(asset.assignedEmployeeId || '');
       setRemarks(asset.remarks || '');
+      setSecurityFunctionAdded(asset.securityFunctionAdded || 'Yes');
+      setSecurityFunctionAddedDate(asset.securityFunctionAddedDate || asset.assignedDate || new Date().toISOString().substring(0, 10));
     }
   }, [asset, isOpen]);
 
@@ -77,6 +81,8 @@ export const AssetEditModal: React.FC<AssetEditModalProps> = ({
       status,
       assignedEmployeeId: assignedEmployeeId || null,
       remarks: remarks.trim(),
+      securityFunctionAdded,
+      securityFunctionAddedDate,
     });
 
     if (res.success) {
@@ -228,6 +234,42 @@ export const AssetEditModal: React.FC<AssetEditModalProps> = ({
                     onChange={e => setPhoneNumber(e.target.value)}
                     placeholder="+91 98765 00000"
                     className="w-full px-2.5 py-1.5 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md font-mono text-xs focus:outline-hidden focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Security Function Section (For Laptop & Mobile Phone) */}
+          {(assetType === 'Mobile Phone' || assetType === 'Laptop') && (
+            <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-lg border border-emerald-500/20 space-y-2">
+              <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                <span>🛡️ Security Function Setup</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">
+                    Security Function Added *
+                  </label>
+                  <select
+                    value={securityFunctionAdded}
+                    onChange={e => setSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md text-xs focus:outline-hidden focus:border-blue-500 font-semibold cursor-pointer"
+                  >
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">
+                    Security Function Added Date
+                  </label>
+                  <input
+                    type="date"
+                    value={securityFunctionAddedDate}
+                    onChange={e => setSecurityFunctionAddedDate(e.target.value)}
+                    disabled={securityFunctionAdded === 'No'}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md text-xs focus:outline-hidden focus:border-blue-500 disabled:opacity-50"
                   />
                 </div>
               </div>

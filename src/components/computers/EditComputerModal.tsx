@@ -51,6 +51,9 @@ export const EditComputerModal: React.FC<EditComputerModalProps> = ({
   const [deviceId, setDeviceId] = useState('');
   const [productId, setProductId] = useState('');
 
+  const [securityFunctionAdded, setSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
+  const [securityFunctionAddedDate, setSecurityFunctionAddedDate] = useState<string>('');
+
   useEffect(() => {
     if (computer) {
       setAssetNumber(computer.assetNumber || '');
@@ -63,6 +66,8 @@ export const EditComputerModal: React.FC<EditComputerModalProps> = ({
       setCondition(computer.condition || 'Good');
       setStatus(computer.status || 'Available');
       setRemarks(computer.remarks || '');
+      setSecurityFunctionAdded(computer.securityFunctionAdded || 'Yes');
+      setSecurityFunctionAddedDate(computer.securityFunctionAddedDate || computer.assignedDate || new Date().toISOString().substring(0, 10));
 
       setProcessorName(computer.processor?.name || '');
       setProcessorGen(computer.processor?.generation || '');
@@ -105,6 +110,8 @@ export const EditComputerModal: React.FC<EditComputerModalProps> = ({
       condition,
       status,
       remarks: remarks.trim(),
+      securityFunctionAdded,
+      securityFunctionAddedDate,
       processor: {
         name: processorName.trim() || computer.processor?.name || 'Intel Core i5-1135G7',
         generation: processorGen.trim() || computer.processor?.generation || '11th Gen',
@@ -315,6 +322,41 @@ export const EditComputerModal: React.FC<EditComputerModalProps> = ({
                   <option value="Fair">Fair</option>
                   <option value="Damaged">Damaged</option>
                 </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Security Function Section */}
+          <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-xl border border-emerald-500/20 space-y-3">
+            <h3 className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Security Function Setup</span>
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Security Function Added *
+                </label>
+                <select
+                  value={securityFunctionAdded}
+                  onChange={e => setSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 cursor-pointer font-semibold"
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Security Function Added Date
+                </label>
+                <input
+                  type="date"
+                  value={securityFunctionAddedDate}
+                  onChange={e => setSecurityFunctionAddedDate(e.target.value)}
+                  disabled={securityFunctionAdded === 'No'}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 disabled:opacity-50"
+                />
               </div>
             </div>
           </div>

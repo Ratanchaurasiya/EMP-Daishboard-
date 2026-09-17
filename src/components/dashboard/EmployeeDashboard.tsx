@@ -9,7 +9,7 @@ import {
   ServiceStatusBadge,
 } from '../common/Badge';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
-import { ProblemCategory, SimCard, ServiceRecord } from '../../types';
+import { ProblemCategory, SimCard, SimRecharge, ServiceRecord } from '../../types';
 import {
   User,
   Shield,
@@ -70,7 +70,7 @@ import { RequestSimModal } from '../sim/RequestSimModal';
 import { ReportSimIssueModal } from '../sim/ReportSimIssueModal';
 import { ServiceReceiptPreviewModal } from '../services/ServiceReceiptPreviewModal';
 import { UploadServiceReceiptModal } from '../services/UploadServiceReceiptModal';
-import { getSimStatusStyle, getSimPurposeStyle, generateSimSuspensionWhatsAppUrl, calculateSimMonthlyExpense, formatINR } from '../../utils/simUtils';
+import { getSimStatusStyle, getSimPurposeStyle, getSimTypeBadgeStyle, generateSimSuspensionWhatsAppUrl, calculateSimMonthlyExpense, formatINR, getEmployeeSimCards, getEmployeeActiveSimCards, getSimUsageBadgeStyle } from '../../utils/simUtils';
 
 interface EmployeeDashboardProps {
   onOpenReportIssue?: () => void;
@@ -86,6 +86,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     assetRequests,
     simCards,
     simRequests,
+    simRecharges,
     currentUser,
     userRole,
     updateEmployee,
@@ -289,12 +290,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
   // Assigned SIM cards for this employee
   const mySimCards = useMemo(() => {
     if (!employee) return [];
-    return simCards.filter(
-      s =>
-        s.assignedEmployeeId === employee.id ||
-        s.assignedEmployeeId === employee.employeeId ||
-        (s.assignedEmployeeName && s.assignedEmployeeName.toLowerCase() === employee.name.toLowerCase())
-    );
+    return getEmployeeSimCards(employee, simCards);
   }, [simCards, employee]);
 
   // SIM Requests & Suspension requisitions submitted by this employee
@@ -2570,6 +2566,44 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4">
+            {/* Dynamic SIM Recharge Notification for Employee Active Assigned SIMs */}
+            {(() => {
+              const activeMySimCards = getEmployeeActiveSimCards(employee, simCards);
+              const activeMySimIds = new Set(activeMySimCards.map(s => s.id));
+              const myRechargeLogs = (simRecharges || []).filter((r: SimRecharge) => activeMySimIds.has(r.simId) || (r.employeeId && r.employeeId === (employee?.id || employee?.employeeId)));
+              const latestRecharge = myRechargeLogs.length > 0 ? myRechargeLogs[0] : null;
+
+              if (!latestRecharge) return null;
+
+              return (
+                <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 flex items-start gap-3 col-span-1 md:col-span-2 shadow-2xs">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                        SIM Recharge Completed
+                      </h4>
+                      <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded font-bold">
+                        RECHARGED
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 font-medium">
+                      Your assigned SIM ({latestRecharge.contactNumber}) has been successfully recharged by the admin.
+                    </p>
+                    <div className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-2 flex-wrap">
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Recharged on {latestRecharge.rechargeDate}</span>
+                      <span>•</span>
+                      <span>Plan: {latestRecharge.planDescription || 'Monthly Unlimited'}</span>
+                      <span>•</span>
+                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">Total: {formatINR(latestRecharge.totalAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Notification 1: Workstation Health Alert */}
             <div className="p-3.5 bg-blue-50/60 dark:bg-blue-950/30 rounded-xl border border-blue-200/80 dark:border-blue-900/50 flex items-start gap-3">
               <div className="w-7 h-7 rounded-lg bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
@@ -2802,7 +2836,20 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       {/* 7.8. MY ASSIGNED SIM CARDS & TELECOM FLEET */}
       {(activeSection === 'all' || activeSection === 'sim-cards') &&
         (() => {
-          const mySimExpense = calculateSimMonthlyExpense(mySimCards.length);
+          const activeMySimCards = getEmployeeActiveSimCards(employee, simCards);
+          const activeMySimIds = new Set(activeMySimCards.map(s => s.id));
+          const myRecharges = (simRecharges || []).filter((r: SimRecharge) => activeMySimIds.has(r.simId) || (r.employeeId && r.employeeId === (employee?.id || employee?.employeeId)));
+          const myBaseRecharge = myRecharges.reduce((sum: number, r: SimRecharge) => sum + (Number(r.rechargeAmount) || 0), 0);
+          const myGstAmount = myRecharges.reduce((sum: number, r: SimRecharge) => sum + (Number(r.gstAmount) || 0), 0);
+          const myTotalExpense = myRecharges.reduce((sum: number, r: SimRecharge) => sum + (Number(r.totalAmount) || 0), 0);
+          const mySimExpense = {
+            simCount: activeMySimCards.length,
+            rechargeCount: myRecharges.length,
+            baseRecharge: myBaseRecharge,
+            gstAmount: myGstAmount,
+            totalExpense: myTotalExpense,
+          };
+          const usageBadge = getSimUsageBadgeStyle(mySimCards.length);
         return (
           <div className="p-5 rounded-2xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
@@ -2813,8 +2860,9 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                     <span>My Assigned SIM Cards &amp; Mobile Numbers</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                      Total SIMs: {mySimCards.length}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${usageBadge.bg} ${usageBadge.text} ${usageBadge.border}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full mr-1 ${usageBadge.dotColor}`} />
+                      {usageBadge.label}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
                       Total Monthly SIM Expense: {formatINR(mySimExpense.totalExpense)}
@@ -2978,17 +3026,39 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                         </td>
                         {/* Monthly Recharge Breakdown */}
                         <td className="py-3 px-4 text-[11px]">
-                          <div className="space-y-0.5 font-mono">
-                            <div className="text-slate-900 dark:text-white font-bold">
-                              Total: ₹470.82
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              Base: ₹399.00 + GST (18%): ₹71.82
-                            </div>
-                          </div>
+                          {(() => {
+                            const simRec = (simRecharges || []).find((r: SimRecharge) => r.simId === sim.id || r.contactNumber === sim.contactNumber);
+                            if (simRec) {
+                              return (
+                                <div className="space-y-0.5 font-mono">
+                                  <div className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                    <span>🟢 Total: {formatINR(simRec.totalAmount)}</span>
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 truncate max-w-[200px]" title={`${simRec.rechargeDate} — ${simRec.planDescription}`}>
+                                    Recharged: {simRec.rechargeDate} ({simRec.planDescription})
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="space-y-0.5 font-mono">
+                                <div className="text-slate-900 dark:text-white font-bold">
+                                  Total: ₹0.00
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  No completed recharge logged
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 px-4 text-[11px]">
-                          <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-800 dark:text-slate-200 font-medium">{sim.carrier || 'Standard'}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${getSimTypeBadgeStyle(sim.simType).bg} ${getSimTypeBadgeStyle(sim.simType).text} ${getSimTypeBadgeStyle(sim.simType).border}`}>
+                              {getSimTypeBadgeStyle(sim.simType).label}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-[11px] text-slate-500 dark:text-slate-400 max-w-xs truncate">
                           {sim.status === 'Suspended' && sim.suspensionReason ? (
@@ -3058,6 +3128,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                         }`}>
                           {req.requestType}
                         </span>
+                        {req.simType && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getSimTypeBadgeStyle(req.simType).bg} ${getSimTypeBadgeStyle(req.simType).text} ${getSimTypeBadgeStyle(req.simType).border}`}>
+                            {getSimTypeBadgeStyle(req.simType).label}
+                          </span>
+                        )}
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                           req.status === 'Pending'
                             ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 animate-pulse'

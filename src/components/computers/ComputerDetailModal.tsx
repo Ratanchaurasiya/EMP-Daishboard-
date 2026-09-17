@@ -307,6 +307,27 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
                 )}
               </div>
 
+              {/* Security Function Banner */}
+              <div className="p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      Security Function
+                    </span>
+                    <span className={`text-xs font-bold ${computer.securityFunctionAdded === 'No' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                      Security Function Added: {computer.securityFunctionAdded || 'Yes'}
+                    </span>
+                  </div>
+                </div>
+                {computer.securityFunctionAddedDate && (
+                  <div className="text-right text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                    <span className="block text-[10px] text-slate-400">Added Date</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDateDisplay(computer.securityFunctionAddedDate)}</span>
+                  </div>
+                )}
+              </div>
+
               {/* Hardware Specifications Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Processor */}

@@ -24,6 +24,7 @@ import {
   SimRequestStatus,
   SimStatus,
   SimPurpose,
+  SimType,
   ServiceProvider,
   ActiveSystemSupportTicket,
 } from '../types';
@@ -167,7 +168,9 @@ interface AppContextType {
     assignedDate: string,
     condition: AssetCondition,
     issuedBy: string,
-    remarks?: string
+    remarks?: string,
+    securityFunctionAdded?: 'Yes' | 'No',
+    securityFunctionAddedDate?: string
   ) => { success: boolean; error?: string };
 
   returnAsset: (
@@ -201,7 +204,9 @@ interface AppContextType {
     employeeId: string | null,
     assignedDate: string,
     condition?: AssetCondition,
-    remarks?: string
+    remarks?: string,
+    securityFunctionAdded?: 'Yes' | 'No',
+    securityFunctionAddedDate?: string
   ) => { success: boolean; error?: string };
 
   addServiceRecord: (record: Omit<ServiceRecord, 'id'>) => { success: boolean; error?: string };
@@ -251,7 +256,8 @@ interface AppContextType {
     purpose?: SimPurpose,
     customPurpose?: string,
     project?: string,
-    remarks?: string
+    remarks?: string,
+    simType?: SimType
   ) => { success: boolean; error?: string };
   unassignSimCard: (simId: string, reason?: string) => { success: boolean; error?: string };
   suspendSimCard: (id: string, reason: string) => { success: boolean; error?: string };
@@ -2479,7 +2485,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     assignedDate,
     condition,
     issuedBy,
-    remarks
+    remarks,
+    securityFunctionAdded,
+    securityFunctionAddedDate
   ) => {
     if (currentUser?.role === 'employee') {
       showToast('Unauthorized: Administrative privileges required.', 'error');
@@ -2505,6 +2513,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             condition,
             status: 'Assigned' as const,
             remarks: remarks || `Assigned to ${emp.name} on ${assignedDate}`,
+            ...(securityFunctionAdded ? { securityFunctionAdded } : {}),
+            ...(securityFunctionAddedDate ? { securityFunctionAddedDate } : {}),
           }
         : a
     );
@@ -2518,6 +2528,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             assignedDate,
             condition,
             status: 'Assigned' as const,
+            ...(securityFunctionAdded ? { securityFunctionAdded } : {}),
+            ...(securityFunctionAddedDate ? { securityFunctionAddedDate } : {}),
           }
         : c
     );
@@ -3160,7 +3172,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     employeeId,
     assignedDate,
     condition,
-    remarks
+    remarks,
+    securityFunctionAdded,
+    securityFunctionAddedDate
   ) => {
     if (currentUser?.role === 'employee') {
       showToast('Unauthorized: Administrative privileges required.', 'error');
@@ -3197,6 +3211,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               status: 'Assigned' as const,
               condition: condition || c.condition,
               remarks: remarks || c.remarks,
+              ...(securityFunctionAdded ? { securityFunctionAdded } : {}),
+              ...(securityFunctionAddedDate ? { securityFunctionAddedDate } : {}),
             }
           : c
       );
@@ -3211,6 +3227,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: 'Assigned' as const,
             condition: condition || a.condition,
             remarks: remarks || a.remarks,
+            ...(securityFunctionAdded ? { securityFunctionAdded } : {}),
+            ...(securityFunctionAddedDate ? { securityFunctionAddedDate } : {}),
           };
         }
         if (
@@ -4660,7 +4678,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     purpose,
     customPurpose,
     project,
-    remarks
+    remarks,
+    simType
   ) => {
     if (currentUser?.role === 'employee') {
       showToast('Unauthorized: Administrative privileges required.', 'error');
@@ -4699,6 +4718,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customPurpose: customPurpose !== undefined ? customPurpose : targetSim.customPurpose,
       project: project !== undefined ? project : (targetSim.project || targetEmp.department),
       remarks: remarks !== undefined ? remarks : targetSim.remarks,
+      simType: simType || targetSim.simType || 'Prepaid',
       assignedDate: today,
       updatedAt: now,
     };
@@ -4839,7 +4859,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('LocalStorage error saving recharge:', e);
     }
 
-    api.createSimRecharge(newRecord).catch(err => console.warn('[AssetCore Backend] Failed to save recharge to SQLite:', err));
+    api.createSimRecharge(newRecord).catch(() => {});
     assetCoreDB.put('simRecharges', newRecord).catch(() => {});
 
     addAuditEntry(
@@ -4891,7 +4911,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('LocalStorage error saving SIM request:', e);
     }
 
-    api.createSimRequest(newRecord).catch(err => console.warn('[AssetCore Backend] Failed to save SIM request to SQLite:', err));
+    api.createSimRequest(newRecord).catch(() => {});
     assetCoreDB.put('simRequests', newRecord).catch(() => {});
 
     window.dispatchEvent(new CustomEvent('assetcore:new_sim_request', { detail: newRecord }));

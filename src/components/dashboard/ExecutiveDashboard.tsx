@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../utils/formatters';
-import { calculateSimMonthlyExpense, formatINR } from '../../utils/simUtils';
+import { calculateSimMonthlyExpense, calculateActiveSimActualRechargeExpense, formatINR, getActiveAssignedSimCards, isActiveAssignedSim } from '../../utils/simUtils';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
 import {
   Activity,
@@ -193,18 +193,16 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const resolvedSimIssues = useMemo(() => simIssueRequests.filter(r => r.status === 'Resolved').length, [simIssueRequests]);
 
   const assignedSimCards = useMemo(() => {
-    return simCards.filter(
-      s => s.assignedEmployeeId != null && s.status !== 'Available' && s.status !== 'Deactivated'
-    );
+    return getActiveAssignedSimCards(simCards);
   }, [simCards]);
 
   const adminSimExpense = useMemo(() => {
-    return calculateSimMonthlyExpense(assignedSimCards.length);
-  }, [assignedSimCards]);
+    return calculateActiveSimActualRechargeExpense(simCards, simRecharges);
+  }, [simCards, simRecharges]);
 
   const totalSimRechargeSpend = useMemo(() => {
-    return simRecharges.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0);
-  }, [simRecharges]);
+    return adminSimExpense.totalExpense;
+  }, [adminSimExpense]);
 
   // Fleet Asset Repair & Maintenance Analytics Aggregation
   const fleetAssetRepairStatsData = useMemo(() => {
@@ -1766,7 +1764,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span>Overall Monthly SIM Recharge Expense (Assigned SIMs Only)</span>
             </span>
             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-              Per SIM: ₹399 + 18% GST (₹71.82) = ₹470.82
+              Actual Completed Recharges (Active SIMs Only)
             </span>
           </div>
 
@@ -1784,7 +1782,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5 block">
                 {formatINR(adminSimExpense.baseRecharge)}
               </span>
-              <span className="text-[10px] text-slate-400">{adminSimExpense.simCount} × ₹399.00</span>
+              <span className="text-[10px] text-slate-400">{adminSimExpense.rechargeCount} completed recharges</span>
             </div>
 
             <div className="p-3 rounded-lg bg-white/70 dark:bg-[#0b101b]/80 border border-slate-200/60 dark:border-slate-800">
@@ -1792,7 +1790,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span className="text-xl font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5 block">
                 {formatINR(adminSimExpense.gstAmount)}
               </span>
-              <span className="text-[10px] text-slate-400">{adminSimExpense.simCount} × ₹71.82</span>
+              <span className="text-[10px] text-slate-400">Actual GST logged</span>
             </div>
 
             <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
@@ -1800,7 +1798,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span className="text-xl font-black font-mono text-blue-600 dark:text-blue-400 mt-0.5 block">
                 {formatINR(adminSimExpense.totalExpense)}
               </span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400">{adminSimExpense.simCount} × ₹470.82</span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400">Matches Recharge Spend</span>
             </div>
           </div>
 

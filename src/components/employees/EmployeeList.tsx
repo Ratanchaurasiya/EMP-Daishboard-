@@ -39,7 +39,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { formatDateDisplay } from '../../utils/formatters';
-import { calculateSimMonthlyExpense, formatINR } from '../../utils/simUtils';
+import { calculateSimMonthlyExpense, formatINR, getEmployeeSimCards, getEmployeeActiveSimCards, getSimUsageBadgeStyle } from '../../utils/simUtils';
 import { Employee } from '../../types';
 import { EditEmployeeModal } from './EditEmployeeModal';
 import { RemoveEmployeeModal } from './RemoveEmployeeModal';
@@ -612,9 +612,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
             );
             const empPhones = empAssets.filter(a => a.assetType === 'Mobile Phone');
             const empPeripherals = empAssets.filter(a => a.assetType !== 'Mobile Phone');
-            const empSims = simCards.filter(
-              s => s.assignedEmployeeId === emp.id || s.assignedEmployeeId === emp.employeeId
-            );
+            const empSims = getEmployeeSimCards(emp, simCards);
             const empServices = serviceRecords.filter(
               s =>
                 s.employeeId === emp.employeeId ||
@@ -937,15 +935,19 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                     )}
                   </div>
 
-                  {/* SECTION: ASSIGNED SIM CARDS & MOBILE FLEET */}
                   {(() => {
-                    const cardSimExpense = calculateSimMonthlyExpense(empSims.length);
+                    const activeEmpSims = getEmployeeActiveSimCards(emp, simCards);
+                    const cardSimExpense = calculateSimMonthlyExpense(activeEmpSims.length);
+                    const usageBadge = getSimUsageBadgeStyle(empSims.length);
                     return (
                       <div className="p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 space-y-1.5 mb-2 text-xs">
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="flex items-center gap-1 font-semibold text-emerald-800 dark:text-emerald-300 flex-wrap">
                             <Signal className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>SIM Fleet ({empSims.length})</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-bold border ${usageBadge.bg} ${usageBadge.text} ${usageBadge.border}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1 ${usageBadge.dotColor}`} />
+                              {usageBadge.shortLabel}
+                            </span>
                             {empSims.length > 0 && (
                               <span className="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300/40">
                                 {formatINR(cardSimExpense.totalExpense)}/mo
@@ -1102,9 +1104,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                     );
                     const empPhones = empAssets.filter(a => a.assetType === 'Mobile Phone');
                     const empPeripherals = empAssets.filter(a => a.assetType !== 'Mobile Phone');
-                    const empSims = simCards.filter(
-                      s => s.assignedEmployeeId === emp.id || s.assignedEmployeeId === emp.employeeId
-                    );
+                    const empSims = getEmployeeSimCards(emp, simCards);
                     const empServices = serviceRecords.filter(
                       s =>
                         s.employeeId === emp.employeeId ||
@@ -1194,7 +1194,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                             <div className="space-y-1">
                               <div className="flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400 text-xs">
                                 <Signal className="w-3.5 h-3.5 shrink-0" />
-                                <span>{empSims.length} SIM{empSims.length > 1 ? 's' : ''}</span>
+                                <span className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-bold border ${getSimUsageBadgeStyle(empSims.length).bg} ${getSimUsageBadgeStyle(empSims.length).text} ${getSimUsageBadgeStyle(empSims.length).border}`}>
+                                  {getSimUsageBadgeStyle(empSims.length).shortLabel}
+                                </span>
                               </div>
                               {empSims.slice(0, 2).map(s => (
                                 <div key={s.id} className="text-[10px] font-mono flex items-center gap-1 text-slate-700 dark:text-slate-300">

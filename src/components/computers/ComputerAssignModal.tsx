@@ -33,17 +33,26 @@ export const ComputerAssignModal: React.FC<ComputerAssignModalProps> = ({
   const [condition, setCondition] = useState<AssetCondition>('Good');
   const [remarks, setRemarks] = useState<string>('');
 
+  const [securityFunctionAdded, setSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
+  const [securityFunctionAddedDate, setSecurityFunctionAddedDate] = useState<string>(
+    new Date().toISOString().substring(0, 10)
+  );
+
   useEffect(() => {
     if (currentAssignedComputer) {
       setSelectedComputerId(currentAssignedComputer.id);
       setAssignedDate(currentAssignedComputer.assignedDate || new Date().toISOString().substring(0, 10));
       setCondition(currentAssignedComputer.condition);
       setRemarks(currentAssignedComputer.remarks || '');
+      setSecurityFunctionAdded(currentAssignedComputer.securityFunctionAdded || 'Yes');
+      setSecurityFunctionAddedDate(currentAssignedComputer.securityFunctionAddedDate || currentAssignedComputer.assignedDate || new Date().toISOString().substring(0, 10));
     } else {
       setSelectedComputerId('');
       setAssignedDate(new Date().toISOString().substring(0, 10));
       setCondition('Good');
       setRemarks('Workstation laptop allocation');
+      setSecurityFunctionAdded('Yes');
+      setSecurityFunctionAddedDate(new Date().toISOString().substring(0, 10));
     }
   }, [currentAssignedComputer, isOpen]);
 
@@ -74,7 +83,9 @@ export const ComputerAssignModal: React.FC<ComputerAssignModalProps> = ({
       employee.id,
       assignedDate,
       condition,
-      remarks.trim() || `Assigned to ${employee.name}`
+      remarks.trim() || `Assigned to ${employee.name}`,
+      securityFunctionAdded,
+      securityFunctionAddedDate
     );
 
     if (res.success) {
@@ -180,6 +191,37 @@ export const ComputerAssignModal: React.FC<ComputerAssignModalProps> = ({
               </select>
             </div>
           </div>
+
+          {/* Security Function Added & Date */}
+          <div className="grid grid-cols-2 gap-3 p-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Security Function Added *
+              </label>
+              <select
+                value={securityFunctionAdded}
+                onChange={e => setSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-blue-500 transition-colors"
+              >
+                <option value="Yes">Yes (Security Software Installed)</option>
+                <option value="No">No (Not Installed)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Security Function Added Date
+              </label>
+              <input
+                type="date"
+                value={securityFunctionAddedDate}
+                onChange={e => setSecurityFunctionAddedDate(e.target.value)}
+                className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Remarks */}
 
           {/* Remarks */}
           <div>
