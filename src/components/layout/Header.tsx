@@ -27,12 +27,14 @@ import {
   Trash2,
   Bell,
   Box,
+  Key,
 } from 'lucide-react';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
 import { formatCurrency } from '../../utils/formatters';
 import { Employee, Computer, CompanyAsset, ServiceRecord } from '../../types';
 import { NotificationCenter } from './NotificationCenter';
 import { useNotificationStats } from './useNotificationStats';
+import { AdminPasswordResetModal } from '../auth/AdminPasswordResetModal';
 
 interface HeaderProps {
   onOpenAddEmployee: () => void;
@@ -78,6 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isDbOpen, setIsDbOpen] = useState(false);
   const [isDbRendered, setIsDbRendered] = useState(false);
   const [isRefreshingDb, setIsRefreshingDb] = useState(false);
@@ -1215,6 +1218,17 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={() => setIsResetModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 transition-colors cursor-pointer"
+                title="Change Admin Password via WhatsApp OTP"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Change Password</span>
+              </button>
+            )}
+
             <button
               onClick={logout}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition-colors cursor-pointer"
@@ -1337,6 +1351,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       )}
+
+      {/* Admin Password Reset Modal */}
+      <AdminPasswordResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+      />
     </header>
   );
 };

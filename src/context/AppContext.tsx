@@ -266,6 +266,12 @@ interface AppContextType {
   toggleStarAssetQuery: (queryId: string) => { success: boolean; isStarred?: boolean };
   removeAssetQuery: (queryId: string) => { success: boolean };
 
+  // Admin WhatsApp OTP & Password Reset Actions
+  adminRecoveryNumber: string;
+  requestAdminOtpViaWhatsApp: () => { success: boolean; message?: string; whatsappUrl?: string };
+  verifyAdminOtp: (inputOtp: string) => { success: boolean; message?: string; error?: string; verifiedToken?: string };
+  changeAdminPasswordWithOtp: (inputOtp: string, newPassword: string) => { success: boolean; message?: string; error?: string };
+
   // SIM Card & Telecom Management Actions
   addSimCard: (
     simData: Omit<SimCard, 'id' | 'createdAt' | 'updatedAt'>
@@ -506,6 +512,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return INITIAL_ASSET_QUERIES;
     }
   });
+
+  const ADMIN_RECOVERY_NUMBER = '6390035039';
+
+  const [adminCustomPassword, setAdminCustomPassword] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(`${STORAGE_KEY}_ADMIN_CUSTOM_PASS`);
+    } catch {
+      return null;
+    }
+  });
+
+  const [activeAdminOtp, setActiveAdminOtp] = useState<{
+    code: string;
+    expiresAt: number;
+    attempts: number;
+    used: boolean;
+    verifiedToken: boolean;
+  } | null>(null);
 
   const [simCards, setSimCards] = useState<SimCard[]>(() => {
     try {
@@ -5891,7 +5915,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auth Operations
   const loginAsAdmin: AppContextType['loginAsAdmin'] = (password?: string) => {
     if (password) {
-      const p = password.trim().toLowerCase();
+      const p = password.trim();
+      const lowerP = p.toLowerCase();
       const validAdminPasses = [
         'admin',
         'admin123',
@@ -5901,8 +5926,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'photo',
         'face',
       ];
-      if (!validAdminPasses.includes(p)) {
-        showToast('Invalid administrator password. Try "admin" or "admin123".', 'error');
+      const matchesCustom = adminCustomPassword ? p === adminCustomPassword : false;
+
+      if (!matchesCustom && !validAdminPasses.includes(lowerP)) {
+        showToast('Invalid administrator password. Please check your password or use WhatsApp OTP reset.', 'error');
         return { success: false, error: 'Invalid administrator password.' };
       }
     }
@@ -5922,6 +5949,128 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_CURRENT_USER`, JSON.stringify(adminUser));
     addAuditEntry('Admin Sign-in', 'IT Administrator authenticated into enterprise dashboard.');
     showToast('Welcome back, IT Administrator!', 'success');
+    return { success: true };
+  };
+
+  // Admin WhatsApp OTP & Password Reset Actions
+  const requestAdminOtpViaWhatsApp: AppContextType['requestAdminOtpViaWhatsApp'] = () => {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5-minute expiration
+
+    const newOtpSession = {
+      code,
+      expiresAt,
+      attempts: 0,
+      used: false,
+      verifiedToken: false,
+    };
+
+    setActiveAdminOtp(newOtpSession);
+
+    const cleanNum = '916390035039';
+    const messageText = `🔒 IT AssetCore Admin Security Verification\n\nYour 6-digit OTP code to change Admin password is: ${code}\n\nValid for 5 minutes. Do NOT share this code with anyone.`;
+    const whatsappUrl = `https://wa.me/${cleanNum}?text=${encodeURIComponent(messageText)}`;
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.open(whatsappUrl, '_blank');
+      } catch (e) {
+        console.warn('WhatsApp window trigger warning:', e);
+      }
+    }
+
+    addAuditEntry(
+      'Admin OTP Requested',
+      `Admin requested security OTP via WhatsApp dispatch to recovery contact (63900*****).`
+    );
+
+    showToast(`Security OTP generated! Dispatched to Admin WhatsApp recovery contact.`, 'success');
+    return { success: true, message: 'OTP sent via WhatsApp', whatsappUrl };
+  };
+
+  const verifyAdminOtp: AppContextType['verifyAdminOtp'] = inputOtp => {
+    if (!activeAdminOtp) {
+      showToast('No active OTP session. Please request a new OTP.', 'error');
+      return { success: false, error: 'No active OTP request found. Please click "Send OTP via WhatsApp".' };
+    }
+
+    if (activeAdminOtp.used) {
+      showToast('This OTP code has already been used. Please request a new OTP.', 'error');
+      return { success: false, error: 'OTP already used. Please request a new OTP.' };
+    }
+
+    if (Date.now() > activeAdminOtp.expiresAt) {
+      showToast('OTP has expired (5-minute time limit reached). Please request a new OTP.', 'error');
+      return { success: false, error: 'OTP expired. Please request a new OTP.' };
+    }
+
+    if (activeAdminOtp.attempts >= 3) {
+      showToast('Too many incorrect attempts (3/3 limit). OTP invalidated.', 'error');
+      return { success: false, error: 'Too many failed attempts. Please request a new OTP.' };
+    }
+
+    const cleanInput = inputOtp.trim();
+    if (cleanInput !== activeAdminOtp.code) {
+      const newAttempts = activeAdminOtp.attempts + 1;
+      setActiveAdminOtp({
+        ...activeAdminOtp,
+        attempts: newAttempts,
+      });
+
+      const remaining = 3 - newAttempts;
+      const errorMsg = remaining > 0
+        ? `Incorrect OTP code. ${remaining} attempt(s) remaining.`
+        : 'Incorrect OTP. Maximum attempts exceeded. Please request a new OTP.';
+
+      showToast(errorMsg, 'error');
+      return { success: false, error: errorMsg };
+    }
+
+    setActiveAdminOtp({
+      ...activeAdminOtp,
+      verifiedToken: true,
+    });
+
+    showToast('OTP verified successfully! You can now set your new Admin password.', 'success');
+    return { success: true };
+  };
+
+  const changeAdminPasswordWithOtp: AppContextType['changeAdminPasswordWithOtp'] = newPassword => {
+    if (!activeAdminOtp || !activeAdminOtp.verifiedToken) {
+      showToast('Unauthorized: OTP verification required before setting new Admin password.', 'error');
+      return { success: false, error: 'OTP verification required.' };
+    }
+
+    if (Date.now() > activeAdminOtp.expiresAt) {
+      showToast('Session expired. Please restart OTP verification.', 'error');
+      return { success: false, error: 'Session expired.' };
+    }
+
+    const cleanPass = newPassword.trim();
+    if (cleanPass.length < 6) {
+      showToast('New Admin password must be at least 6 characters long.', 'error');
+      return { success: false, error: 'Password must be at least 6 characters long.' };
+    }
+
+    setAdminCustomPassword(cleanPass);
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_ADMIN_CUSTOM_PASS`, cleanPass);
+    } catch (e) {
+      console.warn('LocalStorage admin password write error:', e);
+    }
+
+    setActiveAdminOtp({
+      ...activeAdminOtp,
+      used: true,
+      verifiedToken: false,
+    });
+
+    addAuditEntry(
+      'Admin Password Changed',
+      'Admin security password updated successfully after WhatsApp OTP verification.'
+    );
+
+    showToast('Admin password updated successfully! You can now log in using your new password.', 'success');
     return { success: true };
   };
 
@@ -6098,6 +6247,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     removeAssetRequest,
     assetQueries,
     addAssetQuery,
+    adminRecoveryNumber: ADMIN_RECOVERY_NUMBER,
+    requestAdminOtpViaWhatsApp,
+    verifyAdminOtp,
+    changeAdminPasswordWithOtp,
     acknowledgeAssetQuery,
     updateAssetQueryStatus,
     reportQueryStillUnresolved,

@@ -277,7 +277,9 @@ export interface AuditLog {
     | 'Asset Query Removed'
     | 'Service Provider Added'
     | 'Service Provider Updated'
-    | 'Service Provider Deleted';
+    | 'Service Provider Deleted'
+    | 'Admin Password Changed'
+    | 'Admin OTP Requested';
   details: string;
   actor: string;
   timestamp: string;

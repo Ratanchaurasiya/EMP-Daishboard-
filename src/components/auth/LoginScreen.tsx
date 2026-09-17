@@ -26,6 +26,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { verifyLiveFaceMatch, FaceVerificationResult } from '../../utils/faceBiometrics';
+import { AdminPasswordResetModal } from './AdminPasswordResetModal';
 
 type AuthMethod = 'pass' | 'photo';
 
@@ -53,6 +54,7 @@ export const LoginScreen: React.FC = () => {
   // Common loading / error states
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // -------------------------------------------------------------
   // HERO FINGERTIP INTERACTIVE CONNECTION SYSTEM
@@ -927,6 +929,16 @@ export const LoginScreen: React.FC = () => {
                         {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    <div className="flex items-center justify-end px-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsResetModalOpen(true)}
+                        className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold hover:underline flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Key className="w-3 h-3 text-amber-400" />
+                        <span>Forgot / Reset Password (WhatsApp OTP)</span>
+                      </button>
+                    </div>
                   </div>
 
                   <button
@@ -1341,6 +1353,12 @@ export const LoginScreen: React.FC = () => {
       <footer className="relative z-20 p-3 sm:p-4 text-center text-[11px] text-slate-500">
         AssetCore Enterprise Platform • IT Asset & Workstation Operations Management
       </footer>
+
+      {/* Admin Password Reset Modal */}
+      <AdminPasswordResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+      />
     </div>
   );
 };
