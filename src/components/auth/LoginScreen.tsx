@@ -936,7 +936,7 @@ export const LoginScreen: React.FC = () => {
                         className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold hover:underline flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         <Key className="w-3 h-3 text-amber-400" />
-                        <span>Forgot / Reset Password (WhatsApp OTP)</span>
+                        <span>Change Password</span>
                       </button>
                     </div>
                   </div>
