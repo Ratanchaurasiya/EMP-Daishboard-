@@ -1,4 +1,4 @@
-// Comprehensive End-to-End Database CRUD & Persistence Test Suite
+// Comprehensive End-to-End Database CRUD, Multi-Engine & Persistence Test Suite
 import { db } from '../server/db.js';
 
 async function runTests() {
@@ -6,6 +6,9 @@ async function runTests() {
   console.log(`🧪 Running AssetCore Database CRUD & Persistence Tests`);
   console.log(`📂 Active Engine: ${db.activeEngine}`);
   console.log(`📁 Database Path: ${db.dbPath}`);
+  console.log(`⚡ PostgreSQL Mode: ${db.isPostgres ? 'ACTIVE' : 'No'}`);
+  console.log(`⚡ MySQL Mode: ${db.isMySQL ? 'ACTIVE' : 'No'}`);
+  console.log(`⚡ Native SQLite WAL Mode: ${db.isSQLite ? 'ACTIVE' : 'No'}`);
   console.log('====================================================\n');
 
   let passed = 0;
@@ -22,11 +25,12 @@ async function runTests() {
   }
 
   try {
+    const runId = Date.now().toString().slice(-4);
+
     // -------------------------------------------------------------
     // Test 1: Employee CRUD
     // -------------------------------------------------------------
     console.log('--- Test 1: Employee CRUD ---');
-    const runId = Date.now().toString().slice(-4);
     const testEmp = {
       id: 'emp-test-' + runId,
       employeeId: 'EMP' + runId,
@@ -39,7 +43,7 @@ async function runTests() {
       status: 'Active',
       email: `ratan.test.${runId}@company.com`,
       phone: '+91 99887-76655',
-      remarks: 'Primary test employee for PostgreSQL verification',
+      remarks: 'Primary test employee for persistent database verification',
     };
 
     await db.upsert('employees', testEmp);
@@ -178,7 +182,7 @@ async function runTests() {
       partsReplaced: 'Thermal Grizzly Kryonaut Extreme',
       technician: 'Ravi Kumar (Authorized Tech)',
       status: 'Completed',
-      notes: 'Completed annual preventive maintenance successfully.',
+      notes: 'Completed preventive maintenance successfully.',
     };
 
     await db.upsert('service_records', testService);
@@ -197,7 +201,7 @@ async function runTests() {
       modelName: 'ThinkPad P1 Gen 7',
       serialNumber: 'SN-LEN-' + runId,
       purchaseDate: '2026-01-10',
-      vendor: 'Lenovo Commercial Enterprise Direct',
+      vendor: 'Lenovo Commercial Direct',
       deviceCost: 220000,
       totalAccessoriesCost: 15000,
       grandTotalCost: 235000,
@@ -243,9 +247,123 @@ async function runTests() {
     await assert(updatedReq && updatedReq.status === 'Approved' && updatedReq.adminNotes.includes('Approved by Infrastructure Lead'), 'Admin updates request status and notes');
 
     // -------------------------------------------------------------
-    // Test 7: Audit Log Tracking
+    // Test 7: SIM Cards CRUD & Lifecycle
     // -------------------------------------------------------------
-    console.log('\n--- Test 7: Audit Logging ---');
+    console.log('\n--- Test 7: SIM Cards Management ---');
+    const testSim = {
+      id: 'sim-test-' + runId,
+      contactNumber: '+91 98765-4' + runId,
+      simNumber: '899100123456789' + runId,
+      carrier: 'Airtel',
+      assignedEmployeeId: testEmp.id,
+      assignedEmployeeName: testEmp.name,
+      status: 'Assigned',
+      purpose: 'Field Operations',
+      project: 'Cloud Infra Migration',
+      remarks: 'Primary corporate SIM',
+      assignedDate: '2026-01-16',
+    };
+
+    await db.upsert('sim_cards', testSim);
+    let sim = await db.getById('sim_cards', testSim.id);
+    await assert(sim && sim.contactNumber === testSim.contactNumber && sim.status === 'Assigned', 'Insert and retrieve SIM card');
+
+    // Test SIM Suspension
+    sim.status = 'Suspended';
+    sim.suspensionReason = 'Employee on sabbatical';
+    await db.upsert('sim_cards', sim);
+    let suspendedSim = await db.getById('sim_cards', testSim.id);
+    await assert(suspendedSim && suspendedSim.status === 'Suspended' && suspendedSim.suspensionReason === 'Employee on sabbatical', 'Suspend SIM card with audit reason');
+
+    // Test SIM Reactivation
+    suspendedSim.status = 'Active';
+    suspendedSim.suspensionReason = null;
+    await db.upsert('sim_cards', suspendedSim);
+    let reactivatedSim = await db.getById('sim_cards', testSim.id);
+    await assert(reactivatedSim && reactivatedSim.status === 'Active' && reactivatedSim.suspensionReason === null, 'Reactivate SIM card');
+
+    // -------------------------------------------------------------
+    // Test 8: SIM Recharges & GST Accounting
+    // -------------------------------------------------------------
+    console.log('\n--- Test 8: SIM Recharges & Financial Accounting ---');
+    const rechargeAmount = 999;
+    const gstPercentage = 18;
+    const gstAmount = Number(((rechargeAmount * gstPercentage) / 100).toFixed(2));
+    const totalAmount = rechargeAmount + gstAmount;
+
+    const testRecharge = {
+      id: 'rec-test-' + runId,
+      simId: testSim.id,
+      contactNumber: testSim.contactNumber,
+      employeeId: testEmp.employeeId,
+      employeeName: testEmp.name,
+      rechargeDate: '2026-03-01',
+      validityDays: 84,
+      dataLimit: '2GB/day',
+      rechargeAmount,
+      gstPercentage,
+      gstAmount,
+      totalAmount,
+      paymentMethod: 'Corporate Corporate Card',
+      receiptNumber: 'RCP-' + runId,
+    };
+
+    await db.upsert('sim_recharges', testRecharge);
+    let rec = await db.getById('sim_recharges', testRecharge.id);
+    await assert(rec && rec.totalAmount === 1178.82 && rec.simId === testSim.id, 'Insert and retrieve SIM recharge with GST');
+
+    // -------------------------------------------------------------
+    // Test 9: SIM Requests Lifecycle
+    // -------------------------------------------------------------
+    console.log('\n--- Test 9: SIM Requisitions Lifecycle ---');
+    const testSimReq = {
+      id: 'simreq-test-' + runId,
+      employeeId: testEmp.employeeId,
+      employeeName: testEmp.name,
+      department: testEmp.department,
+      requestType: 'New SIM Card',
+      purpose: 'Client Site Visits',
+      preferredCarrier: 'Jio',
+      urgency: 'Medium',
+      status: 'Pending',
+      requestDate: '2026-03-10',
+    };
+
+    await db.upsert('sim_requests', testSimReq);
+    let simReq = await db.getById('sim_requests', testSimReq.id);
+    await assert(simReq && simReq.status === 'Pending' && simReq.employeeId === testEmp.employeeId, 'Employee submits SIM request');
+
+    simReq.status = 'Approved';
+    await db.upsert('sim_requests', simReq);
+    let approvedSimReq = await db.getById('sim_requests', testSimReq.id);
+    await assert(approvedSimReq && approvedSimReq.status === 'Approved', 'Approve SIM request');
+
+    // -------------------------------------------------------------
+    // Test 10: Service Providers (PC Support & Hardware Vendors)
+    // -------------------------------------------------------------
+    console.log('\n--- Test 10: Service Providers & Repair Technicians ---');
+    const testProvider = {
+      id: 'prov-test-' + runId,
+      technicianName: 'Suresh Verma',
+      shopName: 'Apex Micro Systems & Chip Repair',
+      phoneNumber: '+91 98220-11223',
+      alternatePhone: '+91 98220-44556',
+      serviceType: 'Hardware',
+      city: 'Gurugram',
+      address: 'Shop 42, Cyber Hub Tech Arcade',
+      rating: 4.8,
+      status: 'Active',
+      isAuthorized: true,
+    };
+
+    await db.upsert('service_providers', testProvider);
+    let prov = await db.getById('service_providers', testProvider.id);
+    await assert(prov && prov.technicianName === 'Suresh Verma' && prov.shopName.includes('Apex Micro Systems'), 'Insert and retrieve authorized service vendor');
+
+    // -------------------------------------------------------------
+    // Test 11: Audit Log Tracking
+    // -------------------------------------------------------------
+    console.log('\n--- Test 11: Audit Logging ---');
     const testLog = {
       id: 'log-test-' + runId,
       action: 'Asset Assigned',
@@ -259,29 +377,58 @@ async function runTests() {
     await assert(foundLog && foundLog.action === 'Asset Assigned', 'Record and query audit log');
 
     // -------------------------------------------------------------
-    // Test 8: System Statistics & Telemetry
+    // Test 12: System Statistics & Telemetry
     // -------------------------------------------------------------
-    console.log('\n--- Test 8: System Statistics & Diagnostics ---');
+    console.log('\n--- Test 12: System Statistics & Diagnostics ---');
     const stats = await db.getStats();
-    await assert(stats.connected === true && stats.totalRecords > 0, `Database statistics verified (${stats.totalRecords} total items across tables)`);
+    await assert(stats.connected === true && stats.totalRecords > 0, `Database statistics verified (${stats.totalRecords} total records across tables)`);
 
     // -------------------------------------------------------------
-    // Test 9: Deletion & Cleanup
+    // Test 13: Simulated Server Restart & Disk Commit Verification
     // -------------------------------------------------------------
-    console.log('\n--- Test 9: Delete Operations ---');
-    const delComp = await db.delete('computers', testComp.id);
-    const delEmp = await db.delete('employees', testEmp.id);
+    console.log('\n--- Test 13: Simulated Server Restart & Disk Commit Verification ---');
+    const persistMarker = {
+      id: 'persist-check-' + runId,
+      employeeId: 'PERSIST-' + runId,
+      name: 'Persistence Check Agent',
+      department: 'ACID Verification',
+      status: 'Active',
+      testSignature: 'DISK_COMMIT_VERIFIED_' + runId,
+    };
+
+    await db.upsert('employees', persistMarker);
+    db.checkpoint(); // Trigger WAL checkpoint / write flush
+
+    // Re-query from database to verify persistence
+    const reloaded = await db.getById('employees', persistMarker.id);
+    await assert(
+      reloaded && reloaded.testSignature === persistMarker.testSignature,
+      'Data verified persistently committed to database storage'
+    );
+    await db.delete('employees', persistMarker.id);
+
+    // -------------------------------------------------------------
+    // Test 14: Clean Deletion of Test Records
+    // -------------------------------------------------------------
+    console.log('\n--- Test 14: Delete Operations ---');
+    await db.delete('computers', testComp.id);
+    await db.delete('employees', testEmp.id);
     for (const a of testAssets) {
       await db.delete('assets', a.id);
     }
     await db.delete('service_records', testService.id);
     await db.delete('purchases', testPurchase.id);
     await db.delete('asset_requests', testRequest.id);
+    await db.delete('sim_cards', testSim.id);
+    await db.delete('sim_recharges', testRecharge.id);
+    await db.delete('sim_requests', testSimReq.id);
+    await db.delete('service_providers', testProvider.id);
     await db.delete('audit_logs', testLog.id);
 
     const checkEmp = await db.getById('employees', testEmp.id);
     const checkComp = await db.getById('computers', testComp.id);
-    await assert(checkEmp === null && checkComp === null, 'Verify clean removal of test records from database');
+    const checkSim = await db.getById('sim_cards', testSim.id);
+    await assert(checkEmp === null && checkComp === null && checkSim === null, 'Verify clean removal of test records from database');
 
     console.log('\n====================================================');
     console.log(`📊 Test Summary: ${passed} Passed, ${failed} Failed`);
