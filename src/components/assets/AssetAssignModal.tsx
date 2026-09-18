@@ -666,15 +666,15 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
             <div className="grid grid-cols-2 gap-3 p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40">
               <div>
                 <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                  Security Function Added *
+                  Security Feature Added? *
                 </label>
                 <select
                   value={securityFunctionAdded}
                   onChange={e => setSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
                   className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-blue-500 transition-colors"
                 >
-                  <option value="Yes">Yes (Installed / Configured)</option>
-                  <option value="No">No (Not Installed)</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
                 </select>
               </div>
 

@@ -74,6 +74,11 @@ export const AddComputerModal: React.FC<AddComputerModalProps> = ({ isOpen, onCl
   const productId = '00330-80000-00018-AAOEM';
   const penAndTouch = 'No pen or touch input is available for this display';
 
+  const [securityFunctionAdded, setSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
+  const [securityFunctionAddedDate, setSecurityFunctionAddedDate] = useState<string>(
+    new Date().toISOString().substring(0, 10)
+  );
+
   const condition: AssetCondition = 'New';
   const status: AssetStatus = 'Available';
 
@@ -96,6 +101,8 @@ export const AddComputerModal: React.FC<AddComputerModalProps> = ({ isOpen, onCl
       deviceType,
       serialNumber: finalSerial,
       assignedEmployeeId: assignedEmployeeId || null,
+      securityFunctionAdded,
+      securityFunctionAddedDate: securityFunctionAdded === 'Yes' ? securityFunctionAddedDate : undefined,
       processor: {
         name: processorName,
         generation: processorGen,
@@ -281,6 +288,41 @@ export const AddComputerModal: React.FC<AddComputerModalProps> = ({ isOpen, onCl
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Security Function Section */}
+          <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-xl border border-emerald-500/20 space-y-3">
+            <h3 className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🛡️ Security Function Setup</span>
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Security Feature Added? *
+                </label>
+                <select
+                  value={securityFunctionAdded}
+                  onChange={e => setSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 cursor-pointer font-semibold"
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Security Function Added Date
+                </label>
+                <input
+                  type="date"
+                  value={securityFunctionAddedDate}
+                  onChange={e => setSecurityFunctionAddedDate(e.target.value)}
+                  disabled={securityFunctionAdded === 'No'}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-[#101726] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:outline-hidden focus:border-blue-500 disabled:opacity-50"
+                />
+              </div>
             </div>
           </div>
 

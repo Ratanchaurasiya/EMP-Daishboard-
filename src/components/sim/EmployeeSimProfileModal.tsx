@@ -264,7 +264,7 @@ export const EmployeeSimProfileModal: React.FC<EmployeeSimProfileModalProps> = (
         </div>
 
         {/* ================= SCROLLABLE CONTENT BODY ================= */}
-        <div className="overflow-y-auto p-5 sm:p-7 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6">
 
           {/* 1. EMPLOYEE HERO DOSSIER CARD */}
           <div className="p-6 rounded-3xl bg-gradient-to-br from-[#131b2e] via-[#0f172a] to-[#090d16] border border-zinc-700/80 shadow-xl relative overflow-hidden">

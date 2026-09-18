@@ -244,12 +244,12 @@ export const AssetEditModal: React.FC<AssetEditModalProps> = ({
           {(assetType === 'Mobile Phone' || assetType === 'Laptop') && (
             <div className="p-3 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-lg border border-emerald-500/20 space-y-2">
               <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-                <span>🛡️ Security Function Setup</span>
+                <span>🛡️ Security Feature Setup</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 block mb-0.5">
-                    Security Function Added *
+                    Security Feature Added? *
                   </label>
                   <select
                     value={securityFunctionAdded}

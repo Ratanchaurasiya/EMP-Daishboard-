@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
@@ -25,7 +25,6 @@ import { WeeklyPhotoAuditHub } from './components/documentation/WeeklyPhotoAudit
 import { PurchaseManagementView } from './components/purchases/PurchaseManagementView';
 import { AssetRequestList } from './components/requests/AssetRequestList';
 import { AssetQueryList } from './components/queries/AssetQueryList';
-import { ServiceFlowchartView } from './components/flowchart/ServiceFlowchartView';
 import { SimManagementView } from './components/sim/SimManagementView';
 import { SystemPcSupportView } from './components/support/SystemPcSupportView';
 import { ToastContainer } from './components/common/Toast';
@@ -116,6 +115,36 @@ const DashboardContent: React.FC = () => {
       </>
     );
   }
+
+  // Strictly enforce redirection to #/login when not authenticated (prevents browser Back button access)
+  useEffect(() => {
+    if (!isAuthenticated && typeof window !== 'undefined') {
+      if (window.location.hash !== '#/login') {
+        window.history.replaceState(null, '', `${window.location.pathname}#/login`);
+      }
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const handleUnauthNav = () => {
+      if (!isAuthenticated && typeof window !== 'undefined') {
+        if (window.location.hash !== '#/login') {
+          window.history.replaceState(null, '', `${window.location.pathname}#/login`);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('popstate', handleUnauthNav);
+      window.addEventListener('hashchange', handleUnauthNav);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('popstate', handleUnauthNav);
+        window.removeEventListener('hashchange', handleUnauthNav);
+      }
+    };
+  }, [isAuthenticated]);
 
   // If user is not signed in OR explicitly visiting #/login, show the enterprise LoginScreen
   const isLoginRoute =
@@ -273,10 +302,7 @@ const DashboardContent: React.FC = () => {
                 <PurchaseManagementView />
               )}
 
-              {/* TAB 9: SERVICE MANAGEMENT FLOWCHART */}
-              {activeTab === 'service-flowchart' && (
-                <ServiceFlowchartView />
-              )}
+
 
               {/* TAB 10: SIM CARD & CONTACT NUMBER MANAGEMENT */}
               {activeTab === 'sim-management' && (

@@ -76,6 +76,7 @@ export const AddToBufferModal: React.FC<AddToBufferModalProps> = ({
   const [newDeviceName, setNewDeviceName] = useState('CORP-BUF-01');
   const [newGraphicsCard, setNewGraphicsCard] = useState('Intel Iris Xe Graphics');
   const [newGraphicsMemory, setNewGraphicsMemory] = useState('512 MB');
+  const [newSecurityFunctionAdded, setNewSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
 
   // Aggregate all assigned or in-service items that can be returned / moved to Buffer Stock
   const assignedItems = useMemo(() => {
@@ -215,6 +216,7 @@ export const AddToBufferModal: React.FC<AddToBufferModalProps> = ({
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const todayDate = new Date().toISOString().substring(0, 10);
       if (newCategory === 'computer') {
         const res = addComputer({
           assetNumber: newAssetNumber.trim(),
@@ -227,6 +229,8 @@ export const AddToBufferModal: React.FC<AddToBufferModalProps> = ({
           assignedDate: null,
           condition: newCondition,
           status: 'Available',
+          securityFunctionAdded: newSecurityFunctionAdded,
+          securityFunctionAddedDate: newSecurityFunctionAdded === 'Yes' ? todayDate : undefined,
           remarks: 'Registered directly into Available Buffer Stock pool.',
           processor: {
             name: '13th Gen Intel Core i7-13700H',
@@ -269,6 +273,8 @@ export const AddToBufferModal: React.FC<AddToBufferModalProps> = ({
           returnDate: null,
           condition: newCondition,
           status: 'Available',
+          securityFunctionAdded: newSecurityFunctionAdded,
+          securityFunctionAddedDate: newSecurityFunctionAdded === 'Yes' ? todayDate : undefined,
           remarks: 'Registered directly into Available Buffer Stock pool.',
         });
         if (res.success) onClose();
@@ -788,6 +794,22 @@ export const AddToBufferModal: React.FC<AddToBufferModalProps> = ({
                       className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-100"
                     />
                   </div>
+                </div>
+              )}
+
+              {(newCategory === 'computer' || newAssetType === 'Mobile Phone' || newAssetType === 'Laptop') && (
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Security Feature Added? *
+                  </label>
+                  <select
+                    value={newSecurityFunctionAdded}
+                    onChange={e => setNewSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-100 font-semibold cursor-pointer"
+                  >
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
                 </div>
               )}
 

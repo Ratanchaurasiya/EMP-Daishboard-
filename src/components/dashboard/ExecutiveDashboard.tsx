@@ -43,6 +43,7 @@ import {
   ExternalLink,
   ShieldAlert,
   Bell,
+  LogOut,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -96,6 +97,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     updateSimRequestStatus,
     showToast,
     exportFleetCSV,
+    logout,
   } = useApp();
 
   const [requestPanelFilter, setRequestPanelFilter] = useState<'all' | 'sim' | 'hardware' | 'service'>('all');
@@ -111,6 +113,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const [chartType, setChartType] = useState<SpendChartType>('area');
   const [spendStream, setSpendStream] = useState<SpendExpenseStream>('all');
   const [contactNumberFilter, setContactNumberFilter] = useState<string>('all');
+  const [pinnedSpendPoint, setPinnedSpendPoint] = useState<any | null>(null);
+
+  // Close pinned SIM details modal on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && pinnedSpendPoint) {
+        setPinnedSpendPoint(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pinnedSpendPoint]);
 
   // Workstation Matrix Filters
   const [matrixSearch, setMatrixSearch] = useState('');
@@ -2211,18 +2225,42 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       />
                       <Tooltip
                         cursor={{ stroke: spendStream === 'telecom' ? '#10b981' : '#f97316', strokeWidth: 1.5, strokeDasharray: '3 3' }}
+                        wrapperStyle={{ pointerEvents: 'auto', zIndex: 1000 }}
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const item = payload[0].payload as SpendAggregatedPoint;
                             return (
-                              <div className="bg-[#0d131f]/95 backdrop-blur-md border border-[#1e293b] p-3.5 rounded-xl text-xs text-white shadow-2xl space-y-2 min-w-[240px] max-w-[340px] pointer-events-none">
-                                <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400">
+                              <div
+                                className="bg-[#0d131f]/95 backdrop-blur-md border border-[#1e293b] p-3.5 rounded-xl text-xs text-white shadow-2xl space-y-2 min-w-[260px] max-w-[360px] max-h-[85vh] flex flex-col pointer-events-auto select-text cursor-default"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPinnedSpendPoint(item);
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onMouseUp={(e) => e.stopPropagation()}
+                                onWheel={(e) => e.stopPropagation()}
+                                onTouchMove={(e) => e.stopPropagation()}
+                              >
+                                <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400 shrink-0">
                                   <span className="font-semibold text-slate-200">{item.fullTitle}</span>
-                                  <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
-                                    {item.count} Event{item.count > 1 ? 's' : ''}
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
+                                      {item.count} Event{item.count > 1 ? 's' : ''}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPinnedSpendPoint(item);
+                                      }}
+                                      className="p-0.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer"
+                                      title="Open persistent view"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex items-baseline justify-between">
+                                <div className="flex items-baseline justify-between shrink-0">
                                   <div className="text-xl font-bold font-mono text-amber-400">
                                     {formatCurrency(item.cost)}
                                   </div>
@@ -2238,7 +2276,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 </div>
 
                                 {spendStream === 'all' && (
-                                  <div className="flex items-center gap-2 text-[10px] font-mono pt-1">
+                                  <div className="flex items-center gap-2 text-[10px] font-mono pt-1 shrink-0">
                                     <span className="text-blue-400">🔧 HW: {formatCurrency(item.hardwareCost || 0)}</span>
                                     <span className="text-slate-600">•</span>
                                     <span className="text-emerald-400">📱 SIM: {formatCurrency(item.telecomCost || 0)}</span>
@@ -2246,13 +2284,22 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 )}
 
                                 {item.tickets && item.tickets.length > 0 && (
-                                  <div className="space-y-1 pt-1.5 border-t border-[#1e293b]/70">
-                                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                                      Expenditure Breakdown ({item.tickets.length})
-                                    </span>
-                                    <div className="space-y-1 max-h-36 overflow-y-auto">
+                                  <div className="space-y-1 pt-1.5 border-t border-[#1e293b]/70 flex-1 min-h-0 flex flex-col">
+                                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 mb-0.5">
+                                      <span>Expenditure Breakdown ({item.tickets.length})</span>
+                                      {item.tickets.length > 3 && (
+                                        <span className="text-[9px] font-mono text-emerald-400/90 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 lowercase">
+                                          ↕ scroll (2-3 per view)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div
+                                      className="space-y-1 max-h-[140px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-emerald-500/60 hover:scrollbar-thumb-emerald-400 scrollbar-track-slate-900/90"
+                                      onWheel={(e) => e.stopPropagation()}
+                                      onTouchMove={(e) => e.stopPropagation()}
+                                    >
                                       {item.tickets.map(t => (
-                                        <div key={t.id} className="text-[10px] bg-slate-900/80 p-1.5 rounded border border-slate-800 flex items-start justify-between gap-1.5">
+                                        <div key={t.id} className="text-[10px] bg-slate-900/80 p-1.5 rounded border border-slate-800 flex items-start justify-between gap-1.5 hover:bg-slate-800/90 transition-colors">
                                           <div className="truncate">
                                             <div className="flex items-center gap-1">
                                               <span className={`px-1 py-0.2 rounded text-[9px] font-mono font-bold ${
@@ -2294,13 +2341,22 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                           const { cx, cy, payload } = props;
                           if (!payload || !payload.cost || payload.cost <= 0) return null;
                           return (
-                            <g key={`spend-dot-${payload.key}`}>
+                            <g key={`spend-dot-${payload.key}`} className="cursor-pointer" onClick={() => setPinnedSpendPoint(payload)}>
                               <circle cx={cx} cy={cy} r={6} fill={spendStream === 'telecom' ? '#10b981' : '#f97316'} fillOpacity={0.3} />
                               <circle cx={cx} cy={cy} r={4} fill={spendStream === 'telecom' ? '#10b981' : '#f97316'} stroke="#ffffff" strokeWidth={2} />
                             </g>
                           );
                         }}
-                        activeDot={{ r: 7, fill: spendStream === 'telecom' ? '#059669' : '#ea580c', stroke: '#ffffff', strokeWidth: 2.5 }}
+                        activeDot={{
+                          r: 7,
+                          fill: spendStream === 'telecom' ? '#059669' : '#ea580c',
+                          stroke: '#ffffff',
+                          strokeWidth: 2.5,
+                          cursor: 'pointer',
+                          onClick: (e: any, payload: any) => {
+                            if (payload && payload.payload) setPinnedSpendPoint(payload.payload);
+                          },
+                        }}
                       />
                     </AreaChart>
                   ) : (
@@ -2332,22 +2388,105 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       />
                       <Tooltip
                         cursor={{ fill: '#1e293b', opacity: 0.3 }}
+                        wrapperStyle={{ pointerEvents: 'auto', zIndex: 1000 }}
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const item = payload[0].payload as SpendAggregatedPoint;
                             return (
-                              <div className="bg-[#0d131f]/95 backdrop-blur-md border border-[#1e293b] p-3.5 rounded-xl text-xs text-white shadow-2xl space-y-2 min-w-[220px] max-w-[300px] pointer-events-none">
-                                <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400">
+                              <div
+                                className="bg-[#0d131f]/95 backdrop-blur-md border border-[#1e293b] p-3.5 rounded-xl text-xs text-white shadow-2xl space-y-2 min-w-[260px] max-w-[360px] max-h-[85vh] flex flex-col pointer-events-auto select-text cursor-default"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPinnedSpendPoint(item);
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onMouseUp={(e) => e.stopPropagation()}
+                                onWheel={(e) => e.stopPropagation()}
+                                onTouchMove={(e) => e.stopPropagation()}
+                              >
+                                <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400 shrink-0">
                                   <span className="font-semibold text-slate-200">{item.fullTitle}</span>
-                                  <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
-                                    {item.count} Event{item.count > 1 ? 's' : ''}
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
+                                      {item.count} Event{item.count > 1 ? 's' : ''}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPinnedSpendPoint(item);
+                                      }}
+                                      className="p-0.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer"
+                                      title="Open persistent view"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex items-baseline justify-between">
+                                <div className="flex items-baseline justify-between shrink-0">
                                   <div className="text-xl font-bold font-mono text-amber-400">
                                     {formatCurrency(item.cost)}
                                   </div>
+                                  {item.yoyGrowth !== undefined && item.yoyGrowth !== null && (
+                                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                      item.yoyGrowth >= 0
+                                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    }`}>
+                                      {item.yoyGrowth >= 0 ? '+' : ''}{item.yoyGrowth.toFixed(1)}% YoY
+                                    </span>
+                                  )}
                                 </div>
+
+                                {spendStream === 'all' && (
+                                  <div className="flex items-center gap-2 text-[10px] font-mono pt-1 shrink-0">
+                                    <span className="text-blue-400">🔧 HW: {formatCurrency(item.hardwareCost || 0)}</span>
+                                    <span className="text-slate-600">•</span>
+                                    <span className="text-emerald-400">📱 SIM: {formatCurrency(item.telecomCost || 0)}</span>
+                                  </div>
+                                )}
+
+                                {item.tickets && item.tickets.length > 0 && (
+                                  <div className="space-y-1 pt-1.5 border-t border-[#1e293b]/70 flex-1 min-h-0 flex flex-col">
+                                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 mb-0.5">
+                                      <span>Expenditure Breakdown ({item.tickets.length})</span>
+                                      {item.tickets.length > 3 && (
+                                        <span className="text-[9px] font-mono text-emerald-400/90 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 lowercase">
+                                          ↕ scroll (2-3 per view)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div
+                                      className="space-y-1 max-h-[140px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-emerald-500/60 hover:scrollbar-thumb-emerald-400 scrollbar-track-slate-900/90"
+                                      onWheel={(e) => e.stopPropagation()}
+                                      onTouchMove={(e) => e.stopPropagation()}
+                                    >
+                                      {item.tickets.map(t => (
+                                        <div key={t.id} className="text-[10px] bg-slate-900/80 p-1.5 rounded border border-slate-800 flex items-start justify-between gap-1.5 hover:bg-slate-800/90 transition-colors">
+                                          <div className="truncate">
+                                            <div className="flex items-center gap-1">
+                                              <span className={`px-1 py-0.2 rounded text-[9px] font-mono font-bold ${
+                                                t.type === 'telecom'
+                                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                  : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                              }`}>
+                                                {t.type === 'telecom' ? '📱 SIM' : '🔧 HW'}
+                                              </span>
+                                              <span className="font-mono font-bold text-slate-200">
+                                                {t.type === 'telecom' ? t.contactNumber : t.assetNumber}
+                                              </span>
+                                              <span className="text-slate-400 ml-0.5">({t.employeeName})</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{t.problem}</p>
+                                          </div>
+                                          <span className="font-mono font-semibold text-amber-400 shrink-0">
+                                            {formatCurrency(t.cost)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           }
@@ -2382,6 +2521,116 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Persistent Interactive SIM & Hardware Expenditure Details Modal */}
+          {pinnedSpendPoint && (
+            <div
+              className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+              onClick={() => setPinnedSpendPoint(null)}
+            >
+              <div
+                className="relative w-full max-w-lg bg-[#0d131f] border border-[#1e293b] rounded-2xl shadow-2xl overflow-hidden text-white p-5 space-y-4 my-auto max-h-[90vh] flex flex-col ring-1 ring-white/10"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseUp={(e) => e.stopPropagation()}
+                onWheel={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-[#1e293b] pb-3 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-100 text-sm leading-tight">{pinnedSpendPoint.fullTitle}</h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Corporate Telecom & Hardware Logged Events</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded text-xs border border-amber-500/20 font-semibold">
+                      {pinnedSpendPoint.count} Event{pinnedSpendPoint.count > 1 ? 's' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPinnedSpendPoint(null)}
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shrink-0"
+                      title="Close (Esc)"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Spend Totals */}
+                <div className="flex items-baseline justify-between shrink-0 py-1">
+                  <div className="text-2xl font-bold font-mono text-amber-400">
+                    {formatCurrency(pinnedSpendPoint.cost)}
+                  </div>
+                  {pinnedSpendPoint.yoyGrowth !== undefined && pinnedSpendPoint.yoyGrowth !== null && (
+                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
+                      pinnedSpendPoint.yoyGrowth >= 0
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`}>
+                      {pinnedSpendPoint.yoyGrowth >= 0 ? '+' : ''}{pinnedSpendPoint.yoyGrowth.toFixed(1)}% YoY
+                    </span>
+                  )}
+                </div>
+
+                {spendStream === 'all' && (
+                  <div className="flex items-center gap-3 text-xs font-mono py-2 px-3 shrink-0 bg-slate-900/80 rounded-xl border border-slate-800">
+                    <span className="text-blue-400 font-semibold">🔧 Hardware: {formatCurrency(pinnedSpendPoint.hardwareCost || 0)}</span>
+                    <span className="text-slate-600">•</span>
+                    <span className="text-emerald-400 font-semibold">📱 SIM / Contact: {formatCurrency(pinnedSpendPoint.telecomCost || 0)}</span>
+                  </div>
+                )}
+
+                {/* SIM Breakdown List with 2-3 SIM Cards per view height & slider scrollbar */}
+                {pinnedSpendPoint.tickets && pinnedSpendPoint.tickets.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-[#1e293b]/70 flex-1 min-h-0 flex flex-col">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider shrink-0">
+                      <span>Expenditure Breakdown ({pinnedSpendPoint.tickets.length})</span>
+                      {pinnedSpendPoint.tickets.length > 3 && (
+                        <span className="text-[10px] font-mono text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 lowercase">
+                          ↕ scroll slider (2-3 per view)
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className="space-y-1.5 max-h-[160px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-emerald-500/60 hover:scrollbar-thumb-emerald-400 scrollbar-track-slate-900/90"
+                      onWheel={(e) => e.stopPropagation()}
+                      onTouchMove={(e) => e.stopPropagation()}
+                    >
+                      {pinnedSpendPoint.tickets.map((t: any) => (
+                        <div key={t.id} className="text-xs bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 flex items-start justify-between gap-2 hover:bg-slate-800/90 transition-colors">
+                          <div className="truncate">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                t.type === 'telecom'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              }`}>
+                                {t.type === 'telecom' ? '📱 SIM' : '🔧 HW'}
+                              </span>
+                              <span className="font-mono font-bold text-slate-200">
+                                {t.type === 'telecom' ? t.contactNumber : t.assetNumber}
+                              </span>
+                              <span className="text-slate-400 text-[11px]">({t.employeeName})</span>
+                            </div>
+                            <p className="text-xs text-slate-400 truncate mt-1">{t.problem}</p>
+                          </div>
+                          <span className="font-mono font-bold text-amber-400 shrink-0 text-xs">
+                            {formatCurrency(t.cost)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Companion Financial Highlights (4 Columns) */}
           <div className="lg:col-span-4 flex flex-col justify-between space-y-3">
@@ -2455,41 +2704,45 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       </div>
 
       {/* 3.5. ASSET REPAIR & MAINTENANCE ANALYTICS (FLEET-WIDE DYNAMIC HARDWARE SERVICE ANALYTICS) */}
-      <div className="bg-white dark:bg-[#101726] rounded-2xl border border-slate-200/80 dark:border-[#1e293b] p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="relative overflow-hidden bg-white dark:bg-[#0e1626] rounded-2xl border border-slate-200/80 dark:border-slate-800/80 p-5 sm:p-6 shadow-xl space-y-5 transition-all duration-300">
+        {/* Subtle Decorative Background Glow (Dark Mode Only) */}
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/5 dark:bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-indigo-500/5 dark:bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+
         {/* Card Header & Dynamic Toggles */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-[#1e293b]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/20 shrink-0">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500/20 via-indigo-500/15 to-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/30 shadow-md shadow-blue-500/10 shrink-0">
               <Wrench className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white uppercase tracking-wider bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-200 dark:to-slate-300 bg-clip-text text-transparent">
                   Asset Repair & Maintenance Analytics
                 </h2>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Live Database
                 </span>
-                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/60 px-2 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50">
                   • {fleetAssetRepairStatsData.filter(a => a.repairCount > 0).length} Serviced Assets
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Fleet-wide repair frequencies, hardware failure categories, and maintenance expenditure across all company assets
               </p>
             </div>
           </div>
 
           {/* Metric Mode Switcher */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#090d16] p-1 rounded-xl border border-slate-200/80 dark:border-[#1e293b] self-start lg:self-auto">
+          <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-[#080d1a] p-1 rounded-xl border border-slate-200/80 dark:border-slate-800/80 self-start lg:self-auto shadow-inner">
             <button
               type="button"
               onClick={() => setRepairMetricMode('both')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
                 repairMetricMode === 'both'
-                  ? 'bg-blue-600 text-white shadow-xs font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
               }`}
             >
               Repairs & Cost
@@ -2497,10 +2750,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => setRepairMetricMode('repairs')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
                 repairMetricMode === 'repairs'
-                  ? 'bg-blue-600 text-white shadow-xs font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
               }`}
             >
               Repair Count Only
@@ -2508,10 +2761,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => setRepairMetricMode('cost')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
                 repairMetricMode === 'cost'
-                  ? 'bg-blue-600 text-white shadow-xs font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
               }`}
             >
               Repair Cost Only (₹)
@@ -2520,39 +2773,45 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
 
         {/* Quick Metrics KPI Banner (Fleet Level) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-100 dark:border-blue-900/40">
-            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 text-xs font-medium">
-              <Wrench className="w-3.5 h-3.5" />
-              <span>Total Fleet Repairs</span>
+        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          <div className="p-3.5 bg-gradient-to-br from-blue-50/80 via-blue-50/30 to-white dark:from-blue-950/30 dark:via-blue-900/15 dark:to-[#0e1626] rounded-xl border border-blue-200/70 dark:border-blue-900/50 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Total Fleet Repairs</span>
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Wrench className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-1 text-lg font-bold text-slate-900 dark:text-white font-mono">
-              {fleetAssetRepairStatsData.reduce((acc, curr) => acc + curr.repairCount, 0)} Incidents
+            <div className="mt-2 text-xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+              {fleetAssetRepairStatsData.reduce((acc, curr) => acc + curr.repairCount, 0)} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Incidents</span>
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
               Across {fleetAssetRepairStatsData.filter(a => a.repairCount > 0).length} serviced devices
             </div>
           </div>
 
-          <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/40">
-            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
-              <IndianRupee className="w-3.5 h-3.5" />
-              <span>Total Repair Outlay</span>
+          <div className="p-3.5 bg-gradient-to-br from-emerald-50/80 via-emerald-50/30 to-white dark:from-emerald-950/30 dark:via-emerald-900/15 dark:to-[#0e1626] rounded-xl border border-emerald-200/70 dark:border-emerald-900/50 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Total Repair Outlay</span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <IndianRupee className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-1 text-lg font-bold text-slate-900 dark:text-white font-mono">
+            <div className="mt-2 text-xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
               {formatCurrency(fleetAssetRepairStatsData.reduce((acc, curr) => acc + curr.totalCost, 0))}
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
               Lifetime fleet maintenance cost
             </div>
           </div>
 
-          <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 rounded-xl border border-purple-100 dark:border-purple-900/40">
-            <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 text-xs font-medium">
-              <Laptop className="w-3.5 h-3.5" />
-              <span>Most Serviced Asset</span>
+          <div className="p-3.5 bg-gradient-to-br from-purple-50/80 via-purple-50/30 to-white dark:from-purple-950/30 dark:via-purple-900/15 dark:to-[#0e1626] rounded-xl border border-purple-200/70 dark:border-purple-900/50 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Most Serviced Asset</span>
+              <div className="w-7 h-7 rounded-lg bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Laptop className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-1 text-sm font-bold text-slate-900 dark:text-white truncate">
+            <div className="mt-2 text-sm font-bold text-slate-900 dark:text-white truncate">
               {(() => {
                 const sorted = [...fleetAssetRepairStatsData].sort((a, b) => b.repairCount - a.repairCount);
                 return sorted[0] && sorted[0].repairCount > 0
@@ -2560,20 +2819,22 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   : 'None (Healthy)';
               })()}
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
               Highest repair frequency
             </div>
           </div>
 
-          <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl border border-amber-100 dark:border-amber-900/40">
-            <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 text-xs font-medium">
-              <Clock className="w-3.5 h-3.5" />
-              <span>Active Repair Tickets</span>
+          <div className="p-3.5 bg-gradient-to-br from-amber-50/80 via-amber-50/30 to-white dark:from-amber-950/30 dark:via-amber-900/15 dark:to-[#0e1626] rounded-xl border border-amber-200/70 dark:border-amber-900/50 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Active Repair Tickets</span>
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <div className="mt-1 text-lg font-bold text-slate-900 dark:text-white font-mono">
-              {serviceRecords.filter(s => s.serviceStatus === 'In Progress').length} Active
+            <div className="mt-2 text-xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+              {serviceRecords.filter(s => s.serviceStatus === 'In Progress').length} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Active</span>
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
               {serviceRecords.filter(s => s.serviceStatus === 'In Progress').length > 0
                 ? 'Under technician diagnosis'
                 : 'All workstations active'}
@@ -2582,7 +2843,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
 
         {/* Filter, Sort & Search Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           {/* Category Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs scrollbar-none">
             {['All', 'Computers', 'Laptop', 'Desktop', 'Mouse', 'Keyboard', 'Headset', 'Monitor', 'Mobile Phone'].map(cat => {
@@ -2593,20 +2854,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   key={cat}
                   type="button"
                   onClick={() => setRepairCategoryFilter(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
                     isActive
-                      ? 'bg-orange-500 text-white font-bold shadow-sm shadow-orange-500/25'
-                      : 'bg-slate-100 dark:bg-[#090d16] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-[#1e293b]'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold shadow-md shadow-orange-500/25 border border-orange-400/30'
+                      : 'bg-slate-100/90 dark:bg-[#080d1a] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <span>{cat === 'All' ? 'All Assets' : cat}</span>
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                       isActive
-                        ? 'bg-orange-600/70 text-white font-bold'
+                        ? 'bg-orange-700/80 text-white font-bold'
                         : stat.serviced > 0
-                        ? 'bg-orange-500/15 text-orange-400 font-semibold'
-                        : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                        ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 font-semibold'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                     }`}
                   >
                     {stat.serviced}
@@ -2617,7 +2878,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
 
           {/* Sort & Search Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Search Input */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -2626,12 +2887,13 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 placeholder="Search asset or employee..."
                 value={repairSearch}
                 onChange={e => setRepairSearch(e.target.value)}
-                className="pl-8 pr-3 py-1 text-xs bg-slate-100 dark:bg-[#090d16] border border-slate-200/80 dark:border-[#1e293b] rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44 sm:w-52"
+                className="pl-8 pr-7 py-1.5 text-xs bg-slate-100/90 dark:bg-[#080d1a] border border-slate-200/80 dark:border-slate-800/80 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 w-44 sm:w-56 transition-all"
               />
               {repairSearch && (
                 <button
+                  type="button"
                   onClick={() => setRepairSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -2642,7 +2904,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <select
               value={repairSortBy}
               onChange={e => setRepairSortBy(e.target.value as any)}
-              className="text-xs bg-slate-100 dark:bg-[#090d16] border border-slate-200/80 dark:border-[#1e293b] rounded-lg px-2.5 py-1 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              className="text-xs bg-slate-100/90 dark:bg-[#080d1a] border border-slate-200/80 dark:border-slate-800/80 rounded-xl px-3 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 cursor-pointer font-medium transition-all"
             >
               <option value="cost">Sort: Highest Cost (₹)</option>
               <option value="repairs">Sort: Most Repairs</option>
@@ -2653,19 +2915,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
 
         {/* Interactive Recharts Graph */}
-        <div className="pt-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2 text-xs">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">
+        <div className="relative z-10 pt-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-3 text-xs">
+            <span className="font-bold text-slate-800 dark:text-slate-200">
               {repairMetricMode === 'both' && 'Comparison of Repair Counts & Maintenance Expenditure (₹) per Asset'}
               {repairMetricMode === 'repairs' && 'Number of Times Each Asset Has Been Repaired'}
               {repairMetricMode === 'cost' && 'Total Repair & Replacement Cost per Asset (₹ INR)'}
             </span>
-            <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+            <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
               Tip: Click any bar to inspect repair history & ticket details
             </span>
           </div>
 
-          <div className="h-72 w-full pt-1">
+          <div className="h-72 w-full p-2 bg-slate-50/50 dark:bg-[#080d1a]/50 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
             {chartDisplayStats.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -2678,7 +2941,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     }
                   }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.12} stroke="#94a3b8" />
                   <XAxis
                     dataKey="displayName"
                     tick={{ fontSize: 11, fill: '#94a3b8' }}
@@ -2724,6 +2987,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       borderRadius: '0.75rem',
                       color: '#fff',
                       fontSize: '12px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
                     }}
                     formatter={(value: any, name: any) => {
                       if (name === 'repairCount' || name === 'Times Repaired') {
@@ -2793,7 +3057,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => setRepairSearch('')}
-                      className="mt-3 px-3 py-1 text-xs bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-700 transition-all cursor-pointer font-medium"
+                      className="mt-3 px-3 py-1.5 text-xs bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-700 transition-all cursor-pointer font-medium"
                     >
                       Clear Search
                     </button>
@@ -2813,7 +3077,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       <button
                         type="button"
                         onClick={() => onOpenAddService()}
-                        className="px-3 py-1 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs shadow-orange-500/20"
+                        className="px-3 py-1.5 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-all font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs shadow-orange-500/20"
                       >
                         <Wrench className="w-3.5 h-3.5" />
                         <span>Log Service Ticket</span>
@@ -2822,7 +3086,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => setRepairCategoryFilter('All')}
-                          className="px-3 py-1 text-xs bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-all font-medium cursor-pointer"
+                          className="px-3 py-1.5 text-xs bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-all font-medium cursor-pointer"
                         >
                           View All Assets
                         </button>
@@ -2836,12 +3100,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
 
         {/* Quick Asset Selector Chips */}
-        <div className="pt-2 border-t border-slate-100 dark:border-[#1e293b]">
+        <div className="relative z-10 pt-2 border-t border-slate-100 dark:border-slate-800/80">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Fleet Asset Selector ({filteredAssetRepairStats.length} Devices in scope)
             </span>
-            <span className="text-[10px] text-slate-400">
+            <span className="text-[10px] text-slate-400 font-medium">
               Click an asset below to inspect tickets & service details
             </span>
           </div>
@@ -2855,19 +3119,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   onClick={() =>
                     setSelectedRepairAssetNumber(isSelected ? null : item.assetNumber)
                   }
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all flex items-center gap-2 border cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all duration-200 flex items-center gap-2 border cursor-pointer ${
                     isSelected
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-slate-50 dark:bg-[#090d16] text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-[#1e293b] hover:border-blue-400'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md shadow-blue-500/30'
+                      : 'bg-slate-50/90 dark:bg-[#080d1a] text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-800/80 hover:border-blue-400/60 dark:hover:border-blue-500/50 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                   }`}
                 >
                   <span
-                    className="w-2 h-2 rounded-full shrink-0"
+                    className="w-2 h-2 rounded-full shrink-0 shadow-xs"
                     style={{ backgroundColor: item.color }}
                   />
                   <span>{item.assetNumber}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                    isSelected ? 'bg-blue-700 text-blue-100' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono ${
+                    isSelected ? 'bg-blue-700/80 text-blue-100 font-bold' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                   }`}>
                     {item.repairCount}x
                   </span>
@@ -2886,12 +3150,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
         {/* Selected Asset Detailed Repair History Drawer / Panel */}
         {selectedRepairAsset && (
-          <div className="mt-4 p-4 rounded-xl bg-slate-50/80 dark:bg-[#0b101b] border border-blue-200 dark:border-blue-900/50 space-y-3 animate-fade-in">
+          <div className="relative z-10 mt-4 p-4.5 rounded-2xl bg-gradient-to-b from-slate-50/90 to-slate-100/50 dark:from-[#0b101b] dark:to-[#080d1a] border border-blue-200 dark:border-blue-900/50 space-y-3.5 shadow-lg animate-fade-in">
             {/* Header of Drawer */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200/60 dark:border-slate-800">
-              <div className="flex items-center gap-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-slate-800">
+              <div className="flex items-center gap-3">
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-xs"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-md"
                   style={{ backgroundColor: selectedRepairAsset.color }}
                 >
                   {selectedRepairAsset.assetType.slice(0, 2).toUpperCase()}
@@ -2901,14 +3165,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                       {selectedRepairAsset.assetNumber} — {selectedRepairAsset.assetName}
                     </h3>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                       {selectedRepairAsset.assetType}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       Assigned to: <strong className="text-slate-800 dark:text-slate-200">{selectedRepairAsset.assignedEmployeeName}</strong> ({selectedRepairAsset.assignedEmployeeDept})
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                  <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">
                     <span>Lifetime Repairs: <strong className="text-slate-900 dark:text-white">{selectedRepairAsset.repairCount}</strong></span>
                     <span>•</span>
                     <span>Total Cost: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(selectedRepairAsset.totalCost)}</strong></span>
@@ -2926,7 +3190,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('services')}
-                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition-all duration-200 cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-500/20"
                 >
                   <span>Open Service Desk</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -2934,7 +3198,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedRepairAssetNumber(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   title="Close inspection panel"
                 >
                   <X className="w-4 h-4" />
@@ -2948,14 +3212,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 {selectedRepairAsset.records.map((ticket, idx) => (
                   <div
                     key={ticket.id || idx}
-                    className="p-3 bg-white dark:bg-[#101726] rounded-xl border border-slate-200/80 dark:border-[#1e293b] space-y-2 shadow-2xs"
+                    className="p-3.5 bg-white dark:bg-[#101726] rounded-xl border border-slate-200/80 dark:border-slate-800/80 space-y-2.5 shadow-xs"
                   >
-                    <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100 dark:border-slate-800">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
                           {ticket.id}
                         </span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                           ticket.serviceStatus === 'Completed'
                             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                             : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
@@ -3013,7 +3277,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] text-center text-xs text-slate-500">
+              <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800/80 text-center text-xs text-slate-500">
                 <CheckCircle2 className="w-6 h-6 mx-auto mb-1 text-emerald-500" />
                 <p className="font-semibold text-slate-800 dark:text-slate-200">Zero Repairs Recorded</p>
                 <p className="text-[11px] text-slate-400">This asset is healthy with ₹0 spent on maintenance.</p>

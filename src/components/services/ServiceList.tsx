@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ProblemCategoryBadge, ServiceStatusBadge } from '../common/Badge';
 import { formatCurrency, formatDateDisplay } from '../../utils/formatters';
@@ -54,6 +54,8 @@ export const ServiceList: React.FC<ServiceListProps> = ({
     setActiveTab,
     setSelectedEmployeeId,
     setActiveSystemSupportTicket,
+    highlightedServiceId,
+    setHighlightedServiceId,
   } = useApp();
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -63,6 +65,16 @@ export const ServiceList: React.FC<ServiceListProps> = ({
   // Receipt Modal States
   const [previewReceiptRecord, setPreviewReceiptRecord] = useState<ServiceRecord | null>(null);
   const [uploadReceiptRecordId, setUploadReceiptRecordId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (highlightedServiceId) {
+      const rec = serviceRecords.find(s => s.id === highlightedServiceId);
+      if (rec) {
+        setPreviewReceiptRecord(rec);
+      }
+      setHighlightedServiceId(null);
+    }
+  }, [highlightedServiceId, serviceRecords, setHighlightedServiceId]);
 
   const categories: ProblemCategory[] = [
     'Windows Problem',
@@ -306,14 +318,6 @@ export const ServiceList: React.FC<ServiceListProps> = ({
           >
             <Wrench className="w-3.5 h-3.5 text-indigo-500" />
             <span>PC Support Providers</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('service-flowchart')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-            title="View Employee Support Flowchart SOP"
-          >
-            <GitBranch className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Support Flowchart SOP</span>
           </button>
           {isAdmin && (
             <button

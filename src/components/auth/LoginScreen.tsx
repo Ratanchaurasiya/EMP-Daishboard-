@@ -245,8 +245,8 @@ export const LoginScreen: React.FC = () => {
   // -------------------------------------------------------------
   // METHOD 1: PASSWORD / PASS STATE
   // -------------------------------------------------------------
-  const [adminUsername, setAdminUsername] = useState('admin@company.com');
-  const [adminPassword, setAdminPassword] = useState('admin123');
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   const [empIdentifier, setEmpIdentifier] = useState('');
@@ -363,12 +363,7 @@ export const LoginScreen: React.FC = () => {
     }, 250);
   };
 
-  const handleQuickAdmin = () => {
-    setAdminUsername('admin@company.com');
-    setAdminPassword('admin123');
-    playBiometricSound('success');
-    loginAsAdmin('admin123');
-  };
+
 
 
   // Auth Action: Face Recognition (Strict Live Camera Vector Comparison)
@@ -458,7 +453,7 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const demoEmployees = employees.slice(0, 4);
+
 
   return (
     <div
@@ -882,7 +877,7 @@ export const LoginScreen: React.FC = () => {
                 <form onSubmit={handleAdminPasswordSubmit} className="space-y-3.5">
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-slate-200 px-1 block">
-                      Admin Email / Username
+                      User ID / Email
                     </label>
                     <div className="relative">
                       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -893,7 +888,7 @@ export const LoginScreen: React.FC = () => {
                         required
                         value={adminUsername}
                         onChange={e => setAdminUsername(e.target.value)}
-                        placeholder="admin@company.com"
+                        placeholder="User ID / Email"
                         className="w-full pl-11 pr-4 py-3 rounded-full bg-black/40 backdrop-blur-md border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/25 text-white placeholder-slate-400 text-xs font-medium focus:outline-none transition-all shadow-inner"
                       />
                     </div>
@@ -902,11 +897,8 @@ export const LoginScreen: React.FC = () => {
                   <div className="space-y-1">
                     <div className="flex items-center justify-between px-1">
                       <label className="text-[11px] font-semibold text-slate-200 block">
-                        Security Password
+                        Password
                       </label>
-                      <span className="text-[10px] text-amber-300 font-mono bg-black/60 px-1.5 py-0.5 rounded border border-amber-500/30">
-                        Default: admin123
-                      </span>
                     </div>
                     <div className="relative">
                       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -917,7 +909,7 @@ export const LoginScreen: React.FC = () => {
                         required
                         value={adminPassword}
                         onChange={e => setAdminPassword(e.target.value)}
-                        placeholder="••••••••"
+                        placeholder="Password"
                         className="w-full pl-11 pr-11 py-3 rounded-full bg-black/40 backdrop-blur-md border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/25 text-white placeholder-slate-400 text-xs font-mono tracking-wider focus:outline-none transition-all shadow-inner"
                       />
                       <button
@@ -955,24 +947,12 @@ export const LoginScreen: React.FC = () => {
                       </>
                     )}
                   </button>
-
-                  <div className="pt-2 border-t border-white/10 text-center">
-                    <button
-                      type="button"
-                      onClick={handleQuickAdmin}
-                      disabled={isLoading}
-                      className="w-full py-2 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>One-Click Demo Administrator Access</span>
-                    </button>
-                  </div>
                 </form>
               ) : (
                 <form onSubmit={handleEmpPasswordSubmit} autoComplete="off" className="space-y-3.5">
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-slate-200 px-1 block">
-                      Registered Company Email or Employee ID
+                      User ID / Email
                     </label>
                     <div className="relative">
                       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -991,7 +971,7 @@ export const LoginScreen: React.FC = () => {
                         required
                         value={empIdentifier}
                         onChange={e => setEmpIdentifier(e.target.value)}
-                        placeholder="Enter your email or employee ID"
+                        placeholder="User ID / Email"
                         className="w-full pl-11 pr-4 py-3 rounded-full bg-black/40 backdrop-blur-md border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/25 text-white placeholder-slate-400 text-xs font-medium focus:outline-none transition-all shadow-inner"
                       />
                     </div>
@@ -1019,7 +999,7 @@ export const LoginScreen: React.FC = () => {
                         required
                         value={empPassword}
                         onChange={e => setEmpPassword(e.target.value)}
-                        placeholder="Enter your password"
+                        placeholder="Password"
                         className="w-full pl-11 pr-11 py-3 rounded-full bg-black/40 backdrop-blur-md border border-white/15 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/25 text-white placeholder-slate-400 text-xs font-mono tracking-wider focus:outline-none transition-all shadow-inner"
                       />
                       <button
@@ -1093,13 +1073,13 @@ export const LoginScreen: React.FC = () => {
                         setFaceResult(null);
                         setErrorMsg('');
                       }}
-                      placeholder="Enter your registered company email or employee ID"
+                      placeholder="User ID / Email"
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/15 focus:border-amber-400 text-white placeholder-slate-400 text-xs font-medium focus:outline-none transition-all"
                     />
                   </div>
 
                   <div className="text-[10px] text-slate-400 px-1">
-                    Enter your registered company email or employee ID for camera face scan verification.
+                    Enter your User ID or Email for camera face scan verification.
                   </div>
                 </div>
               )}

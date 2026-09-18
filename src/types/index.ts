@@ -36,6 +36,7 @@ export interface Employee {
   phone: string;
   remarks: string;
   photoUrl?: string;
+  passwordHash?: string;
 }
 
 // Tracked peripheral & company-issued asset types
@@ -279,6 +280,7 @@ export interface AuditLog {
     | 'Service Provider Updated'
     | 'Service Provider Deleted'
     | 'Admin Password Changed'
+    | 'Employee Password Changed'
     | 'Admin OTP Requested';
   details: string;
   actor: string;

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { hashPassword, hashPasswordSync } from '../utils/security';
 import {
   Employee,
   Computer,
@@ -97,6 +98,7 @@ interface AppContextType {
   currentUser: AuthUser | null;
   loginAsAdmin: (password?: string) => { success: boolean; error?: string };
   loginAsEmployee: (employeeIdOrEmail: string, password?: string) => { success: boolean; error?: string };
+  changeAccountPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 
   // Setters
@@ -107,6 +109,8 @@ interface AppContextType {
   setHighlightedRequestId: (id: string | null) => void;
   setSimManagementSubTab: (tab: 'inventory' | 'recharges' | 'requests' | 'history') => void;
   setHighlightedSimRequestId: (id: string | null) => void;
+  highlightedServiceId: string | null;
+  setHighlightedServiceId: (id: string | null) => void;
   setActiveSystemSupportTicket: (ticket: ActiveSystemSupportTicket | null) => void;
   setSelectedServiceProviderId: (id: string | null) => void;
   setGlobalFilters: (filters: Partial<GlobalFilters>) => void;
@@ -523,6 +527,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const [adminPasswordHash, setAdminPasswordHash] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(`${STORAGE_KEY}_ADMIN_PASS_HASH`);
+    } catch {
+      return null;
+    }
+  });
+
   const [activeAdminOtp, setActiveAdminOtp] = useState<{
     code: string;
     expiresAt: number;
@@ -717,6 +729,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [highlightedRequestId, setHighlightedRequestId] = useState<string | null>(null);
   const [simManagementSubTab, setSimManagementSubTab] = useState<'inventory' | 'recharges' | 'requests' | 'history'>('inventory');
   const [highlightedSimRequestId, setHighlightedSimRequestId] = useState<string | null>(null);
+  const [highlightedServiceId, setHighlightedServiceId] = useState<string | null>(null);
 
   // Sync route and state with URL hash and localStorage
   const syncRoute = useCallback(
@@ -843,6 +856,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const handlePopState = () => {
       try {
+        if (!isAuthenticated) return;
         if (currentUser?.role === 'employee') {
           const rawHash = window.location.hash.replace(/^#\/?/, '');
           const [tabPart] = rawHash.split('?');
@@ -5926,9 +5940,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'photo',
         'face',
       ];
+      const pHash = hashPasswordSync(p);
+      const matchesHash = adminPasswordHash ? pHash === adminPasswordHash : false;
       const matchesCustom = adminCustomPassword ? p === adminCustomPassword : false;
 
-      if (!matchesCustom && !validAdminPasses.includes(lowerP)) {
+      if (!matchesHash && !matchesCustom && !validAdminPasses.includes(lowerP)) {
         showToast('Invalid administrator password. Please check your password or use WhatsApp OTP reset.', 'error');
         return { success: false, error: 'Invalid administrator password.' };
       }
@@ -6115,7 +6131,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'photo',
       ].includes(lowerPass);
 
+      const passHash = hashPasswordSync(cleanPass);
+      const isHashMatch = emp.passwordHash ? passHash === emp.passwordHash : false;
+
       const isValid =
+        isHashMatch ||
         isBiometricOrPhoto ||
         cleanPass === phoneFirst6 ||
         cleanPass === rawDigitsFirst6 ||
@@ -6157,17 +6177,154 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout: AppContextType['logout'] = () => {
+    const actorName = currentUser?.name || (userRole === 'admin' ? 'IT Administrator' : 'User');
+    const actorRole = currentUser?.role || userRole;
+
     setIsAuthenticated(false);
     setCurrentUser(null);
-    setSelectedEmployeeId(null);
-    setActiveTab('dashboard');
-    localStorage.setItem(`${STORAGE_KEY}_AUTH`, 'false');
-    localStorage.removeItem(`${STORAGE_KEY}_CURRENT_USER`);
+    setSelectedEmployeeIdState(null);
+    setSelectedComputerIdState(null);
+    setActiveTabState('dashboard');
+    setUserRoleState('admin');
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_AUTH`, 'false');
+      localStorage.removeItem(`${STORAGE_KEY}_CURRENT_USER`);
+      localStorage.removeItem(`${STORAGE_KEY}_ACTIVE_TAB`);
+      localStorage.removeItem(`${STORAGE_KEY}_SELECTED_EMP`);
+      localStorage.removeItem(`${STORAGE_KEY}_SELECTED_COMP`);
+      localStorage.removeItem(`${STORAGE_KEY}_USER_ROLE`);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.clear();
+      }
+    } catch (e) {
+      console.warn('Could not clear session storage on logout:', e);
+    }
+
     if (typeof window !== 'undefined') {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', `${window.location.pathname}#/login`);
+      }
       window.location.hash = '#/login';
     }
-    addAuditEntry('User Sign-out', 'User logged out of active session.');
-    showToast('You have been signed out.', 'info');
+
+    addAuditEntry('User Sign-out', `${actorName} (${actorRole}) signed out of active session.`);
+    showToast('You have been logged out successfully.', 'info');
+  };
+
+  const changeAccountPassword: AppContextType['changeAccountPassword'] = async (
+    currentPassword: string,
+    newPassword: string
+  ) => {
+    if (!currentUser) {
+      return { success: false, error: 'No active user session. Please sign in.' };
+    }
+
+    const cleanCurrent = currentPassword.trim();
+    const cleanNew = newPassword.trim();
+
+    if (!cleanCurrent) {
+      return { success: false, error: 'Please enter your current password.' };
+    }
+    if (!cleanNew) {
+      return { success: false, error: 'Please enter a new password.' };
+    }
+    if (cleanNew.length < 6) {
+      return { success: false, error: 'New password must be at least 6 characters long.' };
+    }
+    if (cleanCurrent === cleanNew) {
+      return { success: false, error: 'New password must be different from your current password.' };
+    }
+
+    const currentHash = await hashPassword(cleanCurrent);
+    const newHash = await hashPassword(cleanNew);
+
+    const isAdminSession = currentUser.role === 'admin' || userRole === 'admin';
+
+    if (isAdminSession) {
+      // 1. ADMIN PASSWORD CHANGE (Admin changes ONLY their own password)
+      let isCurrentValid = false;
+      if (adminPasswordHash) {
+        isCurrentValid = currentHash === adminPasswordHash;
+      }
+      
+      if (!isCurrentValid) {
+        const lowerCurrent = cleanCurrent.toLowerCase();
+        const validAdminPasses = [
+          'admin',
+          'admin123',
+          'admin@123',
+          'password',
+          'biometric',
+          'photo',
+          'face',
+        ];
+        const matchesCustom = adminCustomPassword ? cleanCurrent === adminCustomPassword : false;
+        isCurrentValid = matchesCustom || validAdminPasses.includes(lowerCurrent);
+      }
+
+      if (!isCurrentValid) {
+        return { success: false, error: 'Incorrect current password. Please verify and try again.' };
+      }
+
+      setAdminPasswordHash(newHash);
+      setAdminCustomPassword(cleanNew);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_ADMIN_PASS_HASH`, newHash);
+        localStorage.setItem(`${STORAGE_KEY}_ADMIN_CUSTOM_PASS`, cleanNew);
+      } catch (e) {
+        console.warn('LocalStorage admin password write error:', e);
+      }
+
+      addAuditEntry(
+        'Admin Password Changed',
+        'IT Administrator updated their account password securely.'
+      );
+      showToast('Admin password changed successfully!', 'success');
+      return { success: true };
+    } else {
+      // 2. EMPLOYEE PASSWORD CHANGE (Employee changes ONLY their own password)
+      const emp = employees.find(
+        e =>
+          e.id === currentUser.id ||
+          e.employeeId === currentUser.employeeId ||
+          (e.email && currentUser.email && e.email.toLowerCase() === currentUser.email.toLowerCase())
+      );
+
+      if (!emp) {
+        return { success: false, error: 'Employee account record not found in system.' };
+      }
+
+      let isCurrentValid = false;
+      if (emp.passwordHash) {
+        isCurrentValid = currentHash === emp.passwordHash;
+      }
+      
+      if (!isCurrentValid) {
+        const phoneFirst6 = getEmployeePhoneFirst6(emp.phone);
+        const rawDigitsFirst6 = emp.phone ? emp.phone.replace(/\D/g, '').slice(0, 6) : '';
+        const lowerCurrent = cleanCurrent.toLowerCase();
+        isCurrentValid =
+          cleanCurrent === phoneFirst6 ||
+          cleanCurrent === rawDigitsFirst6 ||
+          cleanCurrent === 'emp123' ||
+          cleanCurrent === 'password' ||
+          lowerCurrent === emp.employeeId.toLowerCase();
+      }
+
+      if (!isCurrentValid) {
+        return { success: false, error: 'Incorrect current password. Please verify and try again.' };
+      }
+
+      updateEmployee(emp.id, { passwordHash: newHash });
+
+      addAuditEntry(
+        'Employee Password Changed',
+        `Employee ${emp.name} (${emp.employeeId}) updated their portal password securely.`
+      );
+      showToast('Password changed successfully!', 'success');
+      return { success: true };
+    }
   };
 
   const contextValue: AppContextType = {
@@ -6200,6 +6357,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     currentUser,
     loginAsAdmin,
     loginAsEmployee,
+    changeAccountPassword,
     logout,
     setUserRole,
     setActiveTab,
@@ -6208,6 +6366,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHighlightedRequestId,
     setSimManagementSubTab,
     setHighlightedSimRequestId,
+    highlightedServiceId,
+    setHighlightedServiceId,
     setActiveSystemSupportTicket,
     setSelectedServiceProviderId,
     setGlobalFilters,

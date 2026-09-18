@@ -290,14 +290,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           icon: History,
           badge: null,
         },
-        {
-          id: 'service-flowchart',
-          label: 'Service Flowchart SOP',
-          shortLabel: 'Flowchart',
-          icon: GitBranch,
-          badge: 'SOP',
-          badgeColor: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
-        },
       ],
     },
   ];
@@ -556,6 +548,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
         )}
+
+        {/* Logout Action Button in Sidebar Footer */}
+        <div className="px-3 py-2 border-t border-slate-200/70 dark:border-slate-800/80">
+          <button
+            type="button"
+            onClick={logout}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2' : 'justify-start gap-2.5 px-3 py-2'} rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition-colors cursor-pointer`}
+            title="Sign Out of Session"
+          >
+            <LogOut className="w-4 h-4 shrink-0 text-rose-500" />
+            {!isCollapsed && <span>Logout</span>}
+          </button>
+        </div>
 
         {/* Database Live Telemetry Box in Footer */}
         {!isCollapsed && (

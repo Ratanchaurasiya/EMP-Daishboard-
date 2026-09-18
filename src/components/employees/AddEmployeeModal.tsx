@@ -136,6 +136,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
   const [productId, setProductId] = useState('00330-80000-00012-AAOEM');
   const penAndTouch = 'No pen or touch input is available for this display';
   const compCondition: AssetCondition = 'New';
+  const [compSecurityFunctionAdded, setCompSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
 
   // Step 3: Company Assets (Mouse, Keyboard, Headset) - Opt-in provisioning
   const [includeMouse, setIncludeMouse] = useState(false);
@@ -170,6 +171,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
   const [phoneAssignedDate, setPhoneAssignedDate] = useState(new Date().toISOString().split('T')[0]);
   const [phoneStatus, setPhoneStatus] = useState<AssetStatus>('Assigned');
   const [phoneCondition, setPhoneCondition] = useState<AssetCondition>('New');
+  const [phoneSecurityFunctionAdded, setPhoneSecurityFunctionAdded] = useState<'Yes' | 'No'>('Yes');
 
   // Step 3: Optional Initial Service / Maintenance Record
   const [includeServiceRecord, setIncludeServiceRecord] = useState(false);
@@ -364,6 +366,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
           condition: compCondition,
           status: 'Assigned' as const,
           assignedDate: joiningDate,
+          securityFunctionAdded: compSecurityFunctionAdded,
+          securityFunctionAddedDate: compSecurityFunctionAdded === 'Yes' ? joiningDate : undefined,
           remarks: 'Allocated on joining',
         };
       }
@@ -383,6 +387,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
       imeiNumber?: string;
       phoneNumber?: string;
       remarks?: string;
+      securityFunctionAdded?: 'Yes' | 'No';
+      securityFunctionAddedDate?: string;
     }> = [];
 
     if (includeMouse) {
@@ -442,6 +448,8 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
         deviceName: phoneDeviceName.trim() || `${phoneBrand} ${phoneModel}`.trim(),
         imeiNumber: resolvedImei,
         phoneNumber: phoneMobileNumber.trim() || phone.trim() || '+91 98000 00000',
+        securityFunctionAdded: phoneSecurityFunctionAdded,
+        securityFunctionAddedDate: phoneSecurityFunctionAdded === 'Yes' ? (phoneAssignedDate || joiningDate) : undefined,
         remarks: `Company Phone: ${phoneMobileNumber.trim() || phone.trim() || 'N/A'} (IMEI: ${resolvedImei})`,
       });
     }
@@ -1043,7 +1051,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                               </div>
 
                               {/* Specs breakdown */}
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-amber-500/10 text-[11px]">
+                              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-amber-500/10 text-[11px]">
                                 <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
                                   <span className="text-[10px] text-slate-400 block">Processor (CPU)</span>
                                   <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
@@ -1066,6 +1074,12 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                                   <span className="text-[10px] text-slate-400 block">Storage (SSD)</span>
                                   <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
                                     {selectedComp.storage?.total || '512 GB'} {selectedComp.storage?.type || 'SSD'}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                                  <span className="text-[10px] text-slate-400 block">Security Status</span>
+                                  <span className={`font-semibold truncate block ${selectedComp.securityFunctionAdded === 'No' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                    🛡️ {selectedComp.securityFunctionAdded === 'No' ? 'Not Added' : 'Added'}
                                   </span>
                                 </div>
                               </div>
@@ -1125,7 +1139,7 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div>
                       <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                         Manufacturer
@@ -1161,6 +1175,20 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                       >
                         <option value="Laptop">Laptop</option>
                         <option value="Desktop">Desktop</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Security Feature Added? *
+                      </label>
+                      <select
+                        value={compSecurityFunctionAdded}
+                        onChange={e => setCompSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors cursor-pointer"
+                      >
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
                       </select>
                     </div>
                   </div>
@@ -1602,6 +1630,17 @@ export const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onCl
                           <option value="New">New</option>
                           <option value="Good">Good</option>
                           <option value="Fair">Fair</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-500 dark:text-slate-400 block mb-0.5">Security Feature Added?</label>
+                        <select
+                          value={phoneSecurityFunctionAdded}
+                          onChange={e => setPhoneSecurityFunctionAdded(e.target.value as 'Yes' | 'No')}
+                          className="w-full px-2.5 py-1.5 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md text-xs focus:outline-hidden focus:border-blue-500 font-semibold cursor-pointer"
+                        >
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
                         </select>
                       </div>
                     </div>

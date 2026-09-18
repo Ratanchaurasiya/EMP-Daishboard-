@@ -64,6 +64,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     setHighlightedRequestId,
     setSimManagementSubTab,
     setHighlightedSimRequestId,
+    setHighlightedServiceId,
     currentUser,
     userRole,
   } = useApp();
@@ -258,8 +259,26 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       });
     });
 
-    // 1. Maintenance & Service Tickets
+    // 1. Maintenance & Service Tickets & Receipts
+    const empUserComp = isEmployee
+      ? computers.find(c => c.assignedEmployeeId === (currentUser?.id || currentUser?.employeeId))
+      : null;
+
     serviceRecords.forEach(s => {
+      const currentEmpId = currentUser?.id || currentUser?.employeeId;
+      const targetEmp = employees.find(e => e.id === s.employeeId || e.employeeId === s.employeeId);
+      const isMyService = isEmployee
+        ? (s.employeeId === currentEmpId ||
+           (targetEmp && (targetEmp.id === currentEmpId || targetEmp.employeeId === currentEmpId)) ||
+           (s.employeeName && currentUser?.name && s.employeeName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) ||
+           (empUserComp && (s.computerId === empUserComp.id || s.assetNumber === empUserComp.assetNumber)))
+        : true;
+
+      if (!isMyService) return;
+
+      const recDateMillis = s.serviceDate ? new Date(s.serviceDate).getTime() : now;
+      const dateDisplay = s.serviceDate || 'Recent';
+
       if (s.serviceStatus === 'In Progress' || s.serviceStatus === 'Pending Parts') {
         items.push({
           id: `srv-${s.id}`,
@@ -267,11 +286,24 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           severity: s.serviceStatus === 'In Progress' ? 'warning' : 'info',
           title: `Active Service: ${s.deviceName || s.assetNumber}`,
           description: `Ticket ${s.id} (${s.problemCategory || 'Repair'}) is currently ${s.serviceStatus}. Technician: ${s.technician || 'IT Support'}.`,
-          timestamp: s.serviceDate || 'Recent',
-          rawDate: new Date(s.serviceDate).getTime() || now,
+          timestamp: dateDisplay,
+          rawDate: isNaN(recDateMillis) ? now : recDateMillis,
           tabTarget: 'services',
           targetId: s.id,
           actionLabel: 'View Ticket',
+        });
+      } else {
+        items.push({
+          id: `srv-receipt-${s.id}`,
+          category: 'maintenance',
+          severity: 'info',
+          title: '🔧 New Service & Repair Receipt Added',
+          description: `Admin has added a new service/repair receipt for your ${s.deviceName || s.assetNumber || 'Laptop/Asset'}. Click to view details.`,
+          timestamp: dateDisplay,
+          rawDate: isNaN(recDateMillis) ? now : recDateMillis,
+          tabTarget: 'services',
+          targetId: s.id,
+          actionLabel: 'View Receipt Details',
         });
       }
     });
@@ -450,6 +482,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         } else if (item.tabTarget === 'sim-management') {
           setSimManagementSubTab('requests');
           setHighlightedSimRequestId(item.targetId);
+        } else if (item.tabTarget === 'services' || item.tabTarget === 'maintenance') {
+          setHighlightedServiceId(item.targetId);
         }
       }
     }

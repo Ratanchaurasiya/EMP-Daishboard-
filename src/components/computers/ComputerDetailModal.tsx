@@ -313,19 +313,19 @@ export const ComputerDetailModal: React.FC<ComputerDetailModalProps> = ({
                   <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      Security Function
+                      Security Function Setup
                     </span>
                     <span className={`text-xs font-bold ${computer.securityFunctionAdded === 'No' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-300'}`}>
-                      Security Function Added: {computer.securityFunctionAdded || 'Yes'}
+                      Security Status: {computer.securityFunctionAdded === 'No' ? 'Not Added' : 'Added'}
                     </span>
                   </div>
                 </div>
-                {computer.securityFunctionAddedDate && (
-                  <div className="text-right text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                    <span className="block text-[10px] text-slate-400">Added Date</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDateDisplay(computer.securityFunctionAddedDate)}</span>
-                  </div>
-                )}
+                <div className="text-right text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                  <span className="block text-[10px] text-slate-400">Security Function Added Date</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {computer.securityFunctionAdded === 'No' ? '—' : formatDateDisplay(computer.securityFunctionAddedDate || computer.assignedDate)}
+                  </span>
+                </div>
               </div>
 
               {/* Hardware Specifications Grid */}
