@@ -374,7 +374,11 @@ export function generateDirectWhatsAppUrl(recipientPhone: string, message: strin
  */
 export function isActiveAssignedSim(sim?: SimCard | null): boolean {
   if (!sim) return false;
-  if (!sim.assignedEmployeeId || !sim.assignedEmployeeId.trim()) return false;
+  const hasAssignee = Boolean(
+    (sim.assignedEmployeeId && sim.assignedEmployeeId.trim()) ||
+    (sim.assignedEmployeeName && sim.assignedEmployeeName.trim())
+  );
+  if (!hasAssignee) return false;
   if (sim.status === 'Available' || sim.status === 'Suspended' || sim.status === 'Deactivated') return false;
   return sim.status === 'Active' || sim.status === 'Assigned';
 }

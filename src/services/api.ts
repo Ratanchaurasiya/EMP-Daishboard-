@@ -13,6 +13,7 @@ import {
   SimRecharge,
   SimRequest,
   ServiceProvider,
+  AssetQuery,
 } from '../types';
 
 // In development or unified hosting, use relative '/api'
@@ -24,6 +25,8 @@ const API_BASE = rawApiBase ? `${rawApiBase}/api` : '/api';
 
 export interface BootstrapResponse {
   success: boolean;
+  databaseConnected?: boolean;
+  engine?: string;
   data: {
     employees: Employee[];
     computers: Computer[];
@@ -38,6 +41,7 @@ export interface BootstrapResponse {
     simRecharges?: SimRecharge[];
     simRequests?: SimRequest[];
     serviceProviders?: ServiceProvider[];
+    assetQueries?: AssetQuery[];
   };
   stats?: any;
 }
@@ -654,6 +658,56 @@ export const api = {
     }
   },
 
+  // ================= ASSET QUERIES =================
+  async getAssetQueries(): Promise<AssetQuery[]> {
+    try {
+      const res = await fetch(`${API_BASE}/asset-queries`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createAssetQuery(query: AssetQuery): Promise<{ success: boolean; error?: string; data?: AssetQuery }> {
+    try {
+      const res = await fetch(`${API_BASE}/asset-queries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(query),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to save asset query' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async updateAssetQuery(id: string, updates: Partial<AssetQuery>): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/asset-queries/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async deleteAssetQuery(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/asset-queries/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // ================= BULK SYNC / RESTORE =================
   async syncAll(data: {
     employees?: Employee[];
@@ -669,6 +723,7 @@ export const api = {
     simRecharges?: SimRecharge[];
     simRequests?: SimRequest[];
     serviceProviders?: ServiceProvider[];
+    assetQueries?: AssetQuery[];
   }): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/sync`, {

@@ -2633,34 +2633,84 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
             {(() => {
               const activeMySimCards = getEmployeeActiveSimCards(employee, simCards);
               const activeMySimIds = new Set(activeMySimCards.map(s => s.id));
-              const myRechargeLogs = (simRecharges || []).filter((r: SimRecharge) => activeMySimIds.has(r.simId) || (r.employeeId && r.employeeId === (employee?.id || employee?.employeeId)));
-              const latestRecharge = myRechargeLogs.length > 0 ? myRechargeLogs[0] : null;
+              const activeSimNumbers = new Set(activeMySimCards.map(s => s.contactNumber).filter(Boolean));
+              const empIds = new Set([employee?.id, employee?.employeeId].filter(Boolean) as string[]);
+              const empNameLower = employee?.name ? employee.name.trim().toLowerCase() : '';
+
+              const myRechargeLogs = (simRecharges || [])
+                .filter((r: SimRecharge) => {
+                  if (activeMySimIds.has(r.simId)) return true;
+                  if (r.contactNumber && activeSimNumbers.has(r.contactNumber)) return true;
+                  if (r.employeeId && empIds.has(r.employeeId)) return true;
+                  if (empNameLower && r.employeeName && r.employeeName.trim().toLowerCase() === empNameLower) return true;
+                  return false;
+                })
+                .sort((a, b) => {
+                  const dateA = new Date(a.createdAt || a.rechargeDate).getTime();
+                  const dateB = new Date(b.createdAt || b.rechargeDate).getTime();
+                  return dateB - dateA;
+                });
+
+              const latestSimWithRecharge = activeMySimCards.find(s => (s.lastRechargeAmount && Number(s.lastRechargeAmount) > 0) || s.rechargeStatus === 'Recharged');
+
+              const latestRecharge = myRechargeLogs.length > 0 ? myRechargeLogs[0] : (latestSimWithRecharge && latestSimWithRecharge.lastRechargeAmount ? {
+                id: `SIM-REC-${latestSimWithRecharge.id}`,
+                simId: latestSimWithRecharge.id,
+                contactNumber: latestSimWithRecharge.contactNumber,
+                employeeId: employee?.id,
+                employeeName: employee?.name,
+                rechargeAmount: Number(latestSimWithRecharge.lastRechargeAmount),
+                totalAmount: Number((Number(latestSimWithRecharge.lastRechargeAmount) * 1.18).toFixed(2)),
+                gstPercentage: 18,
+                gstAmount: Number((Number(latestSimWithRecharge.lastRechargeAmount) * 0.18).toFixed(2)),
+                rechargeDate: latestSimWithRecharge.lastRechargeDate || new Date().toISOString().split('T')[0],
+                planDescription: 'Corporate Monthly Pack',
+                paymentMode: 'Company Account',
+                createdAt: latestSimWithRecharge.updatedAt || new Date().toISOString(),
+              } : null);
 
               if (!latestRecharge) return null;
 
               return (
-                <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 flex items-start gap-3 col-span-1 md:col-span-2 shadow-2xs">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-300/80 dark:border-emerald-800/60 flex items-start gap-3 col-span-1 md:col-span-2 shadow-2xs">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                        SIM Recharge Completed
-                      </h4>
-                      <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded font-bold">
-                        RECHARGED
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                          SIM Recharged Successfully
+                        </h4>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                          Recharged Successfully
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-white/80 dark:bg-black/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shadow-2xs">
+                        Amount: {formatINR(latestRecharge.rechargeAmount)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 font-medium">
-                      Your assigned SIM ({latestRecharge.contactNumber}) has been successfully recharged by the admin.
+                    <p className="text-[11px] text-slate-700 dark:text-slate-300 mt-1 font-medium">
+                      Your assigned corporate mobile line (<span className="font-mono font-bold text-slate-900 dark:text-white">{latestRecharge.contactNumber}</span>) was <strong className="text-emerald-600 dark:text-emerald-400">recharged successfully</strong>.
                     </p>
-                    <div className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-2 flex-wrap">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Recharged on {latestRecharge.rechargeDate}</span>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-2 flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        Recharged on {latestRecharge.rechargeDate}
+                      </span>
                       <span>•</span>
-                      <span>Plan: {latestRecharge.planDescription || 'Monthly Unlimited'}</span>
+                      <span>Plan: <strong className="text-slate-700 dark:text-slate-300">{latestRecharge.planDescription || 'Monthly Corporate Unlimited'}</strong></span>
                       <span>•</span>
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">Total: {formatINR(latestRecharge.totalAmount)}</span>
+                      <span>Recharge Price: <strong className="text-slate-900 dark:text-white font-mono">{formatINR(latestRecharge.rechargeAmount)}</strong></span>
+                      <span>•</span>
+                      <span>Total with Tax: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{formatINR(latestRecharge.totalAmount)}</strong> ({latestRecharge.gstPercentage || 18}% GST)</span>
+                      {latestRecharge.paymentMode && (
+                        <>
+                          <span>•</span>
+                          <span>Via: {latestRecharge.paymentMode}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2946,7 +2996,24 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
         (() => {
           const activeMySimCards = getEmployeeActiveSimCards(employee, simCards);
           const activeMySimIds = new Set(activeMySimCards.map(s => s.id));
-          const myRecharges = (simRecharges || []).filter((r: SimRecharge) => activeMySimIds.has(r.simId) || (r.employeeId && r.employeeId === (employee?.id || employee?.employeeId)));
+          const activeSimNumbers = new Set(activeMySimCards.map(s => s.contactNumber).filter(Boolean));
+          const empIds = new Set([employee?.id, employee?.employeeId].filter(Boolean) as string[]);
+          const empNameLower = employee?.name ? employee.name.trim().toLowerCase() : '';
+
+          const myRecharges = (simRecharges || [])
+            .filter((r: SimRecharge) => {
+              if (activeMySimIds.has(r.simId)) return true;
+              if (r.contactNumber && activeSimNumbers.has(r.contactNumber)) return true;
+              if (r.employeeId && empIds.has(r.employeeId)) return true;
+              if (empNameLower && r.employeeName && r.employeeName.trim().toLowerCase() === empNameLower) return true;
+              return false;
+            })
+            .sort((a, b) => {
+              const dateA = new Date(a.createdAt || a.rechargeDate).getTime();
+              const dateB = new Date(b.createdAt || b.rechargeDate).getTime();
+              return dateB - dateA;
+            });
+
           const myBaseRecharge = myRecharges.reduce((sum: number, r: SimRecharge) => sum + (Number(r.rechargeAmount) || 0), 0);
           const myGstAmount = myRecharges.reduce((sum: number, r: SimRecharge) => sum + (Number(r.gstAmount) || 0), 0);
           const myTotalExpense = myRecharges.reduce((sum: number, r: SimRecharge) => sum + (Number(r.totalAmount) || 0), 0);
@@ -3015,21 +3082,22 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                 <div className="space-y-0.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Assigned SIMs</span>
                   <p className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400">{mySimExpense.simCount} SIMs</p>
+                  <p className="text-[10px] text-slate-400">Active corporate line custody</p>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Monthly Base Recharge</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Base Recharge</span>
                   <p className="text-lg font-mono font-bold text-slate-900 dark:text-white">{formatINR(mySimExpense.baseRecharge)}</p>
-                  <p className="text-[10px] text-slate-400">({mySimExpense.simCount} × ₹399.00)</p>
+                  <p className="text-[10px] text-slate-400">({mySimExpense.rechargeCount} recharge log{mySimExpense.rechargeCount !== 1 ? 's' : ''})</p>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">GST Amount (18%)</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">GST Input Tax (18%)</span>
                   <p className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400">{formatINR(mySimExpense.gstAmount)}</p>
-                  <p className="text-[10px] text-slate-400">({mySimExpense.simCount} × ₹71.82)</p>
+                  <p className="text-[10px] text-slate-400">Corporate tax credit</p>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Monthly SIM Expense</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Monthly Expense</span>
                   <p className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">{formatINR(mySimExpense.totalExpense)}</p>
-                  <p className="text-[10px] text-slate-400">({mySimExpense.simCount} × ₹470.82)</p>
+                  <p className="text-[10px] text-slate-400">Gross recharge expenditure</p>
                 </div>
               </div>
             )}
@@ -3067,7 +3135,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                       <th className="py-2.5 px-4 font-semibold">Purpose</th>
                       <th className="py-2.5 px-4 font-semibold">Project</th>
                       <th className="py-2.5 px-4 font-semibold">Status</th>
-                      <th className="py-2.5 px-4 font-semibold">Monthly Recharge Cost</th>
+                      <th className="py-2.5 px-4 font-semibold">Recharge Status & Amount</th>
                       <th className="py-2.5 px-4 font-semibold">Carrier / Plan</th>
                       <th className="py-2.5 px-4 font-semibold">Remarks / Notes</th>
                       <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
@@ -3132,27 +3200,55 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                             })()}
                           </div>
                         </td>
-                        {/* Monthly Recharge Breakdown */}
+                        {/* Recharge Status & Amount Breakdown */}
                         <td className="py-3 px-4 text-[11px]">
                           {(() => {
-                            const simRec = (simRecharges || []).find((r: SimRecharge) => r.simId === sim.id || r.contactNumber === sim.contactNumber);
-                            if (simRec) {
+                            const simRecs = (simRecharges || [])
+                              .filter((r: SimRecharge) => r.simId === sim.id || r.contactNumber === sim.contactNumber)
+                              .sort((a, b) => {
+                                const dateA = new Date(a.createdAt || a.rechargeDate).getTime();
+                                const dateB = new Date(b.createdAt || b.rechargeDate).getTime();
+                                return dateB - dateA;
+                              });
+                            const simRec = simRecs[0];
+                            const baseAmt = simRec?.rechargeAmount ?? (sim.lastRechargeAmount ? Number(sim.lastRechargeAmount) : null);
+                            const gstPct = simRec?.gstPercentage ?? 18;
+                            const totalAmt = simRec?.totalAmount ?? (baseAmt ? Number((baseAmt * (1 + gstPct / 100)).toFixed(2)) : null);
+                            const recDate = simRec?.rechargeDate || sim.lastRechargeDate || '';
+                            const planDesc = simRec?.planDescription || 'Monthly Corporate Unlimited';
+                            const isRecharged = Boolean(simRec || (baseAmt && baseAmt > 0) || sim.rechargeStatus === 'Recharged');
+
+                            if (isRecharged && baseAmt) {
                               return (
-                                <div className="space-y-0.5 font-mono">
-                                  <div className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                                    <span>🟢 Total: {formatINR(simRec.totalAmount)}</span>
+                                <div className="space-y-1 font-mono">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-2xs">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                      <span>Recharged Successfully</span>
+                                    </span>
                                   </div>
-                                  <div className="text-[10px] text-slate-400 truncate max-w-[200px]" title={`${simRec.rechargeDate} — ${simRec.planDescription}`}>
-                                    Recharged: {simRec.rechargeDate} ({simRec.planDescription})
+                                  <div className="text-xs font-bold text-slate-900 dark:text-white">
+                                    Recharge Price: {formatINR(baseAmt)}
                                   </div>
+                                  {totalAmt && (
+                                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                                      Total: {formatINR(totalAmt)} (incl. {gstPct}% GST)
+                                    </div>
+                                  )}
+                                  {recDate && (
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[210px]" title={`${recDate} — ${planDesc}`}>
+                                      Date: {recDate} • {planDesc}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             }
                             return (
-                              <div className="space-y-0.5 font-mono">
-                                <div className="text-slate-900 dark:text-white font-bold">
-                                  Total: ₹0.00
-                                </div>
+                              <div className="space-y-1 font-mono">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                  <Clock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                  <span>Pending Initial Recharge</span>
+                                </span>
                                 <div className="text-[10px] text-slate-400">
                                   No completed recharge logged
                                 </div>
@@ -3568,26 +3664,32 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
                     <span className="text-[10px] text-slate-400 font-medium">(Optional / If applicable)</span>
                   </div>
 
-                  {/* Repair Cost Input */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      Repair Cost Amount (₹)
-                    </label>
-                    <div className="relative rounded-lg shadow-2xs">
-                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                        <IndianRupee className="w-3.5 h-3.5" />
+                  {/* Repair Cost Input (Admin Only) */}
+                  {userRole === 'admin' ? (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Repair Cost Amount (₹) - Admin Entry
+                      </label>
+                      <div className="relative rounded-lg shadow-2xs">
+                        <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                          <IndianRupee className="w-3.5 h-3.5" />
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={reportRepairCost}
+                          onChange={e => setReportRepairCost(Number(e.target.value))}
+                          placeholder="Enter exact repair amount (₹)"
+                          className="w-full pl-8 pr-3 py-1.5 text-xs font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
                       </div>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={reportRepairCost}
-                        onChange={e => setReportRepairCost(Number(e.target.value))}
-                        placeholder="Enter estimated or actual repair amount (₹)"
-                        className="w-full pl-8 pr-3 py-1.5 text-xs font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      />
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-[11px] text-slate-600 dark:text-slate-300">
+                      <span className="font-semibold">Note:</span> Repair cost will be manually evaluated and entered by IT Admin upon inspection.
+                    </div>
+                  )}
 
                   {/* Receipt Number & Date */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

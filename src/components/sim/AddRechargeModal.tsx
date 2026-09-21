@@ -9,6 +9,7 @@ interface AddRechargeModalProps {
   onClose: () => void;
   preselectedSim?: SimCard | null;
   preselectedSimId?: string;
+  initialMode?: 'ALL_ACTIVE' | 'SINGLE_SIM';
 }
 
 export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
@@ -16,10 +17,11 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
   onClose,
   preselectedSim,
   preselectedSimId,
+  initialMode = 'ALL_ACTIVE',
 }) => {
   const { simCards, addSimRecharge } = useApp();
 
-  const [rechargeScope, setRechargeScope] = useState<'ALL_ACTIVE' | 'SINGLE_SIM'>('ALL_ACTIVE');
+  const [rechargeScope, setRechargeScope] = useState<'ALL_ACTIVE' | 'SINGLE_SIM'>(initialMode);
   const [selectedSimId, setSelectedSimId] = useState('');
   const [project, setProject] = useState('');
   const [rechargeDate, setRechargeDate] = useState(new Date().toISOString().split('T')[0]);
@@ -31,42 +33,48 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // STRICT RULE: Only include currently Active assigned SIM Cards
+  // STRICT RULE FOR BATCH: Only include currently Active assigned SIM Cards
   // Excludes Buffer SIMs, unassigned stock, blocked/suspended SIMs, inactive, and deactivated SIMs
   const activeAssignedSims = useMemo(() => {
     return getActiveAssignedSimCards(simCards);
   }, [simCards]);
 
-  const eligibleSims = useMemo(() => {
-    if (preselectedSim && isActiveAssignedSim(preselectedSim)) {
-      if (!activeAssignedSims.some(s => s.id === preselectedSim.id)) {
-        return [preselectedSim, ...activeAssignedSims];
-      }
+  // For Individual / Manual Recharge: allow selecting ANY registered SIM card (excluding Deactivated)
+  const individualSelectableSims = useMemo(() => {
+    const list = simCards.filter(s => s.status !== 'Deactivated');
+    if (preselectedSim && !list.some(s => s.id === preselectedSim.id)) {
+      return [preselectedSim, ...list];
     }
-    return activeAssignedSims;
-  }, [preselectedSim, activeAssignedSims]);
+    return list;
+  }, [simCards, preselectedSim]);
 
   useEffect(() => {
     if (isOpen) {
-      if (preselectedSim && isActiveAssignedSim(preselectedSim)) {
+      if (preselectedSim) {
         setRechargeScope('SINGLE_SIM');
         setSelectedSimId(preselectedSim.id);
         if (preselectedSim.project) setProject(preselectedSim.project);
       } else if (preselectedSimId) {
         setRechargeScope('SINGLE_SIM');
-        const found = eligibleSims.find(s => s.id === preselectedSimId);
+        const found = individualSelectableSims.find(s => s.id === preselectedSimId);
         if (found) {
           setSelectedSimId(found.id);
           if (found.project) setProject(found.project);
         }
+      } else if (initialMode === 'SINGLE_SIM') {
+        setRechargeScope('SINGLE_SIM');
+        if (individualSelectableSims.length > 0) {
+          setSelectedSimId(individualSelectableSims[0].id);
+          if (individualSelectableSims[0].project) setProject(individualSelectableSims[0].project || '');
+        }
       } else {
         setRechargeScope('ALL_ACTIVE');
-        if (eligibleSims.length > 0) {
-          setSelectedSimId(eligibleSims[0].id);
+        if (activeAssignedSims.length > 0) {
+          setSelectedSimId(activeAssignedSims[0].id);
         }
       }
     }
-  }, [preselectedSim, preselectedSimId, eligibleSims, isOpen]);
+  }, [preselectedSim, preselectedSimId, individualSelectableSims, activeAssignedSims, isOpen, initialMode]);
 
   if (!isOpen) return null;
 
@@ -125,12 +133,12 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
 
     // Single SIM Recharge
     if (!selectedSimId || !currentSim) {
-      setError('Please select an active assigned SIM card for recharge.');
+      setError('Please select a SIM card for recharge.');
       return;
     }
 
-    if (!isActiveAssignedSim(currentSim)) {
-      setError('Recharge can only be recorded for active assigned SIM cards. Buffer, unassigned, or suspended SIMs are excluded.');
+    if (currentSim.status === 'Deactivated') {
+      setError('Cannot record recharge for a deactivated SIM card.');
       return;
     }
 
@@ -164,13 +172,25 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur-sm z-10">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-              <CreditCard className="w-5 h-5" />
+            <div className={`p-2.5 rounded-xl border shrink-0 ${
+              rechargeScope === 'SINGLE_SIM'
+                ? 'bg-teal-500/10 text-teal-400 border-teal-500/20'
+                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            }`}>
+              {rechargeScope === 'SINGLE_SIM' ? (
+                <IndianRupee className="w-5 h-5" />
+              ) : (
+                <CreditCard className="w-5 h-5" />
+              )}
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-semibold text-white leading-tight">Recharge Active Assigned SIMs</h2>
+              <h2 className="text-base sm:text-lg font-semibold text-white leading-tight">
+                {rechargeScope === 'SINGLE_SIM' ? 'Manual SIM Recharge' : 'Recharge Active Assigned SIMs'}
+              </h2>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Log recurring telecom expense for active employee corporate lines ({eligibleSims.length} active SIMs eligible)
+                {rechargeScope === 'SINGLE_SIM'
+                  ? 'Record individual recharge price, plan details, and invoice proof for an active employee SIM'
+                  : `Log recurring corporate telecom expense across active employee lines (${activeAssignedSims.length} active SIMs eligible)`}
               </p>
             </div>
           </div>
@@ -212,12 +232,12 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
                 onClick={() => setRechargeScope('SINGLE_SIM')}
                 className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
                   rechargeScope === 'SINGLE_SIM'
-                    ? 'bg-emerald-600 text-white shadow-md'
+                    ? 'bg-teal-600 text-white shadow-md'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                 }`}
               >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>Single Active SIM Line</span>
+                <IndianRupee className="w-3.5 h-3.5" />
+                <span>Manual Recharge (Individual SIM)</span>
               </button>
             </div>
 
@@ -233,30 +253,64 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
               </div>
             ) : (
               /* SIM Card Selector */
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5 flex items-center justify-between">
-                  <span>Select Active Assigned SIM Number <span className="text-orange-500">*</span></span>
-                  <span className="text-[10px] text-emerald-400 font-mono">({eligibleSims.length} Active SIMs)</span>
-                </label>
-                <select
-                  value={selectedSimId}
-                  onChange={e => {
-                    setSelectedSimId(e.target.value);
-                    const sim = simCards.find(s => s.id === e.target.value);
-                    if (sim?.project) setProject(sim.project);
-                  }}
-                  className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                >
-                  {eligibleSims.length === 0 ? (
-                    <option value="">No Active Assigned SIM Cards Available for Recharge</option>
-                  ) : (
-                    eligibleSims.map(sim => (
-                      <option key={sim.id} value={sim.id}>
-                        {sim.contactNumber} — {sim.assignedEmployeeName || 'Assigned User'} ({sim.purpose}) [{sim.carrier || 'Telecom'}]
-                      </option>
-                    ))
-                  )}
-                </select>
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1.5 flex items-center justify-between">
+                    <span>Select Specific SIM Card to Recharge <span className="text-orange-500">*</span></span>
+                    <span className="text-[10px] text-teal-400 font-mono">({individualSelectableSims.length} SIM Lines)</span>
+                  </label>
+                  <select
+                    value={selectedSimId}
+                    onChange={e => {
+                      setSelectedSimId(e.target.value);
+                      const sim = simCards.find(s => s.id === e.target.value);
+                      if (sim?.project) setProject(sim.project);
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-zinc-950/60 border border-zinc-800 rounded-xl text-sm text-white focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-colors"
+                  >
+                    {individualSelectableSims.length === 0 ? (
+                      <option value="">No SIM Cards Available for Recharge</option>
+                    ) : (
+                      individualSelectableSims.map(sim => (
+                        <option key={sim.id} value={sim.id}>
+                          {sim.contactNumber} — {sim.assignedEmployeeName ? `${sim.assignedEmployeeName} (${sim.purpose})` : `In Stock / Buffer (${sim.status})`} [{sim.carrier || 'Telecom'}]
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {/* Selected SIM Summary Card */}
+                {currentSim && (
+                  <div className="p-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-zinc-400">Assigned User:</span>
+                        <span className="font-bold text-white">
+                          {currentSim.assignedEmployeeName || (
+                            <span className="text-zinc-400 italic font-normal">Unassigned (In Reserve / Stock)</span>
+                          )}
+                        </span>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-teal-400">
+                        📱 {currentSim.contactNumber}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-400 flex-wrap">
+                      <span>Carrier: <strong className="text-zinc-300">{currentSim.carrier || 'Standard'}</strong></span>
+                      <span>•</span>
+                      <span>Type: <strong className="text-zinc-300">{currentSim.simType || 'Prepaid'}</strong></span>
+                      <span>•</span>
+                      <span>Purpose: <strong className="text-zinc-300">{currentSim.purpose}</strong></span>
+                      {currentSim.project && (
+                        <>
+                          <span>•</span>
+                          <span>Project: <strong className="text-zinc-300">{currentSim.project}</strong></span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -422,10 +476,16 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow-lg shadow-emerald-600/20 transition-all flex items-center space-x-2 cursor-pointer"
+              className={`px-5 py-2.5 rounded-xl text-white text-sm font-medium shadow-lg transition-all flex items-center space-x-2 cursor-pointer ${
+                rechargeScope === 'SINGLE_SIM'
+                  ? 'bg-teal-600 hover:bg-teal-500 shadow-teal-600/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+              }`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Record Recharge ({formatINR(calc.totalAmount)})</span>
+              <span>
+                {rechargeScope === 'SINGLE_SIM' ? 'Record Manual Recharge' : 'Record Batch Recharge'} ({formatINR(calc.totalAmount)})
+              </span>
             </button>
           </div>
         </form>

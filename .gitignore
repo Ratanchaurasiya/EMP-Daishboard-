@@ -21,8 +21,7 @@ dist-ssr
 .env.*.local
 
 # Local Database Files
-server/data/*.db*
-server/data/database_fallback.json
+server/data/
 *.db
 *.db-shm
 *.db-wal

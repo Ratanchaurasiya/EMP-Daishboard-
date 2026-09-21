@@ -17,6 +17,7 @@ import {
   Eye,
   Filter,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { RaiseAssetQueryModal } from './RaiseAssetQueryModal';
 import { AssetQueryDetailModal } from './AssetQueryDetailModal';
@@ -38,6 +39,12 @@ export const AssetQueryList: React.FC = () => {
 
   const isAdmin = userRole === 'admin';
   const isEmployee = currentUser?.role === 'employee' || userRole === 'employee';
+
+  // Live-derived active query so modal updates immediately when status is updated
+  const liveSelectedQuery = useMemo(() => {
+    if (!selectedQuery) return null;
+    return assetQueries.find(q => q.id === selectedQuery.id) || null;
+  }, [selectedQuery, assetQueries]);
 
   // Filter queries by search & tab filter
   const filteredQueries = useMemo(() => {
@@ -390,6 +397,23 @@ export const AssetQueryList: React.FC = () => {
                     <Eye className="w-3.5 h-3.5" />
                     <span>View Timeline & History</span>
                   </button>
+
+                  {/* ADMIN DELETE BUTTON */}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      title="Delete query permanently"
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (window.confirm(`Are you sure you want to delete query ${q.id} permanently?`)) {
+                          removeAssetQuery(q.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -405,10 +429,10 @@ export const AssetQueryList: React.FC = () => {
         />
       )}
 
-      {selectedQuery && (
+      {liveSelectedQuery && (
         <AssetQueryDetailModal
-          isOpen={!!selectedQuery}
-          query={selectedQuery}
+          isOpen={Boolean(liveSelectedQuery)}
+          query={liveSelectedQuery}
           onClose={() => setSelectedQuery(null)}
         />
       )}

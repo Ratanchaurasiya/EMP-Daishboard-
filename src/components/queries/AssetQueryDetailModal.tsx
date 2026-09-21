@@ -17,6 +17,7 @@ import {
   ArrowRight,
   RotateCcw,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 
 interface AssetQueryDetailModalProps {
@@ -37,6 +38,7 @@ export const AssetQueryDetailModal: React.FC<AssetQueryDetailModalProps> = ({
     updateAssetQueryStatus,
     reportQueryStillUnresolved,
     toggleStarAssetQuery,
+    removeAssetQuery,
     showToast,
   } = useApp();
 
@@ -132,12 +134,30 @@ export const AssetQueryDetailModal: React.FC<AssetQueryDetailModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to delete query ${query.id} permanently?`)) {
+                    removeAssetQuery(query.id);
+                    onClose();
+                  }
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                title="Delete query permanently"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Content Body */}

@@ -548,6 +548,9 @@ export interface SimCard {
   suspendedBy?: string | null;
   suspendedAt?: string | null;
   reactivatedAt?: string | null;
+  lastRechargeDate?: string | null;
+  lastRechargeAmount?: number | null;
+  rechargeStatus?: 'Recharged' | 'Pending' | string | null;
   createdAt: string;
   updatedAt: string;
 }

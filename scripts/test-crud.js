@@ -377,6 +377,44 @@ async function runTests() {
     await assert(foundLog && foundLog.action === 'Asset Assigned', 'Record and query audit log');
 
     // -------------------------------------------------------------
+    // Test 11b: Staff Asset Query Tracking & Acknowledgement
+    // -------------------------------------------------------------
+    console.log('\n--- Test 11b: Staff Asset Query Tracking ---');
+    const testQuery = {
+      id: 'QRY-TEST-' + runId,
+      employeeId: testEmp.id,
+      employeeName: testEmp.name,
+      assetNumber: testComp.assetNumber,
+      assetName: testComp.deviceName,
+      status: 'Pending Acknowledgement',
+      queryType: 'Fault / Breakdown',
+      subject: 'Display flickering intermittently',
+      isStarred: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      history: [
+        {
+          id: 'hist-' + runId,
+          timestamp: new Date().toISOString(),
+          status: 'Pending Acknowledgement',
+          updatedBy: testEmp.name,
+          notes: 'Display flickers during heavy compile workloads.',
+        },
+      ],
+    };
+    await db.upsert('asset_queries', testQuery);
+    let qry = await db.getById('asset_queries', testQuery.id);
+    await assert(qry && qry.assetNumber === testComp.assetNumber && qry.isStarred === true, 'Insert and retrieve asset query');
+
+    // Update query status to Acknowledged
+    qry.status = 'Acknowledged';
+    qry.acknowledgedBy = 'Admin Lead';
+    qry.acknowledgedAt = new Date().toISOString();
+    await db.upsert('asset_queries', qry);
+    let updatedQry = await db.getById('asset_queries', testQuery.id);
+    await assert(updatedQry && updatedQry.status === 'Acknowledged' && updatedQry.acknowledgedBy === 'Admin Lead', 'Acknowledge and update asset query');
+
+    // -------------------------------------------------------------
     // Test 12: System Statistics & Telemetry
     // -------------------------------------------------------------
     console.log('\n--- Test 12: System Statistics & Diagnostics ---');
@@ -423,12 +461,14 @@ async function runTests() {
     await db.delete('sim_recharges', testRecharge.id);
     await db.delete('sim_requests', testSimReq.id);
     await db.delete('service_providers', testProvider.id);
+    await db.delete('asset_queries', testQuery.id);
     await db.delete('audit_logs', testLog.id);
 
     const checkEmp = await db.getById('employees', testEmp.id);
     const checkComp = await db.getById('computers', testComp.id);
     const checkSim = await db.getById('sim_cards', testSim.id);
-    await assert(checkEmp === null && checkComp === null && checkSim === null, 'Verify clean removal of test records from database');
+    const checkQry = await db.getById('asset_queries', testQuery.id);
+    await assert(checkEmp === null && checkComp === null && checkSim === null && checkQry === null, 'Verify clean removal of test records from database');
 
     console.log('\n====================================================');
     console.log(`📊 Test Summary: ${passed} Passed, ${failed} Failed`);

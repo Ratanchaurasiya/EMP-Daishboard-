@@ -355,6 +355,7 @@ const VALID_TABS_LIST = [
   'sim-management',
   'services',
   'requests',
+  'asset-queries',
   'audit',
   'weekly-photos',
   'purchases',
@@ -371,6 +372,7 @@ const EMPLOYEE_ALLOWED_TABS = [
   'sim-management',
   'services',
   'requests',
+  'asset-queries',
   'weekly-photos',
 ];
 
@@ -510,10 +512,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [assetQueries, setAssetQueries] = useState<AssetQuery[]>(() => {
     try {
+      const isCleanSlate = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
+      if (isCleanSlate) return [];
       const saved = localStorage.getItem(`${STORAGE_KEY}_ASSET_QUERIES`);
-      return saved ? JSON.parse(saved) : INITIAL_ASSET_QUERIES;
+      return saved !== null ? JSON.parse(saved) : INITIAL_ASSET_QUERIES;
     } catch {
-      return INITIAL_ASSET_QUERIES;
+      return [];
     }
   });
 
@@ -968,22 +972,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let effectiveSimRecharges: SimRecharge[] = [];
         let effectiveSimRequests: SimRequest[] = [];
         let effectiveServiceProviders: ServiceProvider[] = [];
+        let effectiveAssetQueries: AssetQuery[] = [];
 
-        const hasBackendData = bootstrap?.success && (
-          bootstrap.data.employees.length > 0 ||
-          bootstrap.data.computers.length > 0 ||
-          bootstrap.data.assets.length > 0 ||
-          (bootstrap.data.purchases && bootstrap.data.purchases.length > 0) ||
-          (bootstrap.data.assetRequests && bootstrap.data.assetRequests.length > 0) ||
-          (bootstrap.data.simCards && bootstrap.data.simCards.length > 0) ||
-          (bootstrap.data.serviceProviders && bootstrap.data.serviceProviders.length > 0)
+        const isBackendValid = Boolean(bootstrap?.success && bootstrap?.data);
+        const hasBackendData = isBackendValid && (
+          (bootstrap!.data.employees && bootstrap!.data.employees.length > 0) ||
+          (bootstrap!.data.computers && bootstrap!.data.computers.length > 0) ||
+          (bootstrap!.data.assets && bootstrap!.data.assets.length > 0) ||
+          (bootstrap!.data.purchases && bootstrap!.data.purchases.length > 0) ||
+          (bootstrap!.data.assetRequests && bootstrap!.data.assetRequests.length > 0) ||
+          (bootstrap!.data.simCards && bootstrap!.data.simCards.length > 0) ||
+          (bootstrap!.data.serviceProviders && bootstrap!.data.serviceProviders.length > 0) ||
+          (bootstrap!.data.assetQueries && bootstrap!.data.assetQueries.length > 0)
         );
 
-        if (hasBackendData && bootstrap) {
-          console.log('[Database] Hydrated directly from SQLite Central Database');
-          effectiveEmployees = bootstrap.data.employees;
-          effectiveComputers = bootstrap.data.computers;
-          effectiveAssets = bootstrap.data.assets;
+        const isCleanSlateReset = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
+
+        if (isBackendValid && bootstrap && bootstrap.data && (hasBackendData || isCleanSlateReset)) {
+          console.log(`[Database] Hydrated directly from ${bootstrap.engine || 'Central Database'}`);
+          effectiveEmployees = bootstrap.data.employees || [];
+          effectiveComputers = bootstrap.data.computers || [];
+          effectiveAssets = bootstrap.data.assets || [];
           effectiveAllocations = bootstrap.data.allocationRecords || [];
           effectiveServices = bootstrap.data.serviceRecords || [];
           effectiveLogs = bootstrap.data.auditLogs || [];
@@ -994,6 +1003,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           effectiveSimRecharges = bootstrap.data.simRecharges || [];
           effectiveSimRequests = bootstrap.data.simRequests || [];
           effectiveServiceProviders = bootstrap.data.serviceProviders || [];
+          effectiveAssetQueries = bootstrap.data.assetQueries || [];
 
           // Sync into local caches so offline/local cache is identical
           assetCoreDB.putAll('employees', effectiveEmployees).catch(() => {});
@@ -1023,6 +1033,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (effectiveServiceProviders.length > 0) {
             assetCoreDB.putAll('serviceProviders', effectiveServiceProviders).catch(() => {});
           }
+          if (effectiveAssetQueries.length > 0) {
+            assetCoreDB.putAll('assetQueries', effectiveAssetQueries).catch(() => {});
+          }
         } else {
           // Fallback or Initial SQLite Seed from local cache
           effectiveEmployees = migrated.employees;
@@ -1034,10 +1047,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           effectiveWeeklyPhotos = migrated.weeklyPhotoRecords || [];
           effectivePurchases = migrated.purchases || [];
           effectiveRequests = migrated.assetRequests || [];
-          effectiveSimCards = migrated.simCards?.length ? migrated.simCards : INITIAL_SIM_CARDS;
-          effectiveSimRecharges = migrated.simRecharges?.length ? migrated.simRecharges : INITIAL_SIM_RECHARGES;
-          effectiveSimRequests = migrated.simRequests?.length ? migrated.simRequests : INITIAL_SIM_REQUESTS;
-          effectiveServiceProviders = migrated.serviceProviders?.length ? migrated.serviceProviders : INITIAL_SERVICE_PROVIDERS;
+          const isCleanSlate = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
+          effectiveSimCards = migrated.simCards?.length
+            ? migrated.simCards
+            : (isCleanSlate ? [] : INITIAL_SIM_CARDS);
+          effectiveSimRecharges = migrated.simRecharges?.length
+            ? migrated.simRecharges
+            : (isCleanSlate ? [] : INITIAL_SIM_RECHARGES);
+          effectiveSimRequests = migrated.simRequests?.length
+            ? migrated.simRequests
+            : (isCleanSlate ? [] : INITIAL_SIM_REQUESTS);
+          effectiveServiceProviders = migrated.serviceProviders?.length
+            ? migrated.serviceProviders
+            : (isCleanSlate ? [] : INITIAL_SERVICE_PROVIDERS);
+          effectiveAssetQueries = migrated.assetQueries?.length
+            ? migrated.assetQueries
+            : (isCleanSlate ? [] : INITIAL_ASSET_QUERIES);
 
           try {
             const cachedEmpStr = localStorage.getItem(`${STORAGE_KEY}_EMPLOYEES`);
@@ -1051,95 +1076,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             if (cachedEmpStr) {
               const cachedEmps: Employee[] = JSON.parse(cachedEmpStr);
-              if (cachedEmps.length > 0 && effectiveEmployees.length === 0) {
+              if (cachedEmps.length > 0 && effectiveEmployees.length === 0 && !isCleanSlate) {
                 effectiveEmployees = cachedEmps;
               }
             }
 
             if (cachedCompStr) {
               const cachedComps: Computer[] = JSON.parse(cachedCompStr);
-              if (cachedComps.length > 0 && effectiveComputers.length === 0) {
+              if (cachedComps.length > 0 && effectiveComputers.length === 0 && !isCleanSlate) {
                 effectiveComputers = cachedComps;
               }
             }
 
             if (cachedAssetStr) {
               const cachedAssets: CompanyAsset[] = JSON.parse(cachedAssetStr);
-              if (cachedAssets.length > 0 && effectiveAssets.length === 0) {
+              if (cachedAssets.length > 0 && effectiveAssets.length === 0 && !isCleanSlate) {
                 effectiveAssets = cachedAssets;
               }
             }
 
             if (cachedAllocStr) {
               const cachedAllocs: AssetAllocationRecord[] = JSON.parse(cachedAllocStr);
-              if (cachedAllocs.length > effectiveAllocations.length) {
+              if (cachedAllocs.length > effectiveAllocations.length && !isCleanSlate) {
                 effectiveAllocations = cachedAllocs;
               }
             }
 
             if (cachedSrvStr) {
               const cachedSrvs: ServiceRecord[] = JSON.parse(cachedSrvStr);
-              if (cachedSrvs.length > effectiveServices.length) {
+              if (cachedSrvs.length > effectiveServices.length && !isCleanSlate) {
                 effectiveServices = cachedSrvs;
               }
             }
 
             if (cachedLogStr) {
               const cachedLogs: AuditLog[] = JSON.parse(cachedLogStr);
-              if (cachedLogs.length > effectiveLogs.length) {
+              if (cachedLogs.length > effectiveLogs.length && !isCleanSlate) {
                 effectiveLogs = cachedLogs;
               }
             }
 
-            if (cachedPhotoStr && effectiveWeeklyPhotos.length === 0) {
+            if (cachedPhotoStr && effectiveWeeklyPhotos.length === 0 && !isCleanSlate) {
               try {
                 effectiveWeeklyPhotos = JSON.parse(cachedPhotoStr);
               } catch {}
             }
 
-            if (cachedPurchaseStr && effectivePurchases.length === 0) {
+            if (cachedPurchaseStr && effectivePurchases.length === 0 && !isCleanSlate) {
               try {
                 effectivePurchases = JSON.parse(cachedPurchaseStr);
               } catch {}
             }
 
             const cachedReqStr = localStorage.getItem(`${STORAGE_KEY}_ASSET_REQUESTS`);
-            if (cachedReqStr && effectiveRequests.length === 0) {
+            if (cachedReqStr && effectiveRequests.length === 0 && !isCleanSlate) {
               try {
                 effectiveRequests = JSON.parse(cachedReqStr);
               } catch {}
             }
 
             const cachedSimStr = localStorage.getItem(`${STORAGE_KEY}_SIM_CARDS`);
-            if (cachedSimStr && effectiveSimCards.length === 0) {
+            if (cachedSimStr && effectiveSimCards.length === 0 && !isCleanSlate) {
               try {
                 effectiveSimCards = JSON.parse(cachedSimStr);
               } catch {}
             }
 
             const cachedRecStr = localStorage.getItem(`${STORAGE_KEY}_SIM_RECHARGES`);
-            if (cachedRecStr && effectiveSimRecharges.length === 0) {
+            if (cachedRecStr && effectiveSimRecharges.length === 0 && !isCleanSlate) {
               try {
                 effectiveSimRecharges = JSON.parse(cachedRecStr);
               } catch {}
             }
 
             const cachedSimReqStr = localStorage.getItem(`${STORAGE_KEY}_SIM_REQUESTS`);
-            if (cachedSimReqStr && effectiveSimRequests.length === 0) {
+            if (cachedSimReqStr && effectiveSimRequests.length === 0 && !isCleanSlate) {
               try {
                 effectiveSimRequests = JSON.parse(cachedSimReqStr);
               } catch {}
             }
 
             const cachedProvStr = localStorage.getItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`);
-            if (cachedProvStr && effectiveServiceProviders.length === 0) {
+            if (cachedProvStr && effectiveServiceProviders.length === 0 && !isCleanSlate) {
               try {
                 effectiveServiceProviders = JSON.parse(cachedProvStr);
               } catch {}
             }
 
+            const cachedQryStr = localStorage.getItem(`${STORAGE_KEY}_ASSET_QUERIES`);
+            if (cachedQryStr && effectiveAssetQueries.length === 0 && !isCleanSlate) {
+              try {
+                effectiveAssetQueries = JSON.parse(cachedQryStr);
+              } catch {}
+            }
+
             // If backend is online and empty, auto-sync our existing data to SQLite database so it's permanently stored on disk!
-            if (bootstrap?.success && (effectiveEmployees.length > 0 || effectiveComputers.length > 0 || effectiveAssets.length > 0 || effectivePurchases.length > 0 || effectiveRequests.length > 0 || effectiveSimCards.length > 0 || effectiveServiceProviders.length > 0)) {
+            if (bootstrap?.success && !isCleanSlate && (effectiveEmployees.length > 0 || effectiveComputers.length > 0 || effectiveAssets.length > 0 || effectivePurchases.length > 0 || effectiveRequests.length > 0 || effectiveSimCards.length > 0 || effectiveServiceProviders.length > 0 || effectiveAssetQueries.length > 0)) {
               console.log('[Database] Migrating local data to SQLite database permanently...');
               api.syncAll({
                 employees: effectiveEmployees,
@@ -1155,6 +1187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 simRecharges: effectiveSimRecharges,
                 simRequests: effectiveSimRequests,
                 serviceProviders: effectiveServiceProviders,
+                assetQueries: effectiveAssetQueries,
               }).catch(() => {});
             }
           } catch (e) {
@@ -1182,6 +1215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSimRecharges(effectiveSimRecharges.length > 0 ? effectiveSimRecharges : INITIAL_SIM_RECHARGES);
         setSimRequests(effectiveSimRequests.length > 0 ? effectiveSimRequests : INITIAL_SIM_REQUESTS);
         setServiceProviders(effectiveServiceProviders.length > 0 ? effectiveServiceProviders : INITIAL_SERVICE_PROVIDERS);
+        setAssetQueries(effectiveAssetQueries);
 
         const stats = await assetCoreDB.getStats();
         if (bootstrap?.stats) {
@@ -1219,6 +1253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(simRecharges));
       localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify(simRequests));
       localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify(serviceProviders));
+      localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(assetQueries));
       try {
         const safeRecordsForStorage = (weeklyPhotoRecords || []).map(r => ({
           ...r,
@@ -1252,6 +1287,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assetCoreDB.putAll('simRecharges', simRecharges),
           assetCoreDB.putAll('simRequests', simRequests),
           assetCoreDB.putAll('serviceProviders', serviceProviders),
+          assetCoreDB.putAll('assetQueries', assetQueries),
         ]);
         const stats = await assetCoreDB.getStats();
         setDbStats(stats);
@@ -1259,7 +1295,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('IndexedDB async sync error:', e);
       }
     })();
-  }, [employees, computers, assets, allocationRecords, serviceRecords, auditLogs, weeklyPhotoRecords, purchases, assetRequests, simCards, simRecharges, simRequests, serviceProviders]);
+  }, [employees, computers, assets, allocationRecords, serviceRecords, auditLogs, weeklyPhotoRecords, purchases, assetRequests, simCards, simRecharges, simRequests, serviceProviders, assetQueries]);
 
   // Reactive Cross-Tab & Cross-Process Synchronization for Requisitions
   useEffect(() => {
@@ -3931,7 +3967,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const totalAccessoriesCost = accessories.reduce((sum, item) => sum + (Number(item.totalCost) || 0), 0);
     const qty = Math.max(1, Number(recordData.quantity) || 1);
     const unitCost = Number(recordData.unitCost) || (Number(recordData.deviceCost) ? Number(recordData.deviceCost) / qty : 0);
-    const deviceCost = Number(recordData.deviceCost) !== undefined && Number(recordData.deviceCost) > 0
+    const deviceCost = recordData.deviceCost !== undefined && Number(recordData.deviceCost) > 0
       ? Number(recordData.deviceCost)
       : unitCost * qty;
     const grandTotalCost = deviceCost + totalAccessoriesCost;
@@ -4552,6 +4588,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('LocalStorage error saving asset query:', e);
     }
 
+    api.createAssetQuery(newQuery).catch(err => console.warn('[AssetCore Backend] Failed to save query to SQLite:', err));
+    assetCoreDB.put('assetQueries', newQuery).catch(() => {});
+
     addAuditEntry(
       'Asset Query Submitted',
       `Staff ${queryData.employeeName} (${queryData.employeeId}) raised asset query ${queryId} for ${queryData.assetName} [${queryData.assetNumber}]`
@@ -4596,6 +4635,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
     } catch (e) {
       console.warn('LocalStorage error acknowledging asset query:', e);
+    }
+
+    const updatedQuery = nextList.find(q => q.id === queryId);
+    if (updatedQuery) {
+      api.updateAssetQuery(queryId, updatedQuery).catch(err => console.warn('[AssetCore Backend] Failed to update query:', err));
+      assetCoreDB.put('assetQueries', updatedQuery).catch(() => {});
     }
 
     addAuditEntry(
@@ -4657,6 +4702,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('LocalStorage error updating asset query:', e);
     }
 
+    const updatedQuery = nextList.find(q => q.id === queryId);
+    if (updatedQuery) {
+      api.updateAssetQuery(queryId, updatedQuery).catch(err => console.warn('[AssetCore Backend] Failed to update query:', err));
+      assetCoreDB.put('assetQueries', updatedQuery).catch(() => {});
+    }
+
     addAuditEntry(
       'Asset Query Status Updated',
       `${updater} updated query ${queryId} status to "${status}" for ${existing.employeeName}`
@@ -4703,6 +4754,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('LocalStorage error updating asset query:', e);
     }
 
+    const updatedQuery = nextList.find(q => q.id === queryId);
+    if (updatedQuery) {
+      api.updateAssetQuery(queryId, updatedQuery).catch(err => console.warn('[AssetCore Backend] Failed to update query:', err));
+      assetCoreDB.put('assetQueries', updatedQuery).catch(() => {});
+    }
+
     addAuditEntry(
       'Asset Query Still Unresolved',
       `Staff ${reporter} reported query ${queryId} STILL UNRESOLVED for ${existing.assetName} [${existing.assetNumber}]`
@@ -4736,6 +4793,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('LocalStorage error toggling star asset query:', e);
     }
 
+    const updatedQuery = nextList.find(q => q.id === queryId);
+    if (updatedQuery) {
+      api.updateAssetQuery(queryId, updatedQuery).catch(err => console.warn('[AssetCore Backend] Failed to update query:', err));
+      assetCoreDB.put('assetQueries', updatedQuery).catch(() => {});
+    }
+
     addAuditEntry(
       'Asset Query Star Toggled',
       `Query ${queryId} marked as ${newStarredState ? 'Starred/Important' : 'Normal'}`
@@ -4754,6 +4817,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('LocalStorage error removing asset query:', e);
     }
+
+    api.deleteAssetQuery(queryId).catch(err => console.warn('[AssetCore Backend] Failed to delete query:', err));
+    assetCoreDB.delete('assetQueries', queryId).catch(() => {});
 
     if (existing) {
       addAuditEntry(
@@ -5148,18 +5214,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const id = `REC-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
     const now = new Date().toISOString();
 
-    const targetSim = simCards.find(s => s.id === rechargeData.simId || s.contactNumber === rechargeData.contactNumber);
+    let targetSim = simCards.find(s => s.id === rechargeData.simId || s.contactNumber === rechargeData.contactNumber);
+    if (!targetSim) {
+      try {
+        const storedSims = JSON.parse(localStorage.getItem(`${STORAGE_KEY}_SIM_CARDS`) || '[]');
+        targetSim = storedSims.find((s: any) => s.id === rechargeData.simId || s.contactNumber === rechargeData.contactNumber);
+      } catch (e) {
+        console.warn('Error reading stored SIMs for recharge:', e);
+      }
+    }
+
     const targetEmp = targetSim?.assignedEmployeeId
       ? employees.find(e => e.id === targetSim.assignedEmployeeId || e.employeeId === targetSim.assignedEmployeeId)
-      : null;
+      : (targetSim?.assignedEmployeeName
+          ? employees.find(e => e.name.trim().toLowerCase() === targetSim.assignedEmployeeName?.trim().toLowerCase())
+          : (rechargeData.employeeId
+              ? employees.find(e => e.id === rechargeData.employeeId || e.employeeId === rechargeData.employeeId)
+              : null));
+
+    const resolvedEmployeeId = targetEmp
+      ? (targetEmp.employeeId || targetEmp.id)
+      : (rechargeData.employeeId || targetSim?.assignedEmployeeId || null);
+    const resolvedEmployeeName = targetEmp
+      ? targetEmp.name
+      : (rechargeData.employeeName || targetSim?.assignedEmployeeName || null);
 
     const newRecord: SimRecharge = {
       ...rechargeData,
       id,
       simId: targetSim ? targetSim.id : rechargeData.simId,
       contactNumber: targetSim ? targetSim.contactNumber : rechargeData.contactNumber,
-      employeeId: targetEmp ? targetEmp.id : (rechargeData.employeeId || null),
-      employeeName: targetEmp ? targetEmp.name : (rechargeData.employeeName || null),
+      employeeId: resolvedEmployeeId,
+      employeeName: resolvedEmployeeName,
       rechargeAmount: calc.rechargeAmount,
       gstPercentage: calc.gstPercentage,
       gstAmount: calc.gstAmount,
@@ -5167,13 +5253,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: now,
     };
 
-    const nextList = [newRecord, ...simRecharges];
-    setSimRecharges(nextList);
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(nextList));
-    } catch (e) {
-      console.warn('LocalStorage error saving recharge:', e);
-    }
+    setSimRecharges(prev => {
+      const nextList = [newRecord, ...prev];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(nextList));
+      } catch (e) {
+        console.warn('LocalStorage error saving recharge:', e);
+      }
+      return nextList;
+    });
+
+    const targetSimId = targetSim ? targetSim.id : rechargeData.simId;
+    const targetSimNumber = targetSim ? targetSim.contactNumber : rechargeData.contactNumber;
+
+    setSimCards(prev => {
+      const nextSims = prev.map(s => {
+        if (s.id === targetSimId || s.contactNumber === targetSimNumber) {
+          const updatedSim: SimCard = {
+            ...s,
+            lastRechargeDate: newRecord.rechargeDate,
+            lastRechargeAmount: newRecord.rechargeAmount,
+            rechargeStatus: 'Recharged',
+            updatedAt: now,
+          };
+          api.updateSim(s.id, updatedSim).catch(() => {});
+          assetCoreDB.put('simCards', updatedSim).catch(() => {});
+          return updatedSim;
+        }
+        return s;
+      });
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSims));
+      } catch (e) {
+        console.warn('LocalStorage error updating SIM with recharge:', e);
+      }
+      return nextSims;
+    });
 
     api.createSimRecharge(newRecord).catch(() => {});
     assetCoreDB.put('simRecharges', newRecord).catch(() => {});
@@ -5420,6 +5535,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSimRecharges(INITIAL_SIM_RECHARGES);
     setSimRequests(INITIAL_SIM_REQUESTS);
     setServiceProviders(INITIAL_SERVICE_PROVIDERS);
+    setAssetQueries(INITIAL_ASSET_QUERIES);
     setAssetRequests([
       {
         id: 'REQ-2026-101',
@@ -5479,6 +5595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(INITIAL_SIM_RECHARGES));
     localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify(INITIAL_SIM_REQUESTS));
     localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify(INITIAL_SERVICE_PROVIDERS));
+    localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(INITIAL_ASSET_QUERIES));
     localStorage.setItem(
       `${STORAGE_KEY}_ASSET_REQUESTS`,
       JSON.stringify([
@@ -5542,6 +5659,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await assetCoreDB.putAll('simRecharges', INITIAL_SIM_RECHARGES);
         await assetCoreDB.putAll('simRequests', INITIAL_SIM_REQUESTS);
         await assetCoreDB.putAll('serviceProviders', INITIAL_SERVICE_PROVIDERS);
+        await assetCoreDB.putAll('assetQueries', INITIAL_ASSET_QUERIES);
         const demoRequests = [
           {
             id: 'REQ-2026-101',
@@ -5648,6 +5766,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         simRecharges: INITIAL_SIM_RECHARGES,
         simRequests: INITIAL_SIM_REQUESTS,
         serviceProviders: INITIAL_SERVICE_PROVIDERS,
+        assetQueries: INITIAL_ASSET_QUERIES,
       }).catch(err => console.warn('SQLite backend sync error during resetToDemoData:', err));
     })();
 
@@ -5711,6 +5830,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_ASSETS`, JSON.stringify(nextAssets));
     localStorage.setItem(`${STORAGE_KEY}_COMPANY_ASSETS`, JSON.stringify(nextAssets));
 
+    // 3b. Unassign or update SIM cards
+    let nextSimCards: SimCard[] = [];
+    if (returnToInventory) {
+      nextSimCards = simCards.map(s => {
+        if (s.assignedEmployeeId || s.assignedEmployeeName) {
+          return {
+            ...s,
+            assignedEmployeeId: null,
+            assignedEmployeeName: null,
+            issueDate: null,
+            assignedDate: null,
+            status: 'Available' as const,
+          };
+        }
+        return s;
+      });
+    } else {
+      nextSimCards = simCards.filter(s => !s.assignedEmployeeId && !s.assignedEmployeeName);
+    }
+    setSimCards(nextSimCards);
+    localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSimCards));
+
     // 4. Update allocations & weekly photos
     const nextAllocations = returnToInventory
       ? allocationRecords.map(alloc => ({
@@ -5734,6 +5875,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await assetCoreDB.putAll('computers', nextComputers);
         await assetCoreDB.clear('assets');
         await assetCoreDB.putAll('assets', nextAssets);
+        await assetCoreDB.clear('simCards');
+        await assetCoreDB.putAll('simCards', nextSimCards);
         await assetCoreDB.clear('allocationRecords');
         await assetCoreDB.putAll('allocationRecords', nextAllocations);
         const stats = await assetCoreDB.getStats();
@@ -5742,11 +5885,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('IndexedDB update warning during removeAllEmployees:', err);
       }
 
-      // SQLite Backend Delete
+      // SQLite Backend Sync
+      for (const s of nextSimCards) {
+        api.updateSim(s.id, s).catch(() => {});
+      }
       api.deleteAllEmployees().catch(() => {});
     })();
 
-    addAuditEntry('Employee Removed', `Admin purged all employee records from the system. Assigned assets set to ${returnToInventory ? 'Available' : 'Removed'}.`);
+    addAuditEntry('Employee Removed', `Admin purged all employee records from the system. Assigned assets and SIM cards set to ${returnToInventory ? 'Available' : 'Removed'}.`);
     showToast(`All employee data removed successfully! (${count} personnel purged)`, 'success');
   };
 
@@ -5770,6 +5916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSimRecharges([]);
     setSimRequests([]);
     setServiceProviders([]);
+    setAssetQueries([]);
     setSelectedEmployeeId(null);
     setSelectedComputerId(null);
     setActiveSystemSupportTicket(null);
@@ -5790,6 +5937,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify([]));
     localStorage.removeItem(`${STORAGE_KEY}_ACTIVE_SUPPORT_TICKET`);
     localStorage.removeItem(`${STORAGE_KEY}_SELECTED_EMP`);
     localStorage.removeItem(`${STORAGE_KEY}_SELECTED_COMP`);
@@ -5827,6 +5975,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       simRecharges,
       simRequests,
       serviceProviders,
+      assetQueries,
     };
 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
@@ -5891,6 +6040,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (fresh.serviceProviders) {
         setServiceProviders(fresh.serviceProviders);
       }
+      if (fresh.assetQueries) {
+        setAssetQueries(fresh.assetQueries);
+      }
 
       // Sync restored archive into Central SQLite database
       api.syncAll({
@@ -5907,6 +6059,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         simRecharges: fresh.simRecharges || [],
         simRequests: fresh.simRequests || [],
         serviceProviders: fresh.serviceProviders || [],
+        assetQueries: fresh.assetQueries || [],
       }).catch(e => console.warn('SQLite sync error during restoreBackup:', e));
 
       const stats = await assetCoreDB.getStats();

@@ -17,6 +17,7 @@ import {
   SimRecharge,
   SimRequest,
   ServiceProvider,
+  AssetQuery,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -28,7 +29,7 @@ import {
 } from '../data/initialSeedData';
 
 const DB_NAME = 'AssetCore_Enterprise_DB';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 export type StoreName =
   | 'employees'
@@ -45,6 +46,7 @@ export type StoreName =
   | 'simRecharges'
   | 'simRequests'
   | 'serviceProviders'
+  | 'assetQueries'
   | 'systemSettings';
 
 export interface DatabaseStats {
@@ -203,6 +205,16 @@ class IndexedDBManager {
             provStore.createIndex('serviceType', 'serviceType', { unique: false });
             provStore.createIndex('city', 'city', { unique: false });
           }
+
+          // 16. Asset Queries Store
+          if (!db.objectStoreNames.contains('assetQueries')) {
+            const qryStore = db.createObjectStore('assetQueries', { keyPath: 'id' });
+            qryStore.createIndex('employeeId', 'employeeId', { unique: false });
+            qryStore.createIndex('assetNumber', 'assetNumber', { unique: false });
+            qryStore.createIndex('status', 'status', { unique: false });
+            qryStore.createIndex('queryType', 'queryType', { unique: false });
+            qryStore.createIndex('isStarred', 'isStarred', { unique: false });
+          }
         };
 
         request.onsuccess = event => {
@@ -329,6 +341,8 @@ class IndexedDBManager {
       this.clear('simCards'),
       this.clear('simRecharges'),
       this.clear('simRequests'),
+      this.clear('serviceProviders'),
+      this.clear('assetQueries'),
     ]);
   }
 
@@ -347,6 +361,7 @@ class IndexedDBManager {
     simRecharges: SimRecharge[];
     simRequests: SimRequest[];
     serviceProviders: ServiceProvider[];
+    assetQueries: AssetQuery[];
   }> {
     try {
       await this.getDB();
@@ -366,6 +381,7 @@ class IndexedDBManager {
         dbSimRecharges,
         dbSimRequests,
         dbServiceProviders,
+        dbAssetQueries,
       ] = await Promise.all([
         this.getAll<Employee>('employees'),
         this.getAll<Computer>('computers'),
@@ -380,6 +396,7 @@ class IndexedDBManager {
         this.getAll<SimRecharge>('simRecharges'),
         this.getAll<SimRequest>('simRequests'),
         this.getAll<ServiceProvider>('serviceProviders'),
+        this.getAll<AssetQuery>('assetQueries'),
       ]);
 
       return {
@@ -396,6 +413,7 @@ class IndexedDBManager {
         simRecharges: dbSimRecharges,
         simRequests: dbSimRequests,
         serviceProviders: dbServiceProviders,
+        assetQueries: dbAssetQueries,
       };
     } catch (err) {
       console.warn('IndexedDB initialize error:', err);
@@ -413,6 +431,7 @@ class IndexedDBManager {
         simRecharges: [],
         simRequests: [],
         serviceProviders: [],
+        assetQueries: [],
       };
     }
   }
@@ -468,6 +487,8 @@ class IndexedDBManager {
         'simCards',
         'simRecharges',
         'simRequests',
+        'serviceProviders',
+        'assetQueries',
       ];
 
       const counts: Record<string, number> = {};
@@ -529,6 +550,7 @@ class IndexedDBManager {
       simRecharges,
       simRequests,
       serviceProviders,
+      assetQueries,
     ] = await Promise.all([
       this.getAll('employees'),
       this.getAll('computers'),
@@ -544,6 +566,7 @@ class IndexedDBManager {
       this.getAll('simRecharges'),
       this.getAll('simRequests'),
       this.getAll('serviceProviders'),
+      this.getAll('assetQueries'),
     ]);
 
     return {
@@ -563,7 +586,8 @@ class IndexedDBManager {
           simCards.length +
           simRecharges.length +
           simRequests.length +
-          serviceProviders.length,
+          serviceProviders.length +
+          assetQueries.length,
       },
       data: {
         employees,
@@ -580,6 +604,7 @@ class IndexedDBManager {
         simRecharges,
         simRequests,
         serviceProviders,
+        assetQueries,
       },
     };
   }
@@ -605,6 +630,7 @@ class IndexedDBManager {
       simRecharges,
       simRequests,
       serviceProviders,
+      assetQueries,
     } = backupObj.data;
 
     await Promise.all([
@@ -622,6 +648,7 @@ class IndexedDBManager {
       Array.isArray(simRecharges) ? this.putAll('simRecharges', simRecharges) : Promise.resolve(),
       Array.isArray(simRequests) ? this.putAll('simRequests', simRequests) : Promise.resolve(),
       Array.isArray(serviceProviders) ? this.putAll('serviceProviders', serviceProviders) : Promise.resolve(),
+      Array.isArray(assetQueries) ? this.putAll('assetQueries', assetQueries) : Promise.resolve(),
     ]);
 
     return true;

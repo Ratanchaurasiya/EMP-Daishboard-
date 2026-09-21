@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Smartphone,
   CreditCard,
+  IndianRupee,
   Send,
   History,
   Plus,
@@ -215,6 +216,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
 
   const [isRechargeModalOpen, setIsRechargeModalOpen] = useState(false);
   const [rechargeTargetSim, setRechargeTargetSim] = useState<SimCard | null>(null);
+  const [rechargeInitialMode, setRechargeInitialMode] = useState<'ALL_ACTIVE' | 'SINGLE_SIM'>('ALL_ACTIVE');
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [requestType, setRequestType] = useState<'Additional SIM' | 'Suspend SIM'>('Additional SIM');
@@ -595,6 +597,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
 
               <button
                 onClick={() => {
+                  setRechargeInitialMode('ALL_ACTIVE');
                   setRechargeTargetSim(null);
                   setIsRechargeModalOpen(true);
                 }}
@@ -603,6 +606,19 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
               >
                 <CreditCard className="w-3.5 h-3.5" />
                 <span>Recharge All Assigned SIMs</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setRechargeInitialMode('SINGLE_SIM');
+                  setRechargeTargetSim(null);
+                  setIsRechargeModalOpen(true);
+                }}
+                title="Manually Recharge an Individual SIM Line with Custom Amount"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 rounded-lg shadow-2xs transition-colors cursor-pointer"
+              >
+                <IndianRupee className="w-3.5 h-3.5" />
+                <span>Manual Recharge</span>
               </button>
 
               <button
@@ -1149,6 +1165,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
 
                               <button
                                 onClick={() => {
+                                  setRechargeInitialMode('SINGLE_SIM');
                                   setRechargeTargetSim(sim);
                                   setIsRechargeModalOpen(true);
                                 }}
@@ -1403,6 +1420,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
                                   {isAdmin && (
                                     <button
                                       onClick={() => {
+                                        setRechargeInitialMode('SINGLE_SIM');
                                         setRechargeTargetSim(sim);
                                         setIsRechargeModalOpen(true);
                                       }}
@@ -1689,11 +1707,12 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
                                                 <button
                                                   type="button"
                                                   onClick={() => {
+                                                    setRechargeInitialMode('SINGLE_SIM');
                                                     setRechargeTargetSim(sim);
                                                     setIsRechargeModalOpen(true);
                                                   }}
                                                   className="p-1 rounded text-slate-400 hover:text-emerald-500 cursor-pointer"
-                                                  title="Log Recharge"
+                                                  title="Manual Recharge"
                                                 >
                                                   <CreditCard className="w-3.5 h-3.5" />
                                                 </button>
@@ -2063,8 +2082,10 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
         onClose={() => {
           setIsRechargeModalOpen(false);
           setRechargeTargetSim(null);
+          setRechargeInitialMode('ALL_ACTIVE');
         }}
         preselectedSim={rechargeTargetSim}
+        initialMode={rechargeInitialMode}
       />
 
       <RequestSimModal
@@ -2094,6 +2115,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
           setIsAssignModalOpen(true);
         }}
         onRechargeSim={sim => {
+          setRechargeInitialMode('SINGLE_SIM');
           setRechargeTargetSim(sim);
           setIsRechargeModalOpen(true);
         }}

@@ -219,11 +219,25 @@ export async function runMigrations() {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_pg_prov_type ON service_providers (service_type);
+
+        -- 15. Asset Queries Table
+        CREATE TABLE IF NOT EXISTS asset_queries (
+          id VARCHAR(100) NOT NULL PRIMARY KEY,
+          employee_id VARCHAR(100) NULL,
+          asset_number VARCHAR(100) NULL,
+          status VARCHAR(100) NULL,
+          query_type VARCHAR(100) NULL,
+          is_starred BOOLEAN DEFAULT FALSE,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_pg_qry_emp ON asset_queries (employee_id);
+        CREATE INDEX IF NOT EXISTS idx_pg_qry_status ON asset_queries (status);
       `);
 
       client.release();
       await pgPool.end();
-      console.log('✅ PostgreSQL Schema migrations completed successfully (14 tables verified).');
+      console.log('✅ PostgreSQL Schema migrations completed successfully (15 tables verified).');
     } catch (err) {
       console.error('[Migration Error] PostgreSQL migration failed:', err.message);
       await pgPool.end();
@@ -449,10 +463,26 @@ export async function runMigrations() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // 15. Asset Queries Table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS asset_queries (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        asset_number VARCHAR(100) NULL,
+        status VARCHAR(100) NULL,
+        query_type VARCHAR(100) NULL,
+        is_starred BOOLEAN DEFAULT FALSE,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_qry_emp (employee_id),
+        INDEX idx_qry_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     connection.release();
     await pool.end();
 
-    console.log('✅ MySQL / MariaDB Schema migrations completed successfully (14 tables verified).');
+    console.log('✅ MySQL / MariaDB Schema migrations completed successfully (15 tables verified).');
   } catch (err) {
     console.error('[Migration Error] Migration failed:', err.message);
     await pool.end();

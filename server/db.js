@@ -233,6 +233,19 @@ if (isPostgresUrl) {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_pg_prov_type ON service_providers (service_type);
+
+      CREATE TABLE IF NOT EXISTS asset_queries (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        asset_number VARCHAR(100) NULL,
+        status VARCHAR(100) NULL,
+        query_type VARCHAR(100) NULL,
+        is_starred BOOLEAN DEFAULT FALSE,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_pg_qry_emp ON asset_queries (employee_id);
+      CREATE INDEX IF NOT EXISTS idx_pg_qry_status ON asset_queries (status);
     `);
 
     console.log('[Database] Cloud PostgreSQL tables & indices verified.');
@@ -259,6 +272,7 @@ if (!pgPool && isMySqlUrl) {
       connectionLimit: 20,
       queueLimit: 0,
       connectTimeout: 15000,
+      multipleStatements: true,
       ssl: isLocalhost ? undefined : { rejectUnauthorized: false },
     };
 
@@ -453,6 +467,19 @@ if (!pgPool && isMySqlUrl) {
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_prov_type (service_type)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+      CREATE TABLE IF NOT EXISTS asset_queries (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        asset_number VARCHAR(100) NULL,
+        status VARCHAR(100) NULL,
+        query_type VARCHAR(100) NULL,
+        is_starred BOOLEAN DEFAULT FALSE,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_qry_emp (employee_id),
+        INDEX idx_qry_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
     console.log('[Database] Cloud MySQL / MariaDB tables & indices verified.');
@@ -467,15 +494,18 @@ if (!pgPool && isMySqlUrl) {
   }
 }
 
-// In production, ensure a persistent database is available (PostgreSQL, MySQL, or persistent disk SQLite)
-if (isProduction && !pgPool && !mysqlPool && !allowSqliteInProd) {
-  console.error('[Database Error] Fatal: DATABASE_URL is not configured for PostgreSQL or MySQL.');
-  console.error('[Database Error] To run persistent SQLite in production, configure ALLOW_SQLITE_IN_PROD=true with a persistent storage mount.');
+// In production / Vercel serverless deployment, ensure a persistent cloud database is configured
+const isVercelServerless = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV);
+
+if ((isProduction || isVercelServerless) && !pgPool && !mysqlPool && !allowSqliteInProd) {
+  console.error('[Database Error] Fatal: DATABASE_URL environment variable is missing or invalid in Production.');
+  console.error('[Database Error] Ephemeral SQLite files cannot be used on Vercel serverless platform as data will be lost across cold starts.');
+  console.error('[Database Error] Please set DATABASE_URL in Vercel Project Settings with your Cloud MySQL or PostgreSQL connection string.');
   throw new Error('DATABASE_URL environment variable is required in production mode for database persistence.');
 }
 
 // -------------------------------------------------------------
-// 3. Initialize Native SQLite (WAL mode) for disk persistence
+// 3. Initialize Native SQLite (WAL mode) for disk persistence (Local Dev Only)
 // -------------------------------------------------------------
 if (!pgPool && !mysqlPool) {
   try {
@@ -620,6 +650,17 @@ if (!pgPool && !mysqlPool) {
           data TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS asset_queries (
+          id TEXT PRIMARY KEY,
+          employeeId TEXT,
+          assetNumber TEXT,
+          status TEXT,
+          queryType TEXT,
+          isStarred INTEGER,
+          data TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
       `);
     } else {
       if (isProduction) {
@@ -652,6 +693,7 @@ let fallbackState = {
   sim_recharges: [],
   sim_requests: [],
   service_providers: [],
+  asset_queries: [],
   system_settings: {},
 };
 
@@ -1059,6 +1101,28 @@ export const db = {
             item.city || '',
             dataStr,
           ]);
+        } else if (collection === 'asset_queries') {
+          const q = `
+            INSERT INTO asset_queries (id, employee_id, asset_number, status, query_type, is_starred, data, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              employee_id = EXCLUDED.employee_id,
+              asset_number = EXCLUDED.asset_number,
+              status = EXCLUDED.status,
+              query_type = EXCLUDED.query_type,
+              is_starred = EXCLUDED.is_starred,
+              data = EXCLUDED.data,
+              updated_at = NOW()
+          `;
+          await pgPool.query(q, [
+            item.id,
+            item.employeeId || '',
+            item.assetNumber || '',
+            item.status || 'Open',
+            item.queryType || 'Fault',
+            Boolean(item.isStarred),
+            dataStr,
+          ]);
         } else if (collection === 'system_settings') {
           const q = `
             INSERT INTO system_settings (key, value, updated_at)
@@ -1320,6 +1384,28 @@ export const db = {
             item.phoneNumber || '',
             item.serviceType || 'Other',
             item.city || '',
+            dataStr,
+          ]);
+        } else if (collection === 'asset_queries') {
+          const q = `
+            INSERT INTO asset_queries (id, employee_id, asset_number, status, query_type, is_starred, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              employee_id = VALUES(employee_id),
+              asset_number = VALUES(asset_number),
+              status = VALUES(status),
+              query_type = VALUES(query_type),
+              is_starred = VALUES(is_starred),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await mysqlPool.query(q, [
+            item.id,
+            item.employeeId || '',
+            item.assetNumber || '',
+            item.status || 'Open',
+            item.queryType || 'Fault',
+            Boolean(item.isStarred),
             dataStr,
           ]);
         } else if (collection === 'system_settings') {
@@ -1594,6 +1680,29 @@ export const db = {
             dataStr,
             now
           );
+        } else if (collection === 'asset_queries') {
+          const stmt = sqliteDB.prepare(`
+            INSERT INTO asset_queries (id, employeeId, assetNumber, status, queryType, isStarred, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              employeeId = excluded.employeeId,
+              assetNumber = excluded.assetNumber,
+              status = excluded.status,
+              queryType = excluded.queryType,
+              isStarred = excluded.isStarred,
+              data = excluded.data,
+              updated_at = excluded.updated_at
+          `);
+          stmt.run(
+            item.id,
+            item.employeeId || '',
+            item.assetNumber || '',
+            item.status || 'Open',
+            item.queryType || 'Fault',
+            item.isStarred ? 1 : 0,
+            dataStr,
+            now
+          );
         }
         return item;
       } catch (err) {
@@ -1715,6 +1824,7 @@ export const db = {
       'sim_recharges',
       'sim_requests',
       'service_providers',
+      'asset_queries',
     ];
     const counts = {};
     let total = 0;

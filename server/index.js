@@ -113,6 +113,7 @@ app.get('/api/bootstrap', async (req, res) => {
       simRecharges,
       simRequests,
       serviceProviders,
+      assetQueries,
       stats,
     ] = await Promise.all([
       db.getAll('employees'),
@@ -128,11 +129,14 @@ app.get('/api/bootstrap', async (req, res) => {
       db.getAll('sim_recharges'),
       db.getAll('sim_requests'),
       db.getAll('service_providers'),
+      db.getAll('asset_queries'),
       db.getStats(),
     ]);
 
     res.json({
       success: true,
+      databaseConnected: stats.connected !== false,
+      engine: db.activeEngine,
       data: {
         employees,
         computers,
@@ -147,12 +151,13 @@ app.get('/api/bootstrap', async (req, res) => {
         simRecharges,
         simRequests,
         serviceProviders,
+        assetQueries,
       },
       stats,
     });
   } catch (err) {
     console.error('[API Bootstrap Error]:', err);
-    res.status(500).json({ success: false, error: 'Failed to bootstrap database' });
+    res.status(500).json({ success: false, error: 'Failed to bootstrap database: ' + err.message });
   }
 });
 
@@ -1160,6 +1165,83 @@ app.delete('/api/service-providers/:id', async (req, res) => {
   }
 });
 
+// ==================== ASSET QUERIES (STAFF SUPPORT / FAULT TRACKING) CRUD ====================
+app.get('/api/asset-queries', async (req, res) => {
+  try {
+    const queries = await db.getAll('asset_queries');
+    res.json({ success: true, data: queries });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/asset-queries/:id', async (req, res) => {
+  try {
+    const query = await db.getById('asset_queries', req.params.id);
+    if (!query) {
+      return res.status(404).json({ success: false, error: 'Asset query not found' });
+    }
+    res.json({ success: true, data: query });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/asset-queries', async (req, res) => {
+  try {
+    const query = req.body;
+    if (!query || !query.employeeId || !query.assetNumber) {
+      return res.status(400).json({ success: false, error: 'Employee ID and Asset Number are required' });
+    }
+    if (!query.id) query.id = `QRY-${Date.now()}`;
+    const now = new Date().toISOString();
+    const saved = await db.upsert('asset_queries', {
+      ...query,
+      status: query.status || 'Open',
+      createdAt: query.createdAt || now,
+      updatedAt: now,
+      history: query.history || [],
+    });
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/asset-queries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.getById('asset_queries', id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Asset query not found' });
+    }
+    const updated = {
+      ...existing,
+      ...req.body,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    await db.upsert('asset_queries', updated);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/asset-queries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await db.delete('asset_queries', id);
+    if (success) {
+      res.json({ success: true, message: 'Asset query deleted' });
+    } else {
+      res.status(404).json({ success: false, error: 'Asset query could not be deleted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ==================== BATCH SYNC FROM CLIENT INDEXEDDB ====================
 app.post('/api/sync', async (req, res) => {
   try {
@@ -1177,6 +1259,7 @@ app.post('/api/sync', async (req, res) => {
       simRecharges,
       simRequests,
       serviceProviders,
+      assetQueries,
     } = req.body;
 
     if (Array.isArray(employees)) {
@@ -1218,6 +1301,9 @@ app.post('/api/sync', async (req, res) => {
     if (Array.isArray(serviceProviders)) {
       for (const sp of serviceProviders) await db.upsert('service_providers', sp);
     }
+    if (Array.isArray(assetQueries)) {
+      for (const aq of assetQueries) await db.upsert('asset_queries', aq);
+    }
 
     const stats = await db.getStats();
     res.json({ success: true, message: 'Database synchronized', stats });
@@ -1244,6 +1330,7 @@ app.post('/api/clear', async (req, res) => {
       'sim_recharges',
       'sim_requests',
       'service_providers',
+      'asset_queries',
     ];
     for (const c of collections) {
       await db.clear(c);
