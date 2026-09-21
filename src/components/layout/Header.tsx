@@ -105,6 +105,9 @@ export const Header: React.FC<HeaderProps> = ({
   const isEmployeeRole = currentUser?.role === 'employee' || userRole === 'employee';
   const currentEmpId = currentUser?.id || currentUser?.employeeId;
 
+  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.userAgent);
+  const cmdKeyText = isMac ? '⌘K' : 'Ctrl+K';
+
   const openDbSection = () => {
     setIsDbRendered(true);
     refreshDbStats();
@@ -485,8 +488,8 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               placeholder={
                 currentUser?.role === 'employee'
-                  ? 'Search specs, tickets, assets... (⌘K)'
-                  : 'Command Palette: Search personnel, PC, asset, IMEI... (⌘K)'
+                  ? `Search specs, tickets, assets... (${cmdKeyText})`
+                  : `Command Palette: Search personnel, PC, asset, IMEI... (${cmdKeyText})`
               }
               className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-1.5 text-xs bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all font-sans shadow-2xs"
             />
@@ -507,7 +510,7 @@ export const Header: React.FC<HeaderProps> = ({
               ) : (
                 <div className="hidden sm:flex items-center gap-0.5">
                   <kbd className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300/50 dark:border-slate-700/50">
-                    ⌘K
+                    {cmdKeyText}
                   </kbd>
                   <kbd className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300/50 dark:border-slate-700/50">
                     /
@@ -836,7 +839,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="pt-2 px-2 flex items-center justify-between text-[10px] text-slate-400">
                 <div className="flex items-center gap-3">
                   <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border text-[9px]">ESC</kbd> to close</span>
-                  <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border text-[9px]">⌘K</kbd> anytime</span>
+                  <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border text-[9px]">{cmdKeyText}</kbd> anytime</span>
                 </div>
                 <span>AssetCore v2.0 Enterprise</span>
               </div>
