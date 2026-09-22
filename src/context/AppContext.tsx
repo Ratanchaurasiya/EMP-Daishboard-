@@ -303,7 +303,13 @@ interface AppContextType {
       gstAmount?: number;
       totalAmount?: number;
     }
-  ) => { success: boolean; error?: string; data?: SimRecharge };
+  ) => Promise<{ success: boolean; error?: string; data?: SimRecharge }>;
+  addBatchSimRecharges: (
+    rechargesList: (Omit<SimRecharge, 'id' | 'createdAt' | 'gstAmount' | 'totalAmount'> & {
+      gstAmount?: number;
+      totalAmount?: number;
+    })[]
+  ) => Promise<{ success: boolean; error?: string; count?: number }>;
   removeSimRecharge: (id: string) => { success: boolean; error?: string };
 
   // SIM Employee Requisitions & Requests
@@ -984,6 +990,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let effectiveSimRequests: SimRequest[] = [];
         let effectiveServiceProviders: ServiceProvider[] = [];
         let effectiveAssetQueries: AssetQuery[] = [];
+        let effectiveRemovedEmployees: RemovedEmployeeRecord[] = [];
 
         const isBackendValid = Boolean(bootstrap?.success && bootstrap?.data);
         const hasBackendData = isBackendValid && (
@@ -993,8 +1000,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           (bootstrap!.data.purchases && bootstrap!.data.purchases.length > 0) ||
           (bootstrap!.data.assetRequests && bootstrap!.data.assetRequests.length > 0) ||
           (bootstrap!.data.simCards && bootstrap!.data.simCards.length > 0) ||
+          (bootstrap!.data.simRecharges && bootstrap!.data.simRecharges.length > 0) ||
           (bootstrap!.data.serviceProviders && bootstrap!.data.serviceProviders.length > 0) ||
-          (bootstrap!.data.assetQueries && bootstrap!.data.assetQueries.length > 0)
+          (bootstrap!.data.assetQueries && bootstrap!.data.assetQueries.length > 0) ||
+          (bootstrap!.data.removedEmployees && bootstrap!.data.removedEmployees.length > 0)
         );
 
         const isCleanSlateReset = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
@@ -1015,6 +1024,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           effectiveSimRequests = bootstrap.data.simRequests || [];
           effectiveServiceProviders = bootstrap.data.serviceProviders || [];
           effectiveAssetQueries = bootstrap.data.assetQueries || [];
+          effectiveRemovedEmployees = bootstrap.data.removedEmployees || [];
 
           // Sync into local caches so offline/local cache is identical
           assetCoreDB.putAll('employees', effectiveEmployees).catch(() => {});
@@ -1046,6 +1056,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           if (effectiveAssetQueries.length > 0) {
             assetCoreDB.putAll('assetQueries', effectiveAssetQueries).catch(() => {});
+          }
+          if (effectiveRemovedEmployees.length > 0) {
+            assetCoreDB.putAll('removedEmployees', effectiveRemovedEmployees).catch(() => {});
           }
         } else {
           // Fallback or Initial SQLite Seed from local cache
@@ -1227,6 +1240,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSimRequests(effectiveSimRequests.length > 0 ? effectiveSimRequests : INITIAL_SIM_REQUESTS);
         setServiceProviders(effectiveServiceProviders.length > 0 ? effectiveServiceProviders : INITIAL_SERVICE_PROVIDERS);
         setAssetQueries(effectiveAssetQueries);
+        if (effectiveRemovedEmployees.length > 0) {
+          setRemovedEmployees(effectiveRemovedEmployees);
+        }
 
         const stats = await assetCoreDB.getStats();
         if (bootstrap?.stats) {
@@ -2135,8 +2151,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       try {
         await api.deleteEmployee(emp.id);
+        await api.createRemovedEmployee(newRemovedRecord);
       } catch (e) {
-        console.warn('SQLite delete warning:', e);
+        console.warn('Cloud DB employee removal warning:', e);
       }
     })();
 
@@ -4499,7 +4516,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // -------------------------------------------------------------
   const addAssetQuery: AppContextType['addAssetQuery'] = queryData => {
     const nextSeq = assetQueries.length + 1;
-    const queryId = `QRY-2026-${String(nextSeq).padStart(3, '0')}`;
+    const queryId = `QRY-${new Date().getFullYear()}-${String(nextSeq).padStart(3, '0')}`;
     const now = new Date().toISOString();
 
     const newQuery: AssetQuery = {
@@ -5179,7 +5196,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // -------------------------------------------------------------
   // SIM RECHARGE MANAGEMENT
   // -------------------------------------------------------------
-  const addSimRecharge: AppContextType['addSimRecharge'] = rechargeData => {
+  const addSimRecharge: AppContextType['addSimRecharge'] = async rechargeData => {
     const calc = calculateRechargeGst(rechargeData.rechargeAmount, rechargeData.gstPercentage ?? 18);
     const id = `REC-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
     const now = new Date().toISOString();
@@ -5223,8 +5240,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: now,
     };
 
+    let updatedSim: SimCard | null = null;
+    if (targetSim) {
+      updatedSim = {
+        ...targetSim,
+        lastRechargeDate: newRecord.rechargeDate,
+        lastRechargeAmount: newRecord.rechargeAmount,
+        rechargeStatus: 'Recharged',
+        updatedAt: now,
+      };
+    }
+
+    // Call Cloud Database API synchronously and verify read-back persistence
+    const apiRes = await api.createSimRecharge(newRecord, updatedSim);
+    if (!apiRes || !apiRes.success) {
+      const errMsg = apiRes?.error || 'Recharge could not be completed because the production database is unavailable.';
+      showToast(errMsg, 'error');
+      return { success: false, error: errMsg };
+    }
+
+    const savedRecord = apiRes.data || newRecord;
+
+    // Mutate local state & cache ONLY AFTER successful Cloud DB commit & read-back
     setSimRecharges(prev => {
-      const nextList = [newRecord, ...prev];
+      const nextList = [savedRecord, ...prev];
       try {
         localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(nextList));
       } catch (e) {
@@ -5233,42 +5272,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return nextList;
     });
 
-    const targetSimId = targetSim ? targetSim.id : rechargeData.simId;
-    const targetSimNumber = targetSim ? targetSim.contactNumber : rechargeData.contactNumber;
-
-    setSimCards(prev => {
-      const nextSims = prev.map(s => {
-        if (s.id === targetSimId || s.contactNumber === targetSimNumber) {
-          const updatedSim: SimCard = {
-            ...s,
-            lastRechargeDate: newRecord.rechargeDate,
-            lastRechargeAmount: newRecord.rechargeAmount,
-            rechargeStatus: 'Recharged',
-            updatedAt: now,
-          };
-          api.updateSim(s.id, updatedSim).catch(() => {});
-          assetCoreDB.put('simCards', updatedSim).catch(() => {});
-          return updatedSim;
+    if (updatedSim) {
+      const finalSim = updatedSim;
+      setSimCards(prev => {
+        const nextSims = prev.map(s => (s.id === finalSim.id ? finalSim : s));
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSims));
+        } catch (e) {
+          console.warn('LocalStorage error updating SIM with recharge:', e);
         }
-        return s;
+        return nextSims;
       });
-      try {
-        localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSims));
-      } catch (e) {
-        console.warn('LocalStorage error updating SIM with recharge:', e);
-      }
-      return nextSims;
-    });
+      assetCoreDB.put('simCards', finalSim).catch(() => {});
+    }
 
-    api.createSimRecharge(newRecord).catch(() => {});
-    assetCoreDB.put('simRecharges', newRecord).catch(() => {});
+    assetCoreDB.put('simRecharges', savedRecord).catch(() => {});
 
     addAuditEntry(
       'SIM Recharge Added',
-      `Logged recharge of ₹${calc.totalAmount} (Base: ₹${calc.rechargeAmount} + GST: ₹${calc.gstAmount}) for SIM ${newRecord.contactNumber} [${newRecord.planDescription}]`
+      `Logged recharge of ₹${calc.totalAmount} (Base: ₹${calc.rechargeAmount} + GST: ₹${calc.gstAmount}) for SIM ${savedRecord.contactNumber} [${savedRecord.planDescription}]`
     );
-    showToast(`Recharge of ₹${calc.totalAmount} recorded for ${newRecord.contactNumber}.`, 'success');
-    return { success: true, data: newRecord };
+    showToast(`Recharge of ₹${calc.totalAmount} committed to Cloud DB for ${savedRecord.contactNumber}.`, 'success');
+    return { success: true, data: savedRecord };
+  };
+
+  const addBatchSimRecharges: AppContextType['addBatchSimRecharges'] = async rechargesList => {
+    if (!Array.isArray(rechargesList) || rechargesList.length === 0) {
+      return { success: false, error: 'No recharges specified.' };
+    }
+
+    const now = new Date().toISOString();
+    const preparedRecharges: SimRecharge[] = [];
+    const updatedSims: SimCard[] = [];
+    const simUpdatesMap = new Map<string, SimCard>();
+
+    rechargesList.forEach((r, idx) => {
+      const calc = calculateRechargeGst(r.rechargeAmount, r.gstPercentage ?? 18);
+      const id = `REC-${new Date().getFullYear()}-${Date.now()}-${idx + 1}`;
+
+      let targetSim = simCards.find(s => s.id === r.simId || s.contactNumber === r.contactNumber);
+      const targetEmp = targetSim?.assignedEmployeeId
+        ? employees.find(e => e.id === targetSim.assignedEmployeeId || e.employeeId === targetSim.assignedEmployeeId)
+        : (targetSim?.assignedEmployeeName
+            ? employees.find(e => e.name.trim().toLowerCase() === targetSim.assignedEmployeeName?.trim().toLowerCase())
+            : (r.employeeId ? employees.find(e => e.id === r.employeeId || e.employeeId === r.employeeId) : null));
+
+      const newRecord: SimRecharge = {
+        ...r,
+        id,
+        simId: targetSim ? targetSim.id : r.simId,
+        contactNumber: targetSim ? targetSim.contactNumber : r.contactNumber,
+        employeeId: targetEmp ? (targetEmp.employeeId || targetEmp.id) : (r.employeeId || targetSim?.assignedEmployeeId || null),
+        employeeName: targetEmp ? targetEmp.name : (r.employeeName || targetSim?.assignedEmployeeName || null),
+        rechargeAmount: calc.rechargeAmount,
+        gstPercentage: calc.gstPercentage,
+        gstAmount: calc.gstAmount,
+        totalAmount: calc.totalAmount,
+        createdAt: now,
+      };
+
+      preparedRecharges.push(newRecord);
+
+      if (targetSim && !simUpdatesMap.has(targetSim.id)) {
+        const uSim: SimCard = {
+          ...targetSim,
+          lastRechargeDate: newRecord.rechargeDate,
+          lastRechargeAmount: newRecord.rechargeAmount,
+          rechargeStatus: 'Recharged',
+          updatedAt: now,
+        };
+        simUpdatesMap.set(targetSim.id, uSim);
+        updatedSims.push(uSim);
+      }
+    });
+
+    const apiRes = await api.createBatchSimRecharge(preparedRecharges, updatedSims);
+    if (!apiRes || !apiRes.success) {
+      const errMsg = apiRes?.error || 'Batch recharge could not be completed because the production database is unavailable.';
+      showToast(errMsg, 'error');
+      return { success: false, error: errMsg };
+    }
+
+    const savedRecords = apiRes.data || preparedRecharges;
+
+    setSimRecharges(prev => {
+      const nextList = [...savedRecords, ...prev];
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(nextList));
+      } catch (e) {
+        console.warn('LocalStorage error saving batch recharges:', e);
+      }
+      return nextList;
+    });
+
+    if (updatedSims.length > 0) {
+      setSimCards(prev => {
+        const nextSims = prev.map(s => {
+          const updated = simUpdatesMap.get(s.id);
+          return updated || s;
+        });
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSims));
+        } catch (e) {
+          console.warn('LocalStorage error updating SIMs in batch:', e);
+        }
+        return nextSims;
+      });
+      assetCoreDB.putAll('simCards', updatedSims).catch(() => {});
+    }
+
+    assetCoreDB.putAll('simRecharges', savedRecords).catch(() => {});
+
+    addAuditEntry(
+      'Batch SIM Recharge Added',
+      `Logged batch recharge for ${savedRecords.length} active corporate lines on Cloud DB.`
+    );
+    showToast(`Batch recharge committed for ${savedRecords.length} active assigned SIM lines.`, 'success');
+    return { success: true, count: savedRecords.length };
   };
 
   const removeSimRecharge: AppContextType['removeSimRecharge'] = id => {
@@ -5916,6 +6036,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSimRequests([]);
     setServiceProviders([]);
     setAssetQueries([]);
+    setRemovedEmployees([]);
     setSelectedEmployeeId(null);
     setSelectedComputerId(null);
     setActiveSystemSupportTicket(null);
@@ -5937,6 +6058,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`, JSON.stringify([]));
     localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify([]));
+    localStorage.setItem(`${STORAGE_KEY}_REMOVED_EMPLOYEES`, JSON.stringify([]));
     localStorage.removeItem(`${STORAGE_KEY}_ACTIVE_SUPPORT_TICKET`);
     localStorage.removeItem(`${STORAGE_KEY}_SELECTED_EMP`);
     localStorage.removeItem(`${STORAGE_KEY}_SELECTED_COMP`);
@@ -5950,8 +6072,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('IndexedDB clear warning during clearAllData:', err);
       }
 
-      // SQLite Backend Complete Clear
-      api.clearAll().catch(err => console.warn('SQLite backend clear warning:', err));
+      // Cloud Database Complete Truncate/Clear
+      try {
+        const ok = await api.clearAll();
+        if (ok) {
+          showToast('All Cloud Database tables truncated permanently!', 'success');
+        } else {
+          showToast('Warning: Local state cleared, but Cloud DB clear call failed.', 'info');
+        }
+      } catch (err: any) {
+        console.error('Cloud DB clear error:', err);
+        showToast('Failed to clear Cloud Database: ' + err.message, 'error');
+      }
     })();
 
     showToast('All database records cleared! The system is now ready for manual data entry.', 'info');
@@ -6577,6 +6709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reactivateSimCard,
     removeSimCard,
     addSimRecharge,
+    addBatchSimRecharges,
     removeSimRecharge,
     submitSimRequest,
     updateSimRequestStatus,

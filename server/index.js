@@ -114,6 +114,7 @@ app.get('/api/bootstrap', async (req, res) => {
       simRequests,
       serviceProviders,
       assetQueries,
+      removedEmployees,
       stats,
     ] = await Promise.all([
       db.getAll('employees'),
@@ -130,6 +131,7 @@ app.get('/api/bootstrap', async (req, res) => {
       db.getAll('sim_requests'),
       db.getAll('service_providers'),
       db.getAll('asset_queries'),
+      db.getAll('removed_employees'),
       db.getStats(),
     ]);
 
@@ -152,6 +154,7 @@ app.get('/api/bootstrap', async (req, res) => {
         simRequests,
         serviceProviders,
         assetQueries,
+        removedEmployees,
       },
       stats,
     });
@@ -988,9 +991,14 @@ app.get('/api/sim-recharges', async (req, res) => {
 
 app.post('/api/sim-recharges', async (req, res) => {
   try {
-    const recharge = req.body;
+    const { recharge, updatedSim } = req.body.recharge ? req.body : { recharge: req.body, updatedSim: null };
+    if (!recharge || (!recharge.simId && !recharge.contactNumber)) {
+      return res.status(400).json({ success: false, error: 'Recharge payload with SIM identifier is required' });
+    }
+
     if (!recharge.id) recharge.id = `REC-${Date.now()}`;
-    
+    const now = new Date().toISOString();
+
     // Auto calculate GST and Total
     const amount = Number(recharge.rechargeAmount) || 0;
     const gstPercent = Number(recharge.gstPercentage ?? 18);
@@ -1003,13 +1011,55 @@ app.post('/api/sim-recharges', async (req, res) => {
       gstPercentage: gstPercent,
       gstAmount,
       totalAmount,
-      createdAt: recharge.createdAt || new Date().toISOString(),
+      createdAt: recharge.createdAt || now,
     };
 
-    const saved = await db.upsert('sim_recharges', record);
+    // Execute Cloud Database Transaction + Read-Back Verification Test
+    const saved = await db.saveSimRechargeTransaction(record, updatedSim);
+    console.log(`[Database] SIM recharge ₹${totalAmount} committed to Cloud DB (${db.activeEngine}) & verified by read-back: ${record.id}`);
     res.status(201).json({ success: true, data: saved });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API SIM Recharge Post Error]:', err.message);
+    res.status(500).json({
+      success: false,
+      error: `Recharge could not be completed because the production database is unavailable. (${err.message})`,
+    });
+  }
+});
+
+app.post('/api/sim-recharges/batch', async (req, res) => {
+  try {
+    const { recharges, updatedSims } = req.body;
+    if (!Array.isArray(recharges) || recharges.length === 0) {
+      return res.status(400).json({ success: false, error: 'Non-empty array of recharge records is required for batch recharge' });
+    }
+
+    const now = new Date().toISOString();
+    const normalizedRecharges = recharges.map(r => {
+      const amount = Number(r.rechargeAmount) || 0;
+      const gstPercent = Number(r.gstPercentage ?? 18);
+      const gstAmount = Number(((amount * gstPercent) / 100).toFixed(2));
+      const totalAmount = Number((amount + gstAmount).toFixed(2));
+      return {
+        ...r,
+        id: r.id || `REC-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+        rechargeAmount: amount,
+        gstPercentage: gstPercent,
+        gstAmount,
+        totalAmount,
+        createdAt: r.createdAt || now,
+      };
+    });
+
+    const savedList = await db.saveBatchSimRechargeTransaction(normalizedRecharges, Array.isArray(updatedSims) ? updatedSims : []);
+    console.log(`[Database] Batch SIM recharge committed to Cloud DB (${db.activeEngine}) for ${savedList.length} SIM lines with read-back verification.`);
+    res.status(201).json({ success: true, data: savedList });
+  } catch (err) {
+    console.error('[API Batch SIM Recharge Post Error]:', err.message);
+    res.status(500).json({
+      success: false,
+      error: `Batch recharge could not be completed because the production database is unavailable. (${err.message})`,
+    });
   }
 });
 
@@ -1242,6 +1292,43 @@ app.delete('/api/asset-queries/:id', async (req, res) => {
   }
 });
 
+// ==================== REMOVED EMPLOYEES CRUD ====================
+app.get('/api/removed-employees', async (req, res) => {
+  try {
+    const removed = await db.getAll('removed_employees');
+    res.json({ success: true, data: removed });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/removed-employees', async (req, res) => {
+  try {
+    const record = req.body;
+    if (!record || !record.id) {
+      return res.status(400).json({ success: false, error: 'Record ID is required for removed employee entry' });
+    }
+    const saved = await db.upsert('removed_employees', record);
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/removed-employees/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await db.delete('removed_employees', id);
+    if (success) {
+      res.json({ success: true, message: 'Removed employee record deleted' });
+    } else {
+      res.status(404).json({ success: false, error: 'Record could not be deleted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ==================== BATCH SYNC FROM CLIENT INDEXEDDB ====================
 app.post('/api/sync', async (req, res) => {
   try {
@@ -1260,6 +1347,7 @@ app.post('/api/sync', async (req, res) => {
       simRequests,
       serviceProviders,
       assetQueries,
+      removedEmployees,
     } = req.body;
 
     if (Array.isArray(employees)) {
@@ -1304,6 +1392,9 @@ app.post('/api/sync', async (req, res) => {
     if (Array.isArray(assetQueries)) {
       for (const aq of assetQueries) await db.upsert('asset_queries', aq);
     }
+    if (Array.isArray(removedEmployees)) {
+      for (const rem of removedEmployees) await db.upsert('removed_employees', rem);
+    }
 
     const stats = await db.getStats();
     res.json({ success: true, message: 'Database synchronized', stats });
@@ -1331,6 +1422,7 @@ app.post('/api/clear', async (req, res) => {
       'sim_requests',
       'service_providers',
       'asset_queries',
+      'removed_employees',
     ];
     for (const c of collections) {
       await db.clear(c);

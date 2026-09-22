@@ -24,9 +24,10 @@ if (!fs.existsSync(DATA_DIR)) {
 const DB_PATH = process.env.SQLITE_PATH || path.join(DATA_DIR, 'assetcore.db');
 const JSON_BACKUP_PATH = path.join(DATA_DIR, 'database_fallback.json');
 
-// Support Cloud Database URLs (PostgreSQL or MySQL)
+// Support Cloud Database URLs (PostgreSQL or MySQL) or discrete DB parameters
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PG_URL || process.env.MYSQL_URL || null;
 const isProduction = process.env.NODE_ENV === 'production';
+const isVercelServerless = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV);
 const allowSqliteInProd = process.env.ALLOW_SQLITE_IN_PROD === 'true' || Boolean(process.env.SQLITE_PATH);
 
 let pgPool = null;
@@ -35,37 +36,53 @@ let sqliteDB = null;
 let useFallback = false;
 let activeEngine = 'initializing';
 
+const pgHost = process.env.PGHOST || process.env.POSTGRES_HOST;
 const isPostgresUrl = Boolean(
-  DATABASE_URL && (
+  (DATABASE_URL && (
     DATABASE_URL.startsWith('postgres://') ||
     DATABASE_URL.startsWith('postgresql://') ||
-    DATABASE_URL.includes('cockroachdb') ||
-    Boolean(process.env.PGHOST)
-  )
+    DATABASE_URL.includes('cockroachdb')
+  )) || pgHost
 );
 
+const mysqlHost = process.env.MYSQL_HOST || process.env.MYSQLHOST || process.env.DB_HOST;
 const isMySqlUrl = Boolean(
-  DATABASE_URL && (
-    DATABASE_URL.startsWith('mysql://') ||
-    DATABASE_URL.startsWith('mysql2://') ||
-    DATABASE_URL.includes('mysql') ||
-    Boolean(process.env.MYSQL_HOST)
+  !isPostgresUrl && (
+    (DATABASE_URL && (
+      DATABASE_URL.startsWith('mysql://') ||
+      DATABASE_URL.startsWith('mysql2://') ||
+      DATABASE_URL.includes('mysql')
+    )) || mysqlHost
   )
 );
 
 // -------------------------------------------------------------
-// 1. Initialize PostgreSQL Connection Pool if PostgreSQL URL is supplied
+// 1. Initialize PostgreSQL Connection Pool if PostgreSQL is configured
 // -------------------------------------------------------------
 if (isPostgresUrl) {
   try {
-    const isLocalhost = DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1');
-    pgPool = new PgPool({
-      connectionString: DATABASE_URL,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000,
-      ssl: isLocalhost ? false : { rejectUnauthorized: false },
-    });
+    const isLocalhost = Boolean((DATABASE_URL && (DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1'))) || (pgHost && (pgHost.includes('localhost') || pgHost.includes('127.0.0.1'))));
+    const poolConfig = DATABASE_URL
+      ? {
+          connectionString: DATABASE_URL,
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 15000,
+          ssl: isLocalhost ? false : { rejectUnauthorized: false },
+        }
+      : {
+          host: pgHost,
+          user: process.env.PGUSER || process.env.POSTGRES_USER || 'postgres',
+          password: process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || '',
+          database: process.env.PGDATABASE || process.env.POSTGRES_DATABASE || 'assetcore',
+          port: Number(process.env.PGPORT || process.env.POSTGRES_PORT || 5432),
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 15000,
+          ssl: isLocalhost ? false : { rejectUnauthorized: false },
+        };
+
+    pgPool = new PgPool(poolConfig);
 
     // Test connection synchronously on startup
     const client = await pgPool.connect();
@@ -246,6 +263,18 @@ if (isPostgresUrl) {
       );
       CREATE INDEX IF NOT EXISTS idx_pg_qry_emp ON asset_queries (employee_id);
       CREATE INDEX IF NOT EXISTS idx_pg_qry_status ON asset_queries (status);
+
+      CREATE TABLE IF NOT EXISTS removed_employees (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        name VARCHAR(255) NULL,
+        department VARCHAR(255) NULL,
+        removed_date VARCHAR(100) NULL,
+        removed_by VARCHAR(255) NULL,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_pg_rem_emp ON removed_employees (employee_id);
     `);
 
     console.log('[Database] Cloud PostgreSQL tables & indices verified.');
@@ -261,20 +290,34 @@ if (isPostgresUrl) {
 }
 
 // -------------------------------------------------------------
-// 2. Initialize MySQL / MariaDB Connection Pool if MySQL URL is supplied
+// 2. Initialize MySQL / MariaDB Connection Pool if MySQL is configured
 // -------------------------------------------------------------
 if (!pgPool && isMySqlUrl) {
   try {
-    const isLocalhost = DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1');
-    const poolConfig = {
-      uri: DATABASE_URL,
-      waitForConnections: true,
-      connectionLimit: 20,
-      queueLimit: 0,
-      connectTimeout: 15000,
-      multipleStatements: true,
-      ssl: isLocalhost ? undefined : { rejectUnauthorized: false },
-    };
+    const isLocalhost = Boolean((DATABASE_URL && (DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1'))) || (mysqlHost && (mysqlHost.includes('localhost') || mysqlHost.includes('127.0.0.1'))));
+    const poolConfig = DATABASE_URL
+      ? {
+          uri: DATABASE_URL,
+          waitForConnections: true,
+          connectionLimit: 20,
+          queueLimit: 0,
+          connectTimeout: 15000,
+          multipleStatements: true,
+          ssl: isLocalhost ? undefined : { rejectUnauthorized: false },
+        }
+      : {
+          host: mysqlHost,
+          user: process.env.MYSQL_USER || process.env.MYSQLUSER || process.env.DB_USER || 'root',
+          password: process.env.MYSQL_PASSWORD || process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
+          database: process.env.MYSQL_DATABASE || process.env.MYSQLDATABASE || process.env.DB_NAME || 'assetcore',
+          port: Number(process.env.MYSQL_PORT || process.env.MYSQLPORT || process.env.DB_PORT || 3306),
+          waitForConnections: true,
+          connectionLimit: 20,
+          queueLimit: 0,
+          connectTimeout: 15000,
+          multipleStatements: true,
+          ssl: isLocalhost ? undefined : { rejectUnauthorized: false },
+        };
 
     mysqlPool = mysql.createPool(poolConfig);
 
@@ -480,6 +523,18 @@ if (!pgPool && isMySqlUrl) {
         INDEX idx_qry_emp (employee_id),
         INDEX idx_qry_status (status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+      CREATE TABLE IF NOT EXISTS removed_employees (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        name VARCHAR(255) NULL,
+        department VARCHAR(255) NULL,
+        removed_date VARCHAR(100) NULL,
+        removed_by VARCHAR(255) NULL,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_rem_emp (employee_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
     console.log('[Database] Cloud MySQL / MariaDB tables & indices verified.');
@@ -495,8 +550,6 @@ if (!pgPool && isMySqlUrl) {
 }
 
 // In production / Vercel serverless deployment, ensure a persistent cloud database is configured
-const isVercelServerless = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV);
-
 if ((isProduction || isVercelServerless) && !pgPool && !mysqlPool && !allowSqliteInProd) {
   console.error('[Database Error] Fatal: DATABASE_URL environment variable is missing or invalid in Production.');
   console.error('[Database Error] Ephemeral SQLite files cannot be used on Vercel serverless platform as data will be lost across cold starts.');
@@ -661,6 +714,17 @@ if (!pgPool && !mysqlPool) {
           data TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS removed_employees (
+          id TEXT PRIMARY KEY,
+          employeeId TEXT,
+          name TEXT,
+          department TEXT,
+          removedDate TEXT,
+          removedBy TEXT,
+          data TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
       `);
     } else {
       if (isProduction) {
@@ -694,6 +758,7 @@ let fallbackState = {
   sim_requests: [],
   service_providers: [],
   asset_queries: [],
+  removed_employees: [],
   system_settings: {},
 };
 
@@ -1123,6 +1188,28 @@ export const db = {
             Boolean(item.isStarred),
             dataStr,
           ]);
+        } else if (collection === 'removed_employees') {
+          const q = `
+            INSERT INTO removed_employees (id, employee_id, name, department, removed_date, removed_by, data, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              employee_id = EXCLUDED.employee_id,
+              name = EXCLUDED.name,
+              department = EXCLUDED.department,
+              removed_date = EXCLUDED.removed_date,
+              removed_by = EXCLUDED.removed_by,
+              data = EXCLUDED.data,
+              updated_at = NOW()
+          `;
+          await pgPool.query(q, [
+            item.id,
+            item.employeeId || '',
+            item.name || '',
+            item.department || '',
+            item.removedDate || '',
+            item.removedBy || 'Admin',
+            dataStr,
+          ]);
         } else if (collection === 'system_settings') {
           const q = `
             INSERT INTO system_settings (key, value, updated_at)
@@ -1406,6 +1493,28 @@ export const db = {
             item.status || 'Open',
             item.queryType || 'Fault',
             Boolean(item.isStarred),
+            dataStr,
+          ]);
+        } else if (collection === 'removed_employees') {
+          const q = `
+            INSERT INTO removed_employees (id, employee_id, name, department, removed_date, removed_by, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              employee_id = VALUES(employee_id),
+              name = VALUES(name),
+              department = VALUES(department),
+              removed_date = VALUES(removed_date),
+              removed_by = VALUES(removed_by),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await mysqlPool.query(q, [
+            item.id,
+            item.employeeId || '',
+            item.name || '',
+            item.department || '',
+            item.removedDate || '',
+            item.removedBy || 'Admin',
             dataStr,
           ]);
         } else if (collection === 'system_settings') {
@@ -1703,6 +1812,29 @@ export const db = {
             dataStr,
             now
           );
+        } else if (collection === 'removed_employees') {
+          const stmt = sqliteDB.prepare(`
+            INSERT INTO removed_employees (id, employeeId, name, department, removedDate, removedBy, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              employeeId = excluded.employeeId,
+              name = excluded.name,
+              department = excluded.department,
+              removedDate = excluded.removedDate,
+              removedBy = excluded.removedBy,
+              data = excluded.data,
+              updated_at = excluded.updated_at
+          `);
+          stmt.run(
+            item.id,
+            item.employeeId || '',
+            item.name || '',
+            item.department || '',
+            item.removedDate || '',
+            item.removedBy || 'Admin',
+            dataStr,
+            now
+          );
         }
         return item;
       } catch (err) {
@@ -1808,6 +1940,274 @@ export const db = {
     }
   },
 
+  // Transactional execution for SIM Recharge + SIM Card update with Read-Back verification
+  async saveSimRechargeTransaction(rechargeRecord, updatedSimRecord = null) {
+    const rechargeDataStr = JSON.stringify(rechargeRecord);
+
+    // 1. PostgreSQL Transaction
+    if (pgPool) {
+      const client = await pgPool.connect();
+      try {
+        await client.query('BEGIN');
+
+        const qRecharge = `
+          INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ON CONFLICT (id) DO UPDATE SET
+            sim_id = EXCLUDED.sim_id,
+            employee_id = EXCLUDED.employee_id,
+            recharge_date = EXCLUDED.recharge_date,
+            recharge_amount = EXCLUDED.recharge_amount,
+            total_amount = EXCLUDED.total_amount,
+            data = EXCLUDED.data,
+            updated_at = NOW()
+        `;
+        await client.query(qRecharge, [
+          rechargeRecord.id,
+          rechargeRecord.simId || '',
+          rechargeRecord.employeeId || null,
+          rechargeRecord.rechargeDate || '',
+          Number(rechargeRecord.rechargeAmount) || 0,
+          Number(rechargeRecord.totalAmount) || 0,
+          rechargeDataStr,
+        ]);
+
+        if (updatedSimRecord) {
+          const simDataStr = JSON.stringify(updatedSimRecord);
+          const qSim = `
+            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              contact_number = EXCLUDED.contact_number,
+              assigned_employee_id = EXCLUDED.assigned_employee_id,
+              status = EXCLUDED.status,
+              purpose = EXCLUDED.purpose,
+              data = EXCLUDED.data,
+              updated_at = NOW()
+          `;
+          await client.query(qSim, [
+            updatedSimRecord.id,
+            updatedSimRecord.contactNumber || '',
+            updatedSimRecord.assignedEmployeeId || null,
+            updatedSimRecord.status || 'Available',
+            updatedSimRecord.purpose || 'Holding',
+            simDataStr,
+          ]);
+        }
+
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('[PostgreSQL Error] Transaction saveSimRecharge failed:', err.message);
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      // READ-BACK VERIFICATION TEST
+      const verify = await this.getById('sim_recharges', rechargeRecord.id);
+      if (!verify) {
+        throw new Error(`Read-back verification failed: Record ${rechargeRecord.id} was not committed to Cloud PostgreSQL.`);
+      }
+      return verify;
+    }
+
+    // 2. MySQL Transaction
+    if (mysqlPool) {
+      const connection = await mysqlPool.getConnection();
+      try {
+        await connection.beginTransaction();
+
+        const qRecharge = `
+          INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+          ON DUPLICATE KEY UPDATE
+            sim_id = VALUES(sim_id),
+            employee_id = VALUES(employee_id),
+            recharge_date = VALUES(recharge_date),
+            recharge_amount = VALUES(recharge_amount),
+            total_amount = VALUES(total_amount),
+            data = VALUES(data),
+            updated_at = NOW()
+        `;
+        await connection.query(qRecharge, [
+          rechargeRecord.id,
+          rechargeRecord.simId || '',
+          rechargeRecord.employeeId || null,
+          rechargeRecord.rechargeDate || '',
+          Number(rechargeRecord.rechargeAmount) || 0,
+          Number(rechargeRecord.totalAmount) || 0,
+          rechargeDataStr,
+        ]);
+
+        if (updatedSimRecord) {
+          const simDataStr = JSON.stringify(updatedSimRecord);
+          const qSim = `
+            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              contact_number = VALUES(contact_number),
+              assigned_employee_id = VALUES(assigned_employee_id),
+              status = VALUES(status),
+              purpose = VALUES(purpose),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await connection.query(qSim, [
+            updatedSimRecord.id,
+            updatedSimRecord.contactNumber || '',
+            updatedSimRecord.assignedEmployeeId || null,
+            updatedSimRecord.status || 'Available',
+            updatedSimRecord.purpose || 'Holding',
+            simDataStr,
+          ]);
+        }
+
+        await connection.commit();
+      } catch (err) {
+        await connection.rollback();
+        console.error('[MySQL Error] Transaction saveSimRecharge failed:', err.message);
+        throw err;
+      } finally {
+        connection.release();
+      }
+
+      // READ-BACK VERIFICATION TEST
+      const verify = await this.getById('sim_recharges', rechargeRecord.id);
+      if (!verify) {
+        throw new Error(`Read-back verification failed: Record ${rechargeRecord.id} was not committed to Cloud MySQL.`);
+      }
+      return verify;
+    }
+
+    // 3. SQLite / Fallback
+    await this.upsert('sim_recharges', rechargeRecord);
+    if (updatedSimRecord) {
+      await this.upsert('sim_cards', updatedSimRecord);
+    }
+    const verify = await this.getById('sim_recharges', rechargeRecord.id);
+    if (!verify) {
+      throw new Error(`Read-back verification failed for SQLite record ${rechargeRecord.id}`);
+    }
+    return verify;
+  },
+
+  // Batch Transactional execution for multiple SIM recharges
+  async saveBatchSimRechargeTransaction(rechargesList, updatedSimsList = []) {
+    if (!Array.isArray(rechargesList) || rechargesList.length === 0) return [];
+
+    if (pgPool) {
+      const client = await pgPool.connect();
+      try {
+        await client.query('BEGIN');
+        for (const r of rechargesList) {
+          const dataStr = JSON.stringify(r);
+          const q = `
+            INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              sim_id = EXCLUDED.sim_id,
+              employee_id = EXCLUDED.employee_id,
+              recharge_date = EXCLUDED.recharge_date,
+              recharge_amount = EXCLUDED.recharge_amount,
+              total_amount = EXCLUDED.total_amount,
+              data = EXCLUDED.data,
+              updated_at = NOW()
+          `;
+          await client.query(q, [r.id, r.simId || '', r.employeeId || null, r.rechargeDate || '', Number(r.rechargeAmount) || 0, Number(r.totalAmount) || 0, dataStr]);
+        }
+        for (const s of updatedSimsList) {
+          const simDataStr = JSON.stringify(s);
+          const qSim = `
+            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              contact_number = EXCLUDED.contact_number,
+              assigned_employee_id = EXCLUDED.assigned_employee_id,
+              status = EXCLUDED.status,
+              purpose = EXCLUDED.purpose,
+              data = EXCLUDED.data,
+              updated_at = NOW()
+          `;
+          await client.query(qSim, [s.id, s.contactNumber || '', s.assignedEmployeeId || null, s.status || 'Available', s.purpose || 'Holding', simDataStr]);
+        }
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('[PostgreSQL Error] Batch transaction failed:', err.message);
+        throw err;
+      } finally {
+        client.release();
+      }
+
+      // READ-BACK VERIFICATION FOR ALL RECORDS
+      for (const r of rechargesList) {
+        const check = await this.getById('sim_recharges', r.id);
+        if (!check) throw new Error(`Read-back verification failed for batch record ${r.id} on Cloud PostgreSQL.`);
+      }
+      return rechargesList;
+    }
+
+    if (mysqlPool) {
+      const connection = await mysqlPool.getConnection();
+      try {
+        await connection.beginTransaction();
+        for (const r of rechargesList) {
+          const dataStr = JSON.stringify(r);
+          const q = `
+            INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              sim_id = VALUES(sim_id),
+              employee_id = VALUES(employee_id),
+              recharge_date = VALUES(recharge_date),
+              recharge_amount = VALUES(recharge_amount),
+              total_amount = VALUES(total_amount),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await connection.query(q, [r.id, r.simId || '', r.employeeId || null, r.rechargeDate || '', Number(r.rechargeAmount) || 0, Number(r.totalAmount) || 0, dataStr]);
+        }
+        for (const s of updatedSimsList) {
+          const simDataStr = JSON.stringify(s);
+          const qSim = `
+            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              contact_number = VALUES(contact_number),
+              assigned_employee_id = VALUES(assigned_employee_id),
+              status = VALUES(status),
+              purpose = VALUES(purpose),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await connection.query(qSim, [s.id, s.contactNumber || '', s.assignedEmployeeId || null, s.status || 'Available', s.purpose || 'Holding', simDataStr]);
+        }
+        await connection.commit();
+      } catch (err) {
+        await connection.rollback();
+        console.error('[MySQL Error] Batch transaction failed:', err.message);
+        throw err;
+      } finally {
+        connection.release();
+      }
+
+      for (const r of rechargesList) {
+        const check = await this.getById('sim_recharges', r.id);
+        if (!check) throw new Error(`Read-back verification failed for batch record ${r.id} on Cloud MySQL.`);
+      }
+      return rechargesList;
+    }
+
+    for (const r of rechargesList) {
+      await this.upsert('sim_recharges', r);
+    }
+    for (const s of updatedSimsList) {
+      await this.upsert('sim_cards', s);
+    }
+    return rechargesList;
+  },
+
   // System stats & telemetry
   async getStats() {
     const collections = [
@@ -1825,6 +2225,7 @@ export const db = {
       'sim_requests',
       'service_providers',
       'asset_queries',
+      'removed_employees',
     ];
     const counts = {};
     let total = 0;

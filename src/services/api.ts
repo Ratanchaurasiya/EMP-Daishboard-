@@ -14,6 +14,7 @@ import {
   SimRequest,
   ServiceProvider,
   AssetQuery,
+  RemovedEmployeeRecord,
 } from '../types';
 
 // In development or unified hosting, use relative '/api'
@@ -42,6 +43,7 @@ export interface BootstrapResponse {
     simRequests?: SimRequest[];
     serviceProviders?: ServiceProvider[];
     assetQueries?: AssetQuery[];
+    removedEmployees?: RemovedEmployeeRecord[];
   };
   stats?: any;
 }
@@ -532,18 +534,33 @@ export const api = {
     }
   },
 
-  async createSimRecharge(recharge: SimRecharge): Promise<{ success: boolean; data?: SimRecharge; error?: string }> {
+  async createSimRecharge(recharge: SimRecharge, updatedSim?: SimCard | null): Promise<{ success: boolean; data?: SimRecharge; error?: string }> {
     try {
       const res = await fetch(`${API_BASE}/sim-recharges`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recharge),
+        body: JSON.stringify(updatedSim ? { recharge, updatedSim } : recharge),
       });
       const json = await res.json();
-      if (!res.ok) return { success: false, error: json.error || 'Failed to save recharge' };
+      if (!res.ok) return { success: false, error: json.error || 'Failed to save recharge to Cloud Database' };
       return json;
     } catch (err: any) {
-      return { success: false, error: err.message || 'Network error' };
+      return { success: false, error: err.message || 'Network error connecting to backend' };
+    }
+  },
+
+  async createBatchSimRecharge(recharges: SimRecharge[], updatedSims?: SimCard[]): Promise<{ success: boolean; data?: SimRecharge[]; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/sim-recharges/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recharges, updatedSims }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to process batch recharge on Cloud Database' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error connecting to backend' };
     }
   },
 
@@ -708,6 +725,43 @@ export const api = {
     }
   },
 
+  // ================= REMOVED EMPLOYEES =================
+  async getRemovedEmployees(): Promise<RemovedEmployeeRecord[]> {
+    try {
+      const res = await fetch(`${API_BASE}/removed-employees`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createRemovedEmployee(record: RemovedEmployeeRecord): Promise<{ success: boolean; data?: RemovedEmployeeRecord; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/removed-employees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+      });
+      const json = await res.json();
+      if (!res.ok) return { success: false, error: json.error || 'Failed to save removed employee record' };
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async deleteRemovedEmployee(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/removed-employees/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // ================= BULK SYNC / RESTORE =================
   async syncAll(data: {
     employees?: Employee[];
@@ -724,6 +778,7 @@ export const api = {
     simRequests?: SimRequest[];
     serviceProviders?: ServiceProvider[];
     assetQueries?: AssetQuery[];
+    removedEmployees?: RemovedEmployeeRecord[];
   }): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/sync`, {

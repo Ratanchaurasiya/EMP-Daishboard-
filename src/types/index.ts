@@ -267,6 +267,7 @@ export interface AuditLog {
     | 'SIM Reactivated'
     | 'SIM Removed'
     | 'SIM Recharge Added'
+    | 'Batch SIM Recharge Added'
     | 'SIM Recharge Updated'
     | 'SIM Request Submitted'
     | 'SIM Request Status Updated'

@@ -84,7 +84,7 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -141,7 +141,7 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
 
       if (enableInitialRecharge && res?.data) {
         const assignedEmp = employees.find(e => e.id === assignedEmployeeId);
-        addSimRecharge({
+        const rechargeRes = await addSimRecharge({
           simId: res.data.id,
           contactNumber: res.data.contactNumber,
           employeeId: assignedEmployeeId || null,
@@ -155,6 +155,10 @@ export const AddEditSimModal: React.FC<AddEditSimModalProps> = ({
           referenceNumber: rechargeRef.trim() || undefined,
           remarks: rechargeRemarks.trim() || 'Direct recharge upon SIM registration',
         });
+        if (rechargeRes && !rechargeRes.success) {
+          setError(rechargeRes.error || 'SIM registered, but failed to persist initial recharge on Cloud DB.');
+          return;
+        }
       }
     }
 

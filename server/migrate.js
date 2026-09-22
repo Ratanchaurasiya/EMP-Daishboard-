@@ -233,11 +233,24 @@ export async function runMigrations() {
         );
         CREATE INDEX IF NOT EXISTS idx_pg_qry_emp ON asset_queries (employee_id);
         CREATE INDEX IF NOT EXISTS idx_pg_qry_status ON asset_queries (status);
+
+        -- 16. Removed Employees Table
+        CREATE TABLE IF NOT EXISTS removed_employees (
+          id VARCHAR(100) NOT NULL PRIMARY KEY,
+          employee_id VARCHAR(100) NULL,
+          name VARCHAR(255) NULL,
+          department VARCHAR(255) NULL,
+          removed_date VARCHAR(100) NULL,
+          removed_by VARCHAR(255) NULL,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_pg_rem_emp ON removed_employees (employee_id);
       `);
 
       client.release();
       await pgPool.end();
-      console.log('✅ PostgreSQL Schema migrations completed successfully (15 tables verified).');
+      console.log('✅ PostgreSQL Schema migrations completed successfully (16 tables verified).');
     } catch (err) {
       console.error('[Migration Error] PostgreSQL migration failed:', err.message);
       await pgPool.end();
@@ -479,10 +492,25 @@ export async function runMigrations() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // 16. Removed Employees Table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS removed_employees (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        name VARCHAR(255) NULL,
+        department VARCHAR(255) NULL,
+        removed_date VARCHAR(100) NULL,
+        removed_by VARCHAR(255) NULL,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_rem_emp (employee_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     connection.release();
     await pool.end();
 
-    console.log('✅ MySQL / MariaDB Schema migrations completed successfully (15 tables verified).');
+    console.log('✅ MySQL / MariaDB Schema migrations completed successfully (16 tables verified).');
   } catch (err) {
     console.error('[Migration Error] Migration failed:', err.message);
     await pool.end();

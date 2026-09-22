@@ -103,7 +103,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const [requestPanelFilter, setRequestPanelFilter] = useState<'all' | 'sim' | 'hardware' | 'service'>('all');
 
   // Spend Trend Timeframe, Stream & Contact Number Controls
-  type SpendGranularity = 'weekly' | 'monthly' | 'yearly';
+  type SpendGranularity = 'daily' | 'weekly' | 'monthly' | 'yearly';
   type SpendTimeScope = string;
   type SpendChartType = 'area' | 'bar';
   type SpendExpenseStream = 'all' | 'hardware' | 'telecom';
@@ -707,7 +707,52 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     return items;
   }, [serviceRecords, simRecharges, spendStream, contactNumberFilter]);
 
-  // 2. Spend Datasets (Weekly, Monthly, Yearly)
+  // 2. Spend Datasets (Daily, Weekly, Monthly, Yearly)
+  // Daily Dataset
+  const dailySpendData = useMemo(() => {
+    const map: Record<string, SpendAggregatedPoint> = {};
+
+    rawSpendItems.forEach(ticket => {
+      const d = parseServiceDate(ticket.date);
+      if (!d) return;
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+
+      const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayStr = String(day).padStart(2, '0');
+      const monthShort = d.toLocaleString('en-US', { month: 'short' });
+      const monthFull = d.toLocaleString('en-US', { month: 'long' });
+      const label = `${dayStr} ${monthShort}`; // e.g. "01 Sep", "02 Sep"
+      const subLabel = `${dayStr} ${monthShort} ${year}`;
+      const fullTitle = `${monthFull} ${dayStr}, ${year}`;
+      const cost = ticket.cost;
+
+      if (!map[dayKey]) {
+        map[dayKey] = {
+          key: dayKey,
+          label,
+          subLabel,
+          fullTitle,
+          cost,
+          hardwareCost: ticket.type === 'hardware' ? cost : 0,
+          telecomCost: ticket.type === 'telecom' ? cost : 0,
+          count: 1,
+          tickets: [ticket],
+          year,
+        };
+      } else {
+        map[dayKey].cost += cost;
+        if (ticket.type === 'hardware') map[dayKey].hardwareCost += cost;
+        if (ticket.type === 'telecom') map[dayKey].telecomCost += cost;
+        map[dayKey].count += 1;
+        map[dayKey].tickets.push(ticket);
+      }
+    });
+
+    return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
+  }, [rawSpendItems]);
+
   // Weekly Dataset
   const weeklySpendData = useMemo(() => {
     const map: Record<string, SpendAggregatedPoint> = {};
@@ -808,10 +853,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         const d = new Date(year, m - 1, 1);
         const monthShort = d.toLocaleString('en-US', { month: 'short' });
         const monthFull = d.toLocaleString('en-US', { month: 'long' });
-        const shortYear = String(year).slice(-2);
         map[monthKey] = {
           key: monthKey,
-          label: `${monthShort} '${shortYear}`,
+          label: `${monthShort} ${year}`,
           subLabel: `${monthFull} ${year}`,
           fullTitle: `${monthFull} ${year}`,
           cost: 0,
@@ -832,13 +876,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       const monthKey = `${year}-${String(monthNum).padStart(2, '0')}`;
       const monthShort = d.toLocaleString('en-US', { month: 'short' });
       const monthFull = d.toLocaleString('en-US', { month: 'long' });
-      const shortYear = String(year).slice(-2);
       const cost = ticket.cost;
 
       if (!map[monthKey]) {
         map[monthKey] = {
           key: monthKey,
-          label: `${monthShort} '${shortYear}`,
+          label: `${monthShort} ${year}`,
           subLabel: `${monthFull} ${year}`,
           fullTitle: `${monthFull} ${year}`,
           cost,
@@ -918,7 +961,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   // Filtered Dataset based on Selected Granularity & Time Scope
   const currentSpendData = useMemo(() => {
     let dataset: SpendAggregatedPoint[] = [];
-    if (granularity === 'weekly') {
+    if (granularity === 'daily') {
+      dataset = dailySpendData;
+    } else if (granularity === 'weekly') {
       dataset = weeklySpendData;
     } else if (granularity === 'monthly') {
       dataset = monthlySpendData;
@@ -931,7 +976,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     }
 
     return dataset.filter(item => String(item.year) === timeScope);
-  }, [granularity, timeScope, weeklySpendData, monthlySpendData, yearlySpendData]);
+  }, [granularity, timeScope, dailySpendData, weeklySpendData, monthlySpendData, yearlySpendData]);
 
   // Dynamic Telemetry Metrics for Selected View
   const filteredSpendTotal = useMemo(() => {
@@ -2055,9 +2100,22 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </div>
             )}
 
-            {/* Granularity Switcher: Weekly | Monthly | Yearly */}
+            {/* Granularity Switcher: Daily | Weekly | Monthly | Yearly */}
             <div className="inline-flex p-0.5 bg-slate-100 dark:bg-[#0b101b] rounded-lg border border-slate-200/80 dark:border-[#1e293b] text-xs">
               <button
+                type="button"
+                onClick={() => setGranularity('daily')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                  granularity === 'daily'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/30 font-bold'
+                    : 'text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <Clock className="w-3 h-3" />
+                Daily
+              </button>
+              <button
+                type="button"
                 onClick={() => setGranularity('weekly')}
                 className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                   granularity === 'weekly'
@@ -2069,6 +2127,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 Weekly
               </button>
               <button
+                type="button"
                 onClick={() => setGranularity('monthly')}
                 className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                   granularity === 'monthly'
@@ -2080,6 +2139,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 Monthly
               </button>
               <button
+                type="button"
                 onClick={() => setGranularity('yearly')}
                 className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                   granularity === 'yearly'
@@ -2096,6 +2156,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             {granularity !== 'yearly' && (
               <div className="inline-flex p-0.5 bg-slate-100 dark:bg-[#0b101b] rounded-lg border border-slate-200/80 dark:border-[#1e293b] text-xs">
                 <button
+                  type="button"
                   onClick={() => setTimeScope('all')}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                     timeScope === 'all'
@@ -2108,6 +2169,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 {availableYears.map(yr => (
                   <button
                     key={yr}
+                    type="button"
                     onClick={() => setTimeScope(yr)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                       timeScope === yr
@@ -2124,6 +2186,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             {/* Chart Style Switcher: Area Trendline vs Column Bars */}
             <div className="inline-flex p-0.5 bg-slate-100 dark:bg-[#0b101b] rounded-lg border border-slate-200/80 dark:border-[#1e293b] text-xs">
               <button
+                type="button"
                 onClick={() => setChartType('area')}
                 title="Spline Area Trendline"
                 className={`p-1.5 rounded-md transition-colors cursor-pointer ${
@@ -2135,6 +2198,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 <TrendingUp className="w-3.5 h-3.5" />
               </button>
               <button
+                type="button"
                 onClick={() => setChartType('bar')}
                 title="Discrete Column Bars"
                 className={`p-1.5 rounded-md transition-colors cursor-pointer ${
@@ -2153,7 +2217,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-4">
           {/* Main Visualizer (8 Columns) */}
           <div className="lg:col-span-8">
-            <div className="h-64 w-full">
+            <div className="h-72 w-full">
               {currentSpendData.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-500 p-4 text-center">
                   <AlertTriangle className="w-8 h-8 text-amber-500/70 mb-2" />
@@ -2168,6 +2232,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   <div className="mt-3 flex items-center gap-2">
                     {timeScope !== 'all' && (
                       <button
+                        type="button"
                         onClick={() => {
                           setTimeScope('all');
                           setContactNumberFilter('all');
@@ -2179,6 +2244,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => onOpenAddService()}
                       className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                     >
@@ -2186,6 +2252,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       <span>Log Service Ticket</span>
                     </button>
                     <button
+                      type="button"
                       onClick={() => setActiveTab('sim-management')}
                       className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                     >
@@ -2199,7 +2266,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   {chartType === 'area' ? (
                     <AreaChart
                       data={currentSpendData}
-                      margin={{ top: 15, right: 15, left: -10, bottom: 0 }}
+                      margin={{ top: 15, right: 15, left: -10, bottom: 25 }}
                     >
                       <defs>
                         <linearGradient id="spendGradientExecutive" x1="0" y1="0" x2="0" y2="1">
@@ -2213,9 +2280,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         stroke="#64748b"
                         fontSize={10}
                         tickLine={false}
-                        interval={currentSpendData.length > 20 ? 2 : currentSpendData.length > 12 ? 1 : 0}
-                        minTickGap={24}
-                        dy={6}
+                        height={45}
+                        tick={{ fontSize: 10, fill: '#64748b' }}
+                        interval="preserveStartEnd"
+                        minTickGap={20}
+                        dy={8}
                       />
                       <YAxis
                         stroke="#64748b"
@@ -2242,7 +2311,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 onTouchMove={(e) => e.stopPropagation()}
                               >
                                 <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400 shrink-0">
-                                  <span className="font-semibold text-slate-200">{item.fullTitle}</span>
+                                  <span className="font-semibold text-slate-200">{item.subLabel || item.fullTitle || item.label}</span>
                                   <div className="flex items-center gap-1.5">
                                     <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
                                       {item.count} Event{item.count > 1 ? 's' : ''}
@@ -2362,7 +2431,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   ) : (
                     <BarChart
                       data={currentSpendData}
-                      margin={{ top: 15, right: 15, left: -10, bottom: 0 }}
+                      margin={{ top: 15, right: 15, left: -10, bottom: 25 }}
                     >
                       <defs>
                         <linearGradient id="spendBarGradient" x1="0" y1="0" x2="0" y2="1">
@@ -2376,9 +2445,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         stroke="#64748b"
                         fontSize={10}
                         tickLine={false}
-                        interval={currentSpendData.length > 20 ? 2 : currentSpendData.length > 12 ? 1 : 0}
-                        minTickGap={24}
-                        dy={6}
+                        height={45}
+                        tick={{ fontSize: 10, fill: '#64748b' }}
+                        interval="preserveStartEnd"
+                        minTickGap={20}
+                        dy={8}
                       />
                       <YAxis
                         stroke="#64748b"
@@ -2405,7 +2476,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 onTouchMove={(e) => e.stopPropagation()}
                               >
                                 <div className="flex items-center justify-between border-b border-[#1e293b] pb-1.5 text-[11px] text-slate-400 shrink-0">
-                                  <span className="font-semibold text-slate-200">{item.fullTitle}</span>
+                                  <span className="font-semibold text-slate-200">{item.subLabel || item.fullTitle || item.label}</span>
                                   <div className="flex items-center gap-1.5">
                                     <span className="font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/20">
                                       {item.count} Event{item.count > 1 ? 's' : ''}

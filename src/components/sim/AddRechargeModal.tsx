@@ -19,7 +19,7 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
   preselectedSimId,
   initialMode = 'ALL_ACTIVE',
 }) => {
-  const { simCards, addSimRecharge } = useApp();
+  const { simCards, addSimRecharge, addBatchSimRecharges } = useApp();
 
   const [rechargeScope, setRechargeScope] = useState<'ALL_ACTIVE' | 'SINGLE_SIM'>(initialMode);
   const [selectedSimId, setSelectedSimId] = useState('');
@@ -32,6 +32,7 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
   const [referenceNumber, setReferenceNumber] = useState('');
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // STRICT RULE FOR BATCH: Only include currently Active assigned SIM Cards
   // Excludes Buffer SIMs, unassigned stock, blocked/suspended SIMs, inactive, and deactivated SIMs
@@ -81,7 +82,7 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
   const currentSim = simCards.find(s => s.id === selectedSimId);
   const calc = calculateRechargeGst(rechargeAmount, gstPercentage);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -101,9 +102,9 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
         return;
       }
 
-      let errCount = 0;
-      activeAssignedSims.forEach((sim, idx) => {
-        const payload = {
+      setIsSubmitting(true);
+      try {
+        const batchPayload = activeAssignedSims.map((sim, idx) => ({
           simId: sim.id,
           contactNumber: sim.contactNumber,
           employeeId: sim.assignedEmployeeId || null,
@@ -116,18 +117,21 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
           paymentMode,
           referenceNumber: referenceNumber.trim() ? `${referenceNumber.trim()}-${idx + 1}` : undefined,
           remarks: remarks.trim() || 'Batch recharge for all active assigned corporate lines',
-        };
+        }));
 
-        const res = addSimRecharge(payload);
-        if (res && !res.success) errCount++;
-      });
+        const res = await addBatchSimRecharges(batchPayload);
+        if (!res.success) {
+          setError(res.error || 'Failed to record batch SIM recharge on Cloud DB.');
+          setIsSubmitting(false);
+          return;
+        }
 
-      if (errCount > 0) {
-        setError(`Batch recharge completed with ${errCount} errors.`);
-        return;
+        setIsSubmitting(false);
+        onClose();
+      } catch (err: any) {
+        setError(err.message || 'An unexpected error occurred during batch recharge.');
+        setIsSubmitting(false);
       }
-
-      onClose();
       return;
     }
 
@@ -157,13 +161,21 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
       remarks: remarks.trim() || undefined,
     };
 
-    const res = addSimRecharge(payload);
-    if (res && !res.success) {
-      setError(res.error || 'Failed to record SIM recharge.');
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      const res = await addSimRecharge(payload);
+      if (!res.success) {
+        setError(res.error || 'Failed to record SIM recharge on Cloud DB.');
+        setIsSubmitting(false);
+        return;
+      }
 
-    onClose();
+      setIsSubmitting(false);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred during recharge.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -476,16 +488,26 @@ export const AddRechargeModal: React.FC<AddRechargeModalProps> = ({
             </button>
             <button
               type="submit"
-              className={`px-5 py-2.5 rounded-xl text-white text-sm font-medium shadow-lg transition-all flex items-center space-x-2 cursor-pointer ${
+              disabled={isSubmitting}
+              className={`px-5 py-2.5 rounded-xl text-white text-sm font-medium shadow-lg transition-all flex items-center space-x-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                 rechargeScope === 'SINGLE_SIM'
                   ? 'bg-teal-600 hover:bg-teal-500 shadow-teal-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
               }`}
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>
-                {rechargeScope === 'SINGLE_SIM' ? 'Record Manual Recharge' : 'Record Batch Recharge'} ({formatINR(calc.totalAmount)})
-              </span>
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Saving to Cloud DB...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>
+                    {rechargeScope === 'SINGLE_SIM' ? 'Record Manual Recharge' : 'Record Batch Recharge'} ({formatINR(calc.totalAmount)})
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </form>
