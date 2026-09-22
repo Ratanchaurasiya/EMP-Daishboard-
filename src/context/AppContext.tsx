@@ -254,7 +254,7 @@ interface AppContextType {
     status: RequestStatus,
     adminNotes?: string
   ) => void;
-  removeAssetRequest: (requestId: string) => void;
+  removeAssetRequest: (requestId: string, removalReason?: string, removedBy?: string) => void;
 
   // Staff Asset Query Management Actions
   assetQueries: AssetQuery[];
@@ -270,7 +270,7 @@ interface AppContextType {
   ) => { success: boolean; message?: string };
   reportQueryStillUnresolved: (queryId: string, notes?: string) => { success: boolean; message?: string };
   toggleStarAssetQuery: (queryId: string) => { success: boolean; isStarred?: boolean };
-  removeAssetQuery: (queryId: string) => { success: boolean };
+  removeAssetQuery: (queryId: string, removalReason?: string, removedBy?: string) => { success: boolean };
 
   // Admin WhatsApp OTP & Password Reset Actions
   adminRecoveryNumber: string;
@@ -316,7 +316,7 @@ interface AppContextType {
     adminRemarks?: string,
     resolutionRemarks?: string
   ) => { success: boolean; error?: string };
-  removeSimRequest: (requestId: string) => void;
+  removeSimRequest: (requestId: string, removalReason?: string, removedBy?: string) => void;
 
   // System & PC Support Service Providers
   addServiceProvider: (
@@ -4450,29 +4450,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Request ${requestId} updated to "${status}".`, 'success');
   };
 
-  const removeAssetRequest: AppContextType['removeAssetRequest'] = requestId => {
+  const removeAssetRequest: AppContextType['removeAssetRequest'] = (requestId, removalReason, removedBy) => {
     const existing = assetRequests.find(r => r.id === requestId);
-    const nextList = assetRequests.filter(r => r.id !== requestId);
+    if (!existing) return;
+
+    const adminUser = removedBy || currentUser?.name || 'IT Admin';
+    const now = new Date().toISOString();
+    const reasonText = (removalReason || 'Equipment request removed by Admin').trim();
+
+    const nextList = assetRequests.map(r => {
+      if (r.id === requestId) {
+        return {
+          ...r,
+          status: 'Removed' as RequestStatus,
+          removedBy: adminUser,
+          removedAt: now,
+          removalReason: reasonText,
+          updatedAt: now,
+        };
+      }
+      return r;
+    });
+
     setAssetRequests(nextList);
     try {
       localStorage.setItem(`${STORAGE_KEY}_ASSET_REQUESTS`, JSON.stringify(nextList));
-      localStorage.setItem('assetcore_request_broadcast', JSON.stringify({ id: requestId, action: 'delete', timestamp: Date.now() }));
+      localStorage.setItem('assetcore_request_broadcast', JSON.stringify({ id: requestId, action: 'update', timestamp: Date.now() }));
     } catch (e) {
-      console.warn('LocalStorage error deleting asset request:', e);
+      console.warn('LocalStorage error updating asset request status to Removed:', e);
     }
 
-    api.deleteAssetRequest(requestId).catch(err => console.warn('[AssetCore Backend] Failed to delete asset request from SQLite:', err));
-    assetCoreDB.delete('assetRequests', requestId).catch(() => {});
-    window.dispatchEvent(new CustomEvent('assetcore:new_request', { detail: { id: requestId, deleted: true } }));
-
-    if (existing) {
-      addAuditEntry(
-        'Asset Request Removed',
-        `Admin removed requisition record ${requestId} for ${existing.employeeName}`
-      );
+    const updated = nextList.find(r => r.id === requestId);
+    if (updated) {
+      api.updateAssetRequest(requestId, updated).catch(err => console.warn('[AssetCore Backend] Failed to update asset request in SQLite:', err));
+      assetCoreDB.put('assetRequests', updated).catch(() => {});
     }
 
-    showToast(`Requisition record "${requestId}" deleted.`, 'info');
+    addAuditEntry(
+      'Asset Request Removed',
+      `Admin ${adminUser} removed requisition record ${requestId} for ${existing.employeeName}. Reason: ${reasonText}`
+    );
+
+    showToast(`Requisition record "${requestId}" marked as Removed. History preserved.`, 'info');
   };
 
   // -------------------------------------------------------------
@@ -4729,27 +4748,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, isStarred: newStarredState };
   };
 
-  const removeAssetQuery: AppContextType['removeAssetQuery'] = queryId => {
+  const removeAssetQuery: AppContextType['removeAssetQuery'] = (queryId, removalReason, removedBy) => {
     const existing = assetQueries.find(q => q.id === queryId);
-    const nextList = assetQueries.filter(q => q.id !== queryId);
+    if (!existing) return { success: false };
+
+    const adminUser = removedBy || currentUser?.name || 'IT Admin';
+    const now = new Date().toISOString();
+    const reasonText = (removalReason || 'Asset query removed by Admin').trim();
+
+    const nextList = assetQueries.map(q => {
+      if (q.id === queryId) {
+        return {
+          ...q,
+          status: 'Removed' as AssetQueryStatus,
+          removedBy: adminUser,
+          removedAt: now,
+          removalReason: reasonText,
+          updatedAt: now,
+          history: [
+            {
+              id: `hist-${Date.now()}`,
+              timestamp: now,
+              status: 'Removed' as AssetQueryStatus,
+              updatedBy: adminUser,
+              notes: `Query removed by Admin ${adminUser}. Reason: ${reasonText}`,
+            },
+            ...q.history,
+          ],
+        };
+      }
+      return q;
+    });
+
     setAssetQueries(nextList);
     try {
       localStorage.setItem(`${STORAGE_KEY}_ASSET_QUERIES`, JSON.stringify(nextList));
     } catch (e) {
-      console.warn('LocalStorage error removing asset query:', e);
+      console.warn('LocalStorage error soft-removing asset query:', e);
     }
 
-    api.deleteAssetQuery(queryId).catch(err => console.warn('[AssetCore Backend] Failed to delete query:', err));
-    assetCoreDB.delete('assetQueries', queryId).catch(() => {});
-
-    if (existing) {
-      addAuditEntry(
-        'Asset Query Removed',
-        `Asset query ${queryId} removed`
-      );
+    const updatedQuery = nextList.find(q => q.id === queryId);
+    if (updatedQuery) {
+      api.updateAssetQuery(queryId, updatedQuery).catch(err => console.warn('[AssetCore Backend] Failed to update query:', err));
+      assetCoreDB.put('assetQueries', updatedQuery).catch(() => {});
     }
 
-    showToast(`Asset query ${queryId} deleted.`, 'info');
+    addAuditEntry(
+      'Asset Query Removed',
+      `Admin ${adminUser} removed query ${queryId} for ${existing.employeeName}. Reason: ${reasonText}`
+    );
+
+    showToast(`Asset query ${queryId} marked as Removed. History preserved.`, 'info');
     return { success: true };
   };
 
@@ -5326,18 +5375,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
-  const removeSimRequest: AppContextType['removeSimRequest'] = requestId => {
-    const nextList = simRequests.filter(r => r.id !== requestId);
+  const removeSimRequest: AppContextType['removeSimRequest'] = (requestId, removalReason, removedBy) => {
+    const existing = simRequests.find(r => r.id === requestId);
+    if (!existing) return;
+
+    const adminUser = removedBy || currentUser?.name || 'IT Admin';
+    const now = new Date().toISOString();
+    const reasonText = (removalReason || 'SIM request removed by Admin').trim();
+
+    const nextList = simRequests.map(r => {
+      if (r.id === requestId) {
+        return {
+          ...r,
+          status: 'Removed' as SimRequestStatus,
+          removedBy: adminUser,
+          removedAt: now,
+          removalReason: reasonText,
+          updatedAt: now,
+        };
+      }
+      return r;
+    });
+
     setSimRequests(nextList);
     try {
       localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify(nextList));
     } catch (e) {
-      console.warn('LocalStorage error deleting SIM request:', e);
+      console.warn('LocalStorage error soft-removing SIM request:', e);
     }
 
-    api.deleteSimRequest(requestId).catch(err => console.warn('[AssetCore Backend] Failed to delete SIM request from SQLite:', err));
-    assetCoreDB.delete('simRequests', requestId).catch(() => {});
-    showToast(`SIM request record removed.`, 'info');
+    const updated = nextList.find(r => r.id === requestId);
+    if (updated) {
+      api.updateSimRequest(requestId, updated).catch(err => console.warn('[AssetCore Backend] Failed to update SIM request in SQLite:', err));
+      assetCoreDB.put('simRequests', updated).catch(() => {});
+    }
+
+    addAuditEntry(
+      'SIM Request Removed',
+      `Admin ${adminUser} removed SIM request ${requestId} for ${existing.employeeName}. Reason: ${reasonText}`
+    );
+
+    showToast(`SIM request record ${requestId} marked as Removed. History preserved.`, 'info');
   };
 
   // -------------------------------------------------------------

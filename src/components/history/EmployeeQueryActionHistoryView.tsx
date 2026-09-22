@@ -80,9 +80,11 @@ export const EmployeeQueryActionHistoryView: React.FC<{
     // 1. Equipment Requisitions (assetRequests)
     (assetRequests || []).forEach(req => {
       const isRemoved = removedEmpIds.has((req.employeeId || '').toLowerCase());
+      const isQueryRemoved = req.status === 'Removed';
       const rawTime = new Date(req.createdAt || req.requestDate).getTime() || Date.now();
-      let variant: 'approved' | 'rejected' | 'pending' | 'in_progress' = 'pending';
-      if (req.status === 'Approved' || req.status === 'Fulfilled') variant = 'approved';
+      let variant: 'approved' | 'rejected' | 'pending' | 'in_progress' | 'removed' = 'pending';
+      if (isQueryRemoved) variant = 'removed';
+      else if (req.status === 'Approved' || req.status === 'Fulfilled') variant = 'approved';
       else if (req.status === 'Rejected') variant = 'rejected';
       else if (req.status === 'In Progress') variant = 'in_progress';
 
@@ -106,13 +108,13 @@ export const EmployeeQueryActionHistoryView: React.FC<{
           isCurrent: req.status === 'In Progress',
         },
         {
-          title: req.status === 'Approved' ? 'Approved' : req.status === 'Fulfilled' ? 'Fulfilled & Issued' : req.status === 'Rejected' ? 'Rejected' : 'Action Decision',
-          description: req.adminNotes || (req.status === 'Rejected' ? 'Request rejected by Admin' : req.status === 'Approved' || req.status === 'Fulfilled' ? 'Request approved by Admin' : 'Awaiting decision'),
-          timestamp: req.fulfilledDate ? formatDateDisplay(req.fulfilledDate) : req.updatedAt ? formatDateDisplay(req.updatedAt) : undefined,
-          actor: 'IT Administrator',
-          isDone: req.status === 'Approved' || req.status === 'Fulfilled' || req.status === 'Rejected',
-          isCurrent: req.status === 'Approved' || req.status === 'Fulfilled' || req.status === 'Rejected',
-          isRejected: req.status === 'Rejected',
+          title: isQueryRemoved ? 'Request Removed' : req.status === 'Approved' ? 'Approved' : req.status === 'Fulfilled' ? 'Fulfilled & Issued' : req.status === 'Rejected' ? 'Rejected' : 'Action Decision',
+          description: isQueryRemoved ? (req.removalReason ? `Removal Reason: ${req.removalReason}` : 'Removed by Admin') : req.adminNotes || (req.status === 'Rejected' ? 'Request rejected by Admin' : req.status === 'Approved' || req.status === 'Fulfilled' ? 'Request approved by Admin' : 'Awaiting decision'),
+          timestamp: req.removedAt ? formatDateDisplay(req.removedAt) : req.fulfilledDate ? formatDateDisplay(req.fulfilledDate) : req.updatedAt ? formatDateDisplay(req.updatedAt) : undefined,
+          actor: req.removedBy || 'IT Administrator',
+          isDone: req.status === 'Approved' || req.status === 'Fulfilled' || req.status === 'Rejected' || isQueryRemoved,
+          isCurrent: req.status === 'Approved' || req.status === 'Fulfilled' || req.status === 'Rejected' || isQueryRemoved,
+          isRejected: req.status === 'Rejected' || isQueryRemoved,
         },
       ];
 
@@ -129,8 +131,8 @@ export const EmployeeQueryActionHistoryView: React.FC<{
         actionTaken: req.status,
         status: isRemoved ? `${req.status} (Employee Removed)` : req.status,
         statusVariant: isRemoved ? 'removed' : variant,
-        adminName: 'IT Admin',
-        reasonRemark: req.adminNotes || (req.status === 'Rejected' ? 'Request was rejected by Admin' : req.status === 'Approved' ? 'Requirements verified & approved' : 'Pending Admin evaluation'),
+        adminName: req.removedBy || 'IT Admin',
+        reasonRemark: isQueryRemoved ? (req.removalReason ? `Removal Reason: ${req.removalReason}` : 'Removed by Admin') : (req.adminNotes || (req.status === 'Rejected' ? 'Request was rejected by Admin' : req.status === 'Approved' ? 'Requirements verified & approved' : 'Pending Admin evaluation')),
         date: req.requestDate || req.createdAt,
         rawDate: rawTime,
         isEmployeeRemoved: isRemoved,
@@ -141,9 +143,11 @@ export const EmployeeQueryActionHistoryView: React.FC<{
     // 2. SIM Requests (simRequests)
     (simRequests || []).forEach(req => {
       const isRemoved = removedEmpIds.has((req.employeeId || '').toLowerCase());
+      const isQueryRemoved = req.status === 'Removed';
       const rawTime = new Date(req.createdAt).getTime() || Date.now();
-      let variant: 'approved' | 'rejected' | 'pending' | 'in_progress' = 'pending';
-      if (req.status === 'Approved' || req.status === 'Resolved') variant = 'approved';
+      let variant: 'approved' | 'rejected' | 'pending' | 'in_progress' | 'removed' = 'pending';
+      if (isQueryRemoved) variant = 'removed';
+      else if (req.status === 'Approved' || req.status === 'Resolved') variant = 'approved';
       else if (req.status === 'Rejected') variant = 'rejected';
       else if (req.status === 'In Progress') variant = 'in_progress';
 
@@ -160,20 +164,20 @@ export const EmployeeQueryActionHistoryView: React.FC<{
         },
         {
           title: 'Telecom Review',
-          description: req.status === 'Pending' ? 'Awaiting Telecom Manager review' : `Processed by ${req.resolvedBy || 'IT Admin'}`,
+          description: req.status === 'Pending' ? 'Awaiting Telecom Manager review' : `Processed by ${req.resolvedBy || req.removedBy || 'IT Admin'}`,
           timestamp: req.resolvedAt ? formatDateDisplay(req.resolvedAt) : req.updatedAt ? formatDateDisplay(req.updatedAt) : undefined,
-          actor: req.resolvedBy || 'IT Admin',
+          actor: req.resolvedBy || req.removedBy || 'IT Admin',
           isDone: req.status !== 'Pending',
           isCurrent: req.status === 'In Progress',
         },
         {
-          title: req.status === 'Approved' ? 'Approved' : req.status === 'Resolved' ? 'Resolved & Issued' : req.status === 'Rejected' ? 'Rejected' : 'Action Decision',
-          description: remarks || (req.status === 'Rejected' ? 'SIM request rejected by Admin' : 'Action decision recorded'),
-          timestamp: req.resolvedAt ? formatDateDisplay(req.resolvedAt) : undefined,
-          actor: req.resolvedBy || 'IT Admin',
-          isDone: req.status === 'Approved' || req.status === 'Resolved' || req.status === 'Rejected',
-          isCurrent: req.status === 'Approved' || req.status === 'Resolved' || req.status === 'Rejected',
-          isRejected: req.status === 'Rejected',
+          title: isQueryRemoved ? 'Request Removed' : req.status === 'Approved' ? 'Approved' : req.status === 'Resolved' ? 'Resolved & Issued' : req.status === 'Rejected' ? 'Rejected' : 'Action Decision',
+          description: isQueryRemoved ? (req.removalReason ? `Removal Reason: ${req.removalReason}` : 'Removed by Admin') : remarks || (req.status === 'Rejected' ? 'SIM request rejected by Admin' : 'Action decision recorded'),
+          timestamp: req.removedAt ? formatDateDisplay(req.removedAt) : req.resolvedAt ? formatDateDisplay(req.resolvedAt) : undefined,
+          actor: req.removedBy || req.resolvedBy || 'IT Admin',
+          isDone: req.status === 'Approved' || req.status === 'Resolved' || req.status === 'Rejected' || isQueryRemoved,
+          isCurrent: req.status === 'Approved' || req.status === 'Resolved' || req.status === 'Rejected' || isQueryRemoved,
+          isRejected: req.status === 'Rejected' || isQueryRemoved,
         },
       ];
 
@@ -190,8 +194,8 @@ export const EmployeeQueryActionHistoryView: React.FC<{
         actionTaken: req.status,
         status: isRemoved ? `${req.status} (Employee Removed)` : req.status,
         statusVariant: isRemoved ? 'removed' : variant,
-        adminName: req.resolvedBy || 'IT Admin',
-        reasonRemark: remarks || (req.status === 'Rejected' ? 'Rejected due to duplicate request' : req.status === 'Approved' ? 'SIM allocated & activated' : 'Awaiting Telecom decision'),
+        adminName: req.removedBy || req.resolvedBy || 'IT Admin',
+        reasonRemark: isQueryRemoved ? (req.removalReason ? `Removal Reason: ${req.removalReason}` : 'Removed by Admin') : remarks || (req.status === 'Rejected' ? 'Rejected due to duplicate request' : req.status === 'Approved' ? 'SIM allocated & activated' : 'Awaiting Telecom decision'),
         date: req.createdAt,
         rawDate: rawTime,
         isEmployeeRemoved: isRemoved,
@@ -202,9 +206,11 @@ export const EmployeeQueryActionHistoryView: React.FC<{
     // 3. Staff Asset Queries (assetQueries)
     (assetQueries || []).forEach(q => {
       const isRemoved = removedEmpIds.has((q.employeeId || '').toLowerCase());
+      const isQueryRemoved = q.status === 'Removed';
       const rawTime = new Date(q.createdAt).getTime() || Date.now();
-      let variant: 'approved' | 'rejected' | 'pending' | 'in_progress' = 'pending';
-      if (q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed') variant = 'approved';
+      let variant: 'approved' | 'rejected' | 'pending' | 'in_progress' | 'removed' = 'pending';
+      if (isQueryRemoved) variant = 'removed';
+      else if (q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed') variant = 'approved';
       else if (q.status === 'Still Unresolved') variant = 'rejected';
       else if (q.status === 'Acknowledged' || q.status === 'In Progress') variant = 'in_progress';
 
@@ -218,7 +224,7 @@ export const EmployeeQueryActionHistoryView: React.FC<{
             actor: h.updatedBy,
             isDone: true,
             isCurrent: idx === q.history.length - 1,
-            isRejected: h.status === 'Still Unresolved',
+            isRejected: h.status === 'Still Unresolved' || h.status === 'Removed',
           }))
         : [
             {
@@ -238,13 +244,13 @@ export const EmployeeQueryActionHistoryView: React.FC<{
               isCurrent: q.status === 'Acknowledged' || q.status === 'In Progress',
             },
             {
-              title: q.status,
-              description: remarks || 'Resolution in progress',
-              timestamp: q.resolvedAt ? formatDateDisplay(q.resolvedAt) : q.stillUnresolvedDate ? formatDateDisplay(q.stillUnresolvedDate) : undefined,
-              actor: q.resolvedBy || q.acknowledgedBy || 'IT Admin',
-              isDone: q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed',
-              isCurrent: q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed' || q.status === 'Still Unresolved',
-              isRejected: q.status === 'Still Unresolved',
+              title: isQueryRemoved ? 'Query Removed' : q.status,
+              description: isQueryRemoved ? (q.removalReason ? `Removal Reason: ${q.removalReason}` : 'Removed by Admin') : remarks || 'Resolution in progress',
+              timestamp: q.removedAt ? formatDateDisplay(q.removedAt) : q.resolvedAt ? formatDateDisplay(q.resolvedAt) : q.stillUnresolvedDate ? formatDateDisplay(q.stillUnresolvedDate) : undefined,
+              actor: q.removedBy || q.resolvedBy || q.acknowledgedBy || 'IT Admin',
+              isDone: q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed' || isQueryRemoved,
+              isCurrent: q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed' || q.status === 'Still Unresolved' || isQueryRemoved,
+              isRejected: q.status === 'Still Unresolved' || isQueryRemoved,
             },
           ];
 
@@ -254,15 +260,15 @@ export const EmployeeQueryActionHistoryView: React.FC<{
         employeeName: q.employeeName,
         companyEmployeeNumber: q.companyEmployeeNumber,
         queryType: `Staff Asset Query (${q.queryType})`,
-        categoryLabel: 'Staff Query Ticket',
+        categoryLabel: 'Staff Asset Query',
         categoryColor: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
-        queryDetails: `${q.subject} — ${q.description}`,
-        itemsSummary: `Asset: ${q.assetName} (${q.assetNumber})`,
+        queryDetails: `${q.subject}: ${q.description}`,
+        itemsSummary: `Asset: ${q.assetName} [${q.assetNumber}]`,
         actionTaken: q.status,
         status: isRemoved ? `${q.status} (Employee Removed)` : q.status,
         statusVariant: isRemoved ? 'removed' : variant,
-        adminName: q.resolvedBy || q.acknowledgedBy || 'IT Support',
-        reasonRemark: remarks || (q.acknowledgedBy ? `Acknowledged by ${q.acknowledgedBy}` : 'Query registered in ticket queue'),
+        adminName: q.removedBy || q.resolvedBy || q.acknowledgedBy || 'IT Admin',
+        reasonRemark: isQueryRemoved ? (q.removalReason ? `Removal Reason: ${q.removalReason}` : 'Removed by Admin') : remarks || (q.acknowledgedBy ? `Acknowledged by ${q.acknowledgedBy}` : 'Query registered in ticket queue'),
         date: q.createdAt,
         rawDate: rawTime,
         isEmployeeRemoved: isRemoved,

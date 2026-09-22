@@ -41,7 +41,8 @@ import {
   UserMinus,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { SimCard, SimPurpose, SimStatus, SimType, SIM_PURPOSES, SIM_TYPES } from '../../types';
+import { SimCard, SimPurpose, SimStatus, SimType, SIM_PURPOSES, SIM_TYPES, SimRequest } from '../../types';
+import { RemoveQueryModal } from '../common/RemoveQueryModal';
 import {
   getSimPurposeStyle,
   getSimStatusStyle,
@@ -125,6 +126,7 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
   const [expandedEmployeeIds, setExpandedEmployeeIds] = useState<Set<string>>(() => new Set());
   const [expandAll, setExpandAll] = useState<boolean>(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [removeSimReqTarget, setRemoveSimReqTarget] = useState<SimRequest | null>(null);
 
   const handleCopy = (text: string, label: string, key: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -1990,28 +1992,39 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
                     </span>
                   </div>
 
-                  {isAdmin && reqItem.status === 'Pending' && (
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    {isAdmin && reqItem.status === 'Pending' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            updateSimRequestStatus(reqItem.id, 'Approved', 'Approved by IT Admin');
+                            if (reqItem.requestType === 'Additional SIM') {
+                              setAssignModalEmployeeId(reqItem.employeeId);
+                              setIsAssignModalOpen(true);
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer"
+                        >
+                          Approve & Allocate SIM
+                        </button>
+                        <button
+                          onClick={() => updateSimRequestStatus(reqItem.id, 'Rejected', 'Rejected by IT Admin')}
+                          className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {isAdmin && (
                       <button
-                        onClick={() => {
-                          updateSimRequestStatus(reqItem.id, 'Approved', 'Approved by IT Admin');
-                          if (reqItem.requestType === 'Additional SIM') {
-                            setAssignModalEmployeeId(reqItem.employeeId);
-                            setIsAssignModalOpen(true);
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer"
+                        onClick={() => setRemoveSimReqTarget(reqItem)}
+                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
+                        title="Remove SIM Request"
                       >
-                        Approve & Allocate SIM
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        onClick={() => updateSimRequestStatus(reqItem.id, 'Rejected', 'Rejected by IT Admin')}
-                        className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold cursor-pointer"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               ))
             )}
@@ -2135,6 +2148,22 @@ export const SimManagementView: React.FC<SimManagementViewProps> = ({ onSelectEm
         onOpenFullProfile={empId => {
           handleOpenProfile(empId);
         }}
+      />
+
+      {/* REMOVE SIM REQUEST MODAL */}
+      <RemoveQueryModal
+        isOpen={!!removeSimReqTarget}
+        onClose={() => setRemoveSimReqTarget(null)}
+        onConfirm={reason => {
+          if (removeSimReqTarget) {
+            removeSimRequest(removeSimReqTarget.id, reason);
+            setRemoveSimReqTarget(null);
+          }
+        }}
+        title="Remove SIM Request"
+        queryId={removeSimReqTarget?.id}
+        employeeName={removeSimReqTarget?.employeeName}
+        queryTypeLabel="SIM Request"
       />
     </div>
   );

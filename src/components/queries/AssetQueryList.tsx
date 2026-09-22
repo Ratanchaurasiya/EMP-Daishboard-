@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { RaiseAssetQueryModal } from './RaiseAssetQueryModal';
 import { AssetQueryDetailModal } from './AssetQueryDetailModal';
+import { RemoveQueryModal } from '../common/RemoveQueryModal';
 
 export const AssetQueryList: React.FC = () => {
   const {
@@ -36,6 +37,7 @@ export const AssetQueryList: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'starred' | 'pending' | 'unresolved' | 'inprogress' | 'resolved'>('all');
   const [showRaiseModal, setShowRaiseModal] = useState<boolean>(false);
   const [selectedQuery, setSelectedQuery] = useState<AssetQuery | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<AssetQuery | null>(null);
 
   const isAdmin = userRole === 'admin';
   const isEmployee = currentUser?.role === 'employee' || userRole === 'employee';
@@ -402,12 +404,10 @@ export const AssetQueryList: React.FC = () => {
                   {isAdmin && (
                     <button
                       type="button"
-                      title="Delete query permanently"
+                      title="Remove query record"
                       onClick={e => {
                         e.stopPropagation();
-                        if (window.confirm(`Are you sure you want to delete query ${q.id} permanently?`)) {
-                          removeAssetQuery(q.id);
-                        }
+                        setRemoveTarget(q);
                       }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                     >
@@ -436,6 +436,21 @@ export const AssetQueryList: React.FC = () => {
           onClose={() => setSelectedQuery(null)}
         />
       )}
+
+      <RemoveQueryModal
+        isOpen={!!removeTarget}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={reason => {
+          if (removeTarget) {
+            removeAssetQuery(removeTarget.id, reason);
+            setRemoveTarget(null);
+          }
+        }}
+        title="Remove Staff Asset Query"
+        queryId={removeTarget?.id}
+        employeeName={removeTarget?.employeeName}
+        queryTypeLabel="Query"
+      />
     </div>
   );
 };

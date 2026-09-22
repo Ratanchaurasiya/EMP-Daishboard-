@@ -69,6 +69,7 @@ import { ServiceReceiptPreviewModal } from '../services/ServiceReceiptPreviewMod
 import { UploadServiceReceiptModal } from '../services/UploadServiceReceiptModal';
 import { getSimStatusStyle, getSimPurposeStyle, getSimTypeBadgeStyle, generateSimSuspensionWhatsAppUrl, calculateSimMonthlyExpense, formatINR, getEmployeeSimCards, getEmployeeActiveSimCards, getSimUsageBadgeStyle } from '../../utils/simUtils';
 import { isEmployeeMatch } from '../layout/notificationUtils';
+import { EmployeeQueryHistorySection } from '../queries/EmployeeQueryHistorySection';
 
 interface EmployeeDashboardProps {
   onOpenReportIssue?: () => void;
@@ -2058,6 +2059,11 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* DEDICATED EMPLOYEE QUERY & REMOVAL HISTORY SECTION */}
+      {(activeSection === 'all' || activeSection === 'activity' || activeSection === 'requests') && (
+        <EmployeeQueryHistorySection />
       )}
 
       {/* 1.8. EMPLOYEE APPROVAL / REJECTION ACTIVITY & REQUEST STATUS SECTION */}

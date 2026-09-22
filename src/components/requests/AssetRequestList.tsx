@@ -43,6 +43,7 @@ import {
   RequestUrgency,
   EquipmentAssetType,
 } from '../../types';
+import { RemoveQueryModal } from '../common/RemoveQueryModal';
 import { formatDateDisplay } from '../../utils/formatters';
 import { SubmitAssetRequestModal } from './SubmitAssetRequestModal';
 
@@ -79,6 +80,7 @@ export const AssetRequestList: React.FC = () => {
 
   // Admin Review / Edit Notes Modal State
   const [selectedRequest, setSelectedRequest] = useState<AssetRequest | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<AssetRequest | null>(null);
   const [editNotes, setEditNotes] = useState<string>('');
   const [editStatus, setEditStatus] = useState<RequestStatus>('Pending');
 
@@ -475,36 +477,14 @@ export const AssetRequestList: React.FC = () => {
                       Review &amp; Notes
                     </button>
 
-                    {confirmDeleteId === req.id ? (
-                      <div className="flex items-center gap-1 animate-fade-in">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            removeAssetRequest(req.id);
-                            setConfirmDeleteId(null);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-rose-600 text-white font-bold text-[10px] hover:bg-rose-500 cursor-pointer"
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteId(null)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(req.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
-                        title="Delete record"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setRemoveTarget(req)}
+                      className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
+                      title="Remove requisition record"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
@@ -724,6 +704,22 @@ export const AssetRequestList: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* REMOVE QUERY MODAL */}
+      <RemoveQueryModal
+        isOpen={!!removeTarget}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={reason => {
+          if (removeTarget) {
+            removeAssetRequest(removeTarget.id, reason);
+            setRemoveTarget(null);
+          }
+        }}
+        title="Remove Equipment Requisition"
+        queryId={removeTarget?.id}
+        employeeName={removeTarget?.employeeName}
+        queryTypeLabel="Requisition"
+      />
 
       {/* SUBMIT ASSET REQUEST MODAL */}
       <SubmitAssetRequestModal

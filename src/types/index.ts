@@ -270,6 +270,7 @@ export interface AuditLog {
     | 'SIM Recharge Updated'
     | 'SIM Request Submitted'
     | 'SIM Request Status Updated'
+    | 'SIM Request Removed'
     | 'Asset Query Submitted'
     | 'Asset Query Acknowledged'
     | 'Asset Query Status Updated'
@@ -486,7 +487,7 @@ export interface AssetRequestItem {
   specifications?: string; // e.g. "Wireless", "27-inch 4K", "Noise-cancelling"
 }
 
-export type RequestStatus = 'Pending' | 'Approved' | 'In Progress' | 'Fulfilled' | 'Rejected';
+export type RequestStatus = 'Pending' | 'Approved' | 'In Progress' | 'Fulfilled' | 'Rejected' | 'Removed';
 export type RequestUrgency = 'Normal' | 'High' | 'Critical' | 'Urgent';
 
 export interface AssetRequest {
@@ -505,6 +506,9 @@ export interface AssetRequest {
   reason: string; // Business reason / description
   adminNotes?: string;
   fulfilledDate?: string;
+  removedBy?: string;
+  removedAt?: string;
+  removalReason?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -575,7 +579,7 @@ export interface SimRecharge {
 }
 
 export type SimRequestType = 'Additional SIM' | 'Suspend SIM' | 'Report Issue';
-export type SimRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'In Progress' | 'Resolved';
+export type SimRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'In Progress' | 'Resolved' | 'Removed';
 
 export type SimIssueType =
   | 'SIM Blocked'
@@ -613,6 +617,9 @@ export interface SimRequest {
   resolutionRemarks?: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  removedBy?: string;
+  removedAt?: string;
+  removalReason?: string;
   targetWhatsAppNumber?: string; // e.g. "9328594724"
   whatsAppStatus?: 'Sent' | 'Pending' | 'Not Configured' | 'Failed';
   createdAt: string;
@@ -677,7 +684,8 @@ export type AssetQueryStatus =
   | 'Handover Completed'
   | 'Still Unresolved'
   | 'Resolved'
-  | 'Closed';
+  | 'Closed'
+  | 'Removed';
 
 export type AssetQueryType =
   | 'Hardware Issue'
@@ -721,6 +729,9 @@ export interface AssetQuery {
   resolutionNotes?: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  removedBy?: string;
+  removedAt?: string;
+  removalReason?: string;
   createdAt: string;
   updatedAt?: string;
   history: AssetQueryHistoryItem[];
