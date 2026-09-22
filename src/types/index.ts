@@ -726,3 +726,30 @@ export interface AssetQuery {
   history: AssetQueryHistoryItem[];
 }
 
+// ==================== REMOVED EMPLOYEES & AUDIT HISTORY ====================
+export interface RemovedEmployeeRecord {
+  id: string; // e.g. "REM-2026-001"
+  employeeId: string;
+  companyEmployeeNumber?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  department?: string;
+  designation?: string;
+  joiningDate?: string;
+  removedAt: string; // YYYY-MM-DD HH:mm or ISO
+  removedBy: string; // Admin Name
+  removalReason: string; // Mandatory reason provided during removal
+  remarks?: string;
+  snapshot: {
+    assetRequests: AssetRequest[];
+    simRequests: SimRequest[];
+    assetQueries: AssetQuery[];
+    serviceRecords: ServiceRecord[];
+    assignedComputersCount?: number;
+    assignedAssetsCount?: number;
+    assignedSimsCount?: number;
+  };
+}
+
+

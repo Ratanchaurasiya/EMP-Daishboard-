@@ -48,6 +48,7 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [acknowledged, setAcknowledged] = useState<boolean>(false);
+  const [removalReason, setRemovalReason] = useState<string>('');
 
   // Lock body scroll and listen for Escape key
   useEffect(() => {
@@ -69,6 +70,7 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
     if (isOpen) {
       setStep(1);
       setAcknowledged(false);
+      setRemovalReason('');
     }
   }, [isOpen, employeeId]);
 
@@ -104,8 +106,8 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
 
   // Final permanent removal execution
   const handleConfirmPermanentRemoval = () => {
-    if (!isAdmin || step !== 3 || !acknowledged) return;
-    removeEmployeePermanently(employee.id);
+    if (!isAdmin || step !== 3 || !acknowledged || !removalReason.trim()) return;
+    removeEmployeePermanently(employee.id, removalReason.trim());
     onClose();
     if (onRemoved) {
       onRemoved();
@@ -537,6 +539,22 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
               </span>
             </div>
 
+            {/* Mandatory Removal Reason Input */}
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                <span>Mandatory Removal Reason / Remark <span className="text-red-500">*</span></span>
+                <span className="text-[10px] text-red-500 font-medium">Required for Audit Log</span>
+              </label>
+              <textarea
+                value={removalReason}
+                onChange={e => setRemovalReason(e.target.value)}
+                placeholder="Specify the official reason for removing this employee (e.g. Employee Resigned, Service Contract Ended, Department Restructuring)..."
+                rows={3}
+                required
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-red-500 font-medium"
+              />
+            </div>
+
             {/* Acknowledgment Checkbox */}
             <label className="flex items-start gap-3 p-3.5 rounded-xl bg-red-50/60 dark:bg-red-950/20 border border-red-200/80 dark:border-red-900/40 cursor-pointer">
               <input
@@ -546,7 +564,7 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
                 className="mt-0.5 rounded text-red-600 focus:ring-red-500 focus:ring-1 cursor-pointer w-4 h-4"
               />
               <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 leading-snug">
-                I understand that this action is irreversible and permanently removes this employee and all linked records (SIM cards, telecom info, computer, phone, peripherals, and maintenance history) from the database.
+                I understand that this employee will be removed from active directories. Hardware will be returned to stock while all historical query and request audit trails will be preserved in Removal History.
               </span>
             </label>
 
@@ -571,12 +589,12 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={!acknowledged}
+                  disabled={!acknowledged || !removalReason.trim()}
                   onClick={handleConfirmPermanentRemoval}
                   className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>Permanently Remove & Delete All Records</span>
+                  <span>Confirm Removal & Archive Records</span>
                 </button>
               </div>
             </div>

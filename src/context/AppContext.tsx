@@ -32,6 +32,7 @@ import {
   AssetQueryStatus,
   AssetQueryType,
   AssetQueryHistoryItem,
+  RemovedEmployeeRecord,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -163,8 +164,9 @@ interface AppContextType {
   updateEmployee: (id: string, updates: Partial<Employee>) => void;
   deactivateEmployee: (id: string, reason?: string) => void;
   reactivateEmployee: (id: string) => void;
-  removeEmployeePermanently: (id: string) => void;
+  removeEmployeePermanently: (id: string, removalReason?: string) => void;
   removeAllEmployees: (options?: { returnAssetsToInventory?: boolean }) => void;
+  removedEmployees: RemovedEmployeeRecord[];
   
   addComputer: (computerData: Omit<Computer, 'id'>) => { success: boolean; error?: string };
   updateComputer: (id: string, updates: Partial<Computer>) => void;
@@ -580,6 +582,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return saved ? JSON.parse(saved) : INITIAL_SERVICE_PROVIDERS;
     } catch {
       return INITIAL_SERVICE_PROVIDERS;
+    }
+  });
+
+  const [removedEmployees, setRemovedEmployees] = useState<RemovedEmployeeRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_REMOVED_EMPLOYEES`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
     }
   });
 
@@ -1974,7 +1985,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Employee "${emp.name}" successfully reactivated and restored to active directory.`, 'success');
   };
 
-  const removeEmployeePermanently: AppContextType['removeEmployeePermanently'] = id => {
+  const removeEmployeePermanently: AppContextType['removeEmployeePermanently'] = (id, removalReason) => {
     if (userRole !== 'admin' && currentUser?.role === 'employee') {
       showToast('Unauthorized: Administrative privileges required.', 'error');
       return;
@@ -1998,162 +2009,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     };
 
-    // 1. Completely delete all workstation computers assigned to this employee from database and fleet
-    const deletedComputerIds = new Set<string>();
-    const deletedComputerAssetNumbers = new Set<string>();
+    const finalReason = (removalReason || 'Employee exit / permanent removal from corporate directory').trim();
 
-    computers.forEach(c => {
+    // 1. Unassign assigned computers (return to available stock without deleting computer record)
+    const nextComputers = computers.map(c => {
       if (isTargetEmployee(c.assignedEmployeeId)) {
-        deletedComputerIds.add(c.id);
-        if (c.assetNumber) deletedComputerAssetNumbers.add(c.assetNumber.toLowerCase());
+        return {
+          ...c,
+          assignedEmployeeId: null,
+          status: 'Available' as const,
+          remarks: `Unassigned due to employee removal (${emp.name} - ${emp.employeeId}). ${finalReason}`,
+        };
       }
+      return c;
     });
 
-    const nextComputers = computers.filter(c => !deletedComputerIds.has(c.id));
-
-    // 2. Completely delete all corporate phones, peripherals, and assets assigned to this employee from database and fleet
-    const deletedAssetIds = new Set<string>();
-    const deletedAssetNumbers = new Set<string>();
-
-    assets.forEach(a => {
-      const isAssigned = isTargetEmployee(a.assignedEmployeeId);
-      const isMatchingComp = a.assetNumber && deletedComputerAssetNumbers.has(a.assetNumber.toLowerCase());
-      if (isAssigned || isMatchingComp) {
-        deletedAssetIds.add(a.id);
-        if (a.assetNumber) deletedAssetNumbers.add(a.assetNumber.toLowerCase());
+    // 2. Unassign assigned peripheral assets & mobile phones
+    const nextAssets = assets.map(a => {
+      if (isTargetEmployee(a.assignedEmployeeId)) {
+        return {
+          ...a,
+          assignedEmployeeId: null,
+          status: 'Available' as const,
+          relevantDetails: `Unassigned due to employee removal (${emp.name}). ${finalReason}`,
+        };
       }
+      return a;
     });
 
-    const nextAssets = assets.filter(a => !deletedAssetIds.has(a.id));
-
-    // 3. Completely delete all corporate SIM cards assigned to this employee
-    const deletedSimIds = new Set<string>();
-    const deletedSimContactNumbers = new Set<string>();
-
-    simCards.forEach(s => {
+    // 3. Unassign assigned SIM cards (return to Available status)
+    const nextSimCards = simCards.map(s => {
       if (isTargetEmployee(s.assignedEmployeeId)) {
-        deletedSimIds.add(s.id);
-        if (s.contactNumber) deletedSimContactNumbers.add(s.contactNumber.trim());
+        return {
+          ...s,
+          assignedEmployeeId: null,
+          assignedEmployeeName: null,
+          status: 'Available' as const,
+          unassignedDate: new Date().toISOString().substring(0, 10),
+          remarks: `Unassigned due to employee removal (${emp.name}). ${finalReason}`,
+        };
       }
+      return s;
     });
 
-    const nextSimCards = simCards.filter(s => !deletedSimIds.has(s.id));
+    // 4. Snapshot employee request & action history before removal
+    const snapshotAssetRequests = assetRequests.filter(req => isTargetEmployee(req.employeeId));
+    const snapshotSimRequests = simRequests.filter(req => isTargetEmployee(req.employeeId));
+    const snapshotAssetQueries = (assetQueries || []).filter(q => isTargetEmployee(q.employeeId));
+    const snapshotServiceRecords = serviceRecords.filter(s => isTargetEmployee(s.employeeId));
 
-    // 4. Completely purge all SIM recharge records for this employee or their deleted SIM cards
-    const deletedSimRechargeIds = new Set<string>();
-    simRecharges.forEach(r => {
-      if (
-        isTargetEmployee(r.employeeId) ||
-        (r.simId && deletedSimIds.has(r.simId)) ||
-        (r.contactNumber && deletedSimContactNumbers.has(r.contactNumber.trim()))
-      ) {
-        deletedSimRechargeIds.add(r.id);
-      }
-    });
+    const newRemovedRecord: RemovedEmployeeRecord = {
+      id: 'REM-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      employeeId: emp.employeeId,
+      companyEmployeeNumber: emp.companyEmployeeNumber,
+      name: emp.name,
+      email: emp.email,
+      phone: emp.phone,
+      department: emp.department,
+      designation: emp.designation,
+      joiningDate: emp.joiningDate,
+      removedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      removedBy: userRole === 'admin' ? (currentUser?.name || 'IT Administrator') : 'IT Administrator',
+      removalReason: finalReason,
+      remarks: emp.remarks,
+      snapshot: {
+        assetRequests: snapshotAssetRequests,
+        simRequests: snapshotSimRequests,
+        assetQueries: snapshotAssetQueries,
+        serviceRecords: snapshotServiceRecords,
+        assignedComputersCount: computers.filter(c => isTargetEmployee(c.assignedEmployeeId)).length,
+        assignedAssetsCount: assets.filter(a => isTargetEmployee(a.assignedEmployeeId)).length,
+        assignedSimsCount: simCards.filter(s => isTargetEmployee(s.assignedEmployeeId)).length,
+      },
+    };
 
-    const nextSimRecharges = simRecharges.filter(r => !deletedSimRechargeIds.has(r.id));
+    const nextRemovedEmployees = [newRemovedRecord, ...removedEmployees.filter(r => r.employeeId !== emp.employeeId)];
 
-    // 5. Completely purge all SIM requisition requests submitted by this employee
-    const deletedSimRequestIds = new Set<string>();
-    simRequests.forEach(req => {
-      if (isTargetEmployee(req.employeeId)) {
-        deletedSimRequestIds.add(req.id);
-      }
-    });
-
-    const nextSimRequests = simRequests.filter(req => !deletedSimRequestIds.has(req.id));
-
-    // 6. Completely purge all equipment / asset requisition requests submitted by this employee
-    const deletedAssetRequestIds = new Set<string>();
-    assetRequests.forEach(req => {
-      if (isTargetEmployee(req.employeeId)) {
-        deletedAssetRequestIds.add(req.id);
-      }
-    });
-
-    const nextAssetRequests = assetRequests.filter(req => !deletedAssetRequestIds.has(req.id));
-
-    // 7. Completely purge all weekly photo audit records for this employee
-    const deletedPhotoIds = new Set<string>();
-    weeklyPhotoRecords.forEach(w => {
-      if (isTargetEmployee(w.employeeId)) {
-        deletedPhotoIds.add(w.id);
-      }
-    });
-
-    const nextWeeklyPhotos = weeklyPhotoRecords.filter(w => !deletedPhotoIds.has(w.id));
-
-    // 8. Purge all allocation records for this employee or their deleted hardware
-    const nextAllocations = allocationRecords.filter(alloc => {
-      if (isTargetEmployee(alloc.employeeId)) return false;
-      if (alloc.assetId && (deletedAssetIds.has(alloc.assetId) || deletedComputerIds.has(alloc.assetId))) return false;
-      if (alloc.assetNumber && (deletedAssetNumbers.has(alloc.assetNumber.toLowerCase()) || deletedComputerAssetNumbers.has(alloc.assetNumber.toLowerCase()))) return false;
-      return true;
-    });
-
-    // 9. Purge all service & maintenance records for this employee or their deleted hardware
-    const nextServices = serviceRecords.filter(srv => {
-      if (isTargetEmployee(srv.employeeId)) return false;
-      if (srv.computerId && deletedComputerIds.has(srv.computerId)) return false;
-      if (srv.assetNumber && (deletedAssetNumbers.has(srv.assetNumber.toLowerCase()) || deletedComputerAssetNumbers.has(srv.assetNumber.toLowerCase()))) return false;
-      return true;
-    });
-
-    // 10. Permanently remove employee from active and inactive directories
+    // 5. Remove employee from active employees list (Historical requests and queries are PRESERVED in audit trail)
     const nextEmployees = employees.filter(
       e => !isTargetEmployee(e.id) && !isTargetEmployee(e.employeeId)
-    );
-
-    const deletedAllocationIds = new Set(
-      allocationRecords.filter(alloc => !nextAllocations.some(na => na.id === alloc.id)).map(a => a.id)
-    );
-    const deletedServiceIds = new Set(
-      serviceRecords.filter(srv => !nextServices.some(ns => ns.id === srv.id)).map(s => s.id)
     );
 
     // Update React states immediately
     setComputers(nextComputers);
     setAssets(nextAssets);
     setSimCards(nextSimCards);
-    setSimRecharges(nextSimRecharges);
-    setSimRequests(nextSimRequests);
-    setAssetRequests(nextAssetRequests);
-    setWeeklyPhotoRecords(nextWeeklyPhotos);
-    setAllocationRecords(nextAllocations);
-    setServiceRecords(nextServices);
     setEmployees(nextEmployees);
+    setRemovedEmployees(nextRemovedEmployees);
 
-    // Clear selection if this employee or their computer was selected
+    // Clear selection if this employee was selected
     if (selectedEmployeeId && isTargetEmployee(selectedEmployeeId)) {
       setSelectedEmployeeId(null);
     }
-    if (selectedComputerId && deletedComputerIds.has(selectedComputerId)) {
-      setSelectedComputerId(null);
-    }
 
-    // 11. Synchronously commit to localStorage so all sections and page refresh immediately reflect complete deletion
+    // Synchronously commit to localStorage
     try {
       localStorage.setItem(`${STORAGE_KEY}_EMPLOYEES`, JSON.stringify(nextEmployees));
       localStorage.setItem(`${STORAGE_KEY}_COMPUTERS`, JSON.stringify(nextComputers));
       localStorage.setItem(`${STORAGE_KEY}_ASSETS`, JSON.stringify(nextAssets));
       localStorage.setItem(`${STORAGE_KEY}_SIM_CARDS`, JSON.stringify(nextSimCards));
-      localStorage.setItem(`${STORAGE_KEY}_SIM_RECHARGES`, JSON.stringify(nextSimRecharges));
-      localStorage.setItem(`${STORAGE_KEY}_SIM_REQUESTS`, JSON.stringify(nextSimRequests));
-      localStorage.setItem(`${STORAGE_KEY}_ASSET_REQUESTS`, JSON.stringify(nextAssetRequests));
-      localStorage.setItem(`${STORAGE_KEY}_WEEKLY_PHOTOS`, JSON.stringify(nextWeeklyPhotos));
-      localStorage.setItem(`${STORAGE_KEY}_ALLOCATIONS`, JSON.stringify(nextAllocations));
-      localStorage.setItem(`${STORAGE_KEY}_SERVICES`, JSON.stringify(nextServices));
+      localStorage.setItem(`${STORAGE_KEY}_REMOVED_EMPLOYEES`, JSON.stringify(nextRemovedEmployees));
       if (selectedEmployeeId && isTargetEmployee(selectedEmployeeId)) {
         localStorage.removeItem(`${STORAGE_KEY}_SELECTED_EMP`);
-      }
-      if (selectedComputerId && deletedComputerIds.has(selectedComputerId)) {
-        localStorage.removeItem(`${STORAGE_KEY}_SELECTED_COMP`);
       }
     } catch (err) {
       console.error('LocalStorage write error during employee removal:', err);
     }
 
-    // 12. Immediately commit transactions and hard deletes to IndexedDB
+    // Commit to IndexedDB
     (async () => {
       try {
         await Promise.all([
@@ -2161,22 +2124,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assetCoreDB.putAll('computers', nextComputers),
           assetCoreDB.putAll('assets', nextAssets),
           assetCoreDB.putAll('simCards', nextSimCards),
-          assetCoreDB.putAll('simRecharges', nextSimRecharges),
-          assetCoreDB.putAll('simRequests', nextSimRequests),
-          assetCoreDB.putAll('assetRequests', nextAssetRequests),
-          assetCoreDB.putAll('weeklyAssetPhotos', nextWeeklyPhotos),
-          assetCoreDB.putAll('allocationRecords', nextAllocations),
-          assetCoreDB.putAll('serviceRecords', nextServices),
+          assetCoreDB.putAll('removedEmployees', nextRemovedEmployees),
           assetCoreDB.delete('employees', emp.id),
-          ...Array.from(deletedComputerIds).map(cId => assetCoreDB.delete('computers', cId)),
-          ...Array.from(deletedAssetIds).map(aId => assetCoreDB.delete('assets', aId)),
-          ...Array.from(deletedSimIds).map(sId => assetCoreDB.delete('simCards', sId)),
-          ...Array.from(deletedSimRechargeIds).map(rId => assetCoreDB.delete('simRecharges', rId)),
-          ...Array.from(deletedSimRequestIds).map(reqId => assetCoreDB.delete('simRequests', reqId)),
-          ...Array.from(deletedAssetRequestIds).map(reqId => assetCoreDB.delete('assetRequests', reqId)),
-          ...Array.from(deletedPhotoIds).map(pId => assetCoreDB.delete('weeklyAssetPhotos', pId)),
-          ...Array.from(deletedServiceIds).map(sId => assetCoreDB.delete('serviceRecords', sId)),
-          ...Array.from(deletedAllocationIds).map(alId => assetCoreDB.delete('allocationRecords', alId)),
         ]);
         const stats = await assetCoreDB.getStats();
         setDbStats(stats);
@@ -2184,36 +2133,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('IndexedDB write warning during employee removal:', err);
       }
 
-      // SQLite Backend Permanent Deletion
       try {
         await api.deleteEmployee(emp.id);
-        for (const cId of deletedComputerIds) {
-          await api.deleteComputer(cId);
-        }
-        for (const aId of deletedAssetIds) {
-          await api.deleteAsset(aId);
-        }
-        for (const sId of deletedSimIds) {
-          await api.deleteSim(sId);
-        }
-        for (const rId of deletedSimRechargeIds) {
-          await api.deleteSimRecharge(rId);
-        }
-        for (const reqId of deletedSimRequestIds) {
-          await api.deleteSimRequest(reqId);
-        }
-        for (const reqId of deletedAssetRequestIds) {
-          await api.deleteAssetRequest(reqId);
-        }
-        for (const pId of deletedPhotoIds) {
-          await api.deleteWeeklyPhoto(pId);
-        }
-        for (const sId of deletedServiceIds) {
-          await api.deleteServiceRecord(sId);
-        }
-        for (const alId of deletedAllocationIds) {
-          await api.deleteAllocation(alId);
-        }
       } catch (e) {
         console.warn('SQLite delete warning:', e);
       }
@@ -2221,10 +2142,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     addAuditEntry(
       'Employee Removed',
-      `Permanently removed employee ${emp.name} (${emp.employeeId}) and purged all associated SIM cards (${deletedSimIds.size}), computers (${deletedComputerIds.size}), phones & peripherals (${deletedAssetIds.size}), allocations, and service records from database.`
+      `Permanently removed employee ${emp.name} (${emp.employeeId}). Active hardware/SIMs unassigned back to stock and complete audit history preserved in Removal History.`
     );
     showToast(
-      `Employee "${emp.name}" and all associated SIM cards, phone, computer, and service records have been permanently deleted from the database.`,
+      `Employee "${emp.name}" removed. Historical records preserved in Employee Query & Action History.`,
       'success'
     );
   };
@@ -6534,6 +6455,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reactivateEmployee,
     removeEmployeePermanently,
     removeAllEmployees,
+    removedEmployees,
     addComputer,
     updateComputer,
     removeComputerPermanently,

@@ -29,7 +29,7 @@ import {
 } from '../data/initialSeedData';
 
 const DB_NAME = 'AssetCore_Enterprise_DB';
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 
 export type StoreName =
   | 'employees'
@@ -47,6 +47,7 @@ export type StoreName =
   | 'simRequests'
   | 'serviceProviders'
   | 'assetQueries'
+  | 'removedEmployees'
   | 'systemSettings';
 
 export interface DatabaseStats {
@@ -214,6 +215,13 @@ class IndexedDBManager {
             qryStore.createIndex('status', 'status', { unique: false });
             qryStore.createIndex('queryType', 'queryType', { unique: false });
             qryStore.createIndex('isStarred', 'isStarred', { unique: false });
+          }
+
+          // 17. Removed Employees & Removal History Store
+          if (!db.objectStoreNames.contains('removedEmployees')) {
+            const remStore = db.createObjectStore('removedEmployees', { keyPath: 'id' });
+            remStore.createIndex('employeeId', 'employeeId', { unique: false });
+            remStore.createIndex('removedAt', 'removedAt', { unique: false });
           }
         };
 

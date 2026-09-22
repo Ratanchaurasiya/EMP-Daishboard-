@@ -290,6 +290,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           icon: History,
           badge: null,
         },
+        {
+          id: 'query-history',
+          label: 'Employee Query & Action History',
+          shortLabel: 'Action History',
+          icon: History,
+          badge: null,
+        },
       ],
     },
   ];

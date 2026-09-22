@@ -21,6 +21,7 @@ import { AddToBufferModal } from './components/common/AddToBufferModal';
 import { ServiceList } from './components/services/ServiceList';
 import { AddServiceModal } from './components/services/AddServiceModal';
 import { AuditLogView } from './components/audit/AuditLogView';
+import { EmployeeQueryActionHistoryView } from './components/history/EmployeeQueryActionHistoryView';
 import { WeeklyPhotoAuditHub } from './components/documentation/WeeklyPhotoAuditHub';
 import { PurchaseManagementView } from './components/purchases/PurchaseManagementView';
 import { AssetRequestList } from './components/requests/AssetRequestList';
@@ -286,6 +287,13 @@ const DashboardContent: React.FC = () => {
               {/* TAB 6: AUDIT & HISTORY */}
               {activeTab === 'audit' && (
                 <AuditLogView
+                  onSelectEmployee={handleSelectEmployee}
+                />
+              )}
+
+              {/* TAB: EMPLOYEE QUERY & ACTION HISTORY */}
+              {activeTab === 'query-history' && (
+                <EmployeeQueryActionHistoryView
                   onSelectEmployee={handleSelectEmployee}
                 />
               )}
