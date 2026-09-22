@@ -312,6 +312,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       isSpecial: true,
     },
     {
+      id: 'activity',
+      label: 'My Activity & Status',
+      icon: Activity,
+      badge: 'Status',
+    },
+    {
       id: 'requests',
       label: 'My Equipment Requests',
       icon: Layers,

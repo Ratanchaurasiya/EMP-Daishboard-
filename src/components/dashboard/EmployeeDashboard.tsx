@@ -49,16 +49,12 @@ import {
   Paperclip,
   Building2,
   LogOut,
+  Activity,
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { EmployeeWeeklyPhotoSection } from '../documentation/EmployeeWeeklyPhotoSection';
 import {
   IT_SUPPORT_EMAIL,
@@ -72,6 +68,7 @@ import { ReportSimIssueModal } from '../sim/ReportSimIssueModal';
 import { ServiceReceiptPreviewModal } from '../services/ServiceReceiptPreviewModal';
 import { UploadServiceReceiptModal } from '../services/UploadServiceReceiptModal';
 import { getSimStatusStyle, getSimPurposeStyle, getSimTypeBadgeStyle, generateSimSuspensionWhatsAppUrl, calculateSimMonthlyExpense, formatINR, getEmployeeSimCards, getEmployeeActiveSimCards, getSimUsageBadgeStyle } from '../../utils/simUtils';
+import { isEmployeeMatch } from '../layout/notificationUtils';
 
 interface EmployeeDashboardProps {
   onOpenReportIssue?: () => void;
@@ -88,6 +85,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     simCards,
     simRequests,
     simRecharges,
+    assetQueries = [],
     currentUser,
     userRole,
     updateEmployee,
@@ -103,8 +101,12 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
   } = useApp();
 
   // Active sub-tab in employee dashboard for fast navigation
-  const [activeSection, setActiveSection] = useState<'all' | 'workstation' | 'assets' | 'photos' | 'maintenance' | 'requests' | 'updates' | 'sim-cards'>('all');
+  const [activeSection, setActiveSection] = useState<'all' | 'workstation' | 'assets' | 'photos' | 'maintenance' | 'requests' | 'updates' | 'sim-cards' | 'activity'>('all');
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Status Filter state for My Activity section
+  const [activityStatusFilter, setActivityStatusFilter] = useState<'All' | 'Approved' | 'Rejected' | 'Pending' | 'In Progress'>('All');
+  const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
 
   // Multi-asset equipment request modal state
   const [showAssetRequestModal, setShowAssetRequestModal] = useState<boolean>(false);
@@ -129,6 +131,8 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       setActiveSection('photos');
     } else if (activeTab === 'sim-management' || activeTab === 'sim-cards') {
       setActiveSection('sim-cards');
+    } else if (activeTab === 'activity' || activeTab === 'my-activity') {
+      setActiveSection('activity');
     } else if (activeTab === 'dashboard' || !activeTab) {
       setActiveSection('all');
     }
@@ -321,6 +325,314 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [simRequests, employee]);
+
+  // Staff Asset Queries submitted by or assigned to this employee
+  const myAssetQueries = useMemo(() => {
+    if (!employee) return [];
+    return (assetQueries || [])
+      .filter(q =>
+        isEmployeeMatch(q.employeeId, q.companyEmployeeNumber, q.employeeEmail, null, {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          role: 'employee',
+          employeeId: employee.employeeId,
+        })
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [assetQueries, employee]);
+
+  // Unified Activity & Requisition Timeline aggregating all employee request lifecycle events
+  const myUnifiedActivityTimeline = useMemo(() => {
+    if (!employee) return [];
+
+    const items: {
+      id: string;
+      type: 'asset_request' | 'sim_request' | 'asset_query' | 'service_record';
+      title: string;
+      categoryLabel: string;
+      categoryColor: string;
+      date: string;
+      rawDate: number;
+      status: string;
+      requestDetails: string;
+      urgency?: string;
+      itemsSummary?: string;
+      adminRemarks?: string;
+      adminName?: string;
+      actionDate?: string;
+      timeline: {
+        title: string;
+        description?: string;
+        timestamp?: string;
+        actor?: string;
+        isDone: boolean;
+        isCurrent: boolean;
+        isRejected?: boolean;
+      }[];
+      originalRecord: any;
+    }[] = [];
+
+    // 1. Asset Requisitions
+    myAssetRequests.forEach(req => {
+      const rawTime = new Date(req.createdAt || req.requestDate).getTime() || Date.now();
+      const itemsText = req.items?.map(i => `${i.quantity}x ${i.assetType}${i.specifications ? ` (${i.specifications})` : ''}`).join(', ') || 'Equipment Item';
+      
+      const timeline = [
+        {
+          title: 'Request Submitted',
+          description: `Submitted by ${req.employeeName} (${req.department})`,
+          timestamp: req.requestDate || formatDateDisplay(req.createdAt),
+          actor: req.employeeName,
+          isDone: true,
+          isCurrent: req.status === 'Pending',
+        },
+        {
+          title: req.status === 'In Progress' ? 'Under Processing' : 'Admin Assessment',
+          description: req.status === 'Pending' ? 'Awaiting IT Administrator review' : 'Reviewed by IT Administrator',
+          timestamp: req.updatedAt ? formatDateDisplay(req.updatedAt) : undefined,
+          actor: 'IT Administrator',
+          isDone: req.status !== 'Pending',
+          isCurrent: req.status === 'In Progress',
+        },
+        {
+          title: req.status === 'Approved' ? 'Approved' : req.status === 'Fulfilled' ? 'Fulfilled & Issued' : req.status === 'Rejected' ? 'Rejected' : 'Action Decision',
+          description: req.adminNotes || (req.status === 'Rejected' ? 'Request was rejected by Admin' : req.status === 'Approved' || req.status === 'Fulfilled' ? 'Request approved by Admin' : 'Awaiting final decision'),
+          timestamp: req.fulfilledDate ? formatDateDisplay(req.fulfilledDate) : req.updatedAt ? formatDateDisplay(req.updatedAt) : undefined,
+          actor: 'IT Administrator',
+          isDone: req.status === 'Approved' || req.status === 'Fulfilled' || req.status === 'Rejected',
+          isCurrent: req.status === 'Approved' || req.status === 'Fulfilled' || req.status === 'Rejected',
+          isRejected: req.status === 'Rejected',
+        },
+      ];
+
+      items.push({
+        id: req.id,
+        type: 'asset_request',
+        title: `Equipment Requisition: ${req.items?.[0]?.assetType || 'Asset'}`,
+        categoryLabel: 'Hardware Requisition',
+        categoryColor: 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+        date: req.requestDate || req.createdAt,
+        rawDate: rawTime,
+        status: req.status,
+        requestDetails: req.reason,
+        urgency: req.urgency,
+        itemsSummary: itemsText,
+        adminRemarks: req.adminNotes,
+        adminName: 'IT Admin',
+        actionDate: req.fulfilledDate || req.updatedAt,
+        timeline,
+        originalRecord: req,
+      });
+    });
+
+    // 2. SIM Requests
+    mySimRequests.forEach(req => {
+      const rawTime = new Date(req.createdAt).getTime() || Date.now();
+      const remarks = req.adminRemarks || req.resolutionRemarks;
+
+      const timeline = [
+        {
+          title: `${req.requestType} Requested`,
+          description: req.reason,
+          timestamp: formatDateDisplay(req.createdAt),
+          actor: req.employeeName,
+          isDone: true,
+          isCurrent: req.status === 'Pending',
+        },
+        {
+          title: 'Telecom Review',
+          description: req.status === 'Pending' ? 'Awaiting Admin / Telecom Manager review' : `Processed by ${req.resolvedBy || 'IT Admin'}`,
+          timestamp: req.resolvedAt ? formatDateDisplay(req.resolvedAt) : req.updatedAt ? formatDateDisplay(req.updatedAt) : undefined,
+          actor: req.resolvedBy || 'IT Admin',
+          isDone: req.status !== 'Pending',
+          isCurrent: req.status === 'In Progress',
+        },
+        {
+          title: req.status === 'Approved' ? 'Approved' : req.status === 'Resolved' ? 'Resolved & Fulfilled' : req.status === 'Rejected' ? 'Rejected' : 'Action Decision',
+          description: remarks || (req.status === 'Rejected' ? 'SIM request rejected by Admin' : 'Action decision recorded'),
+          timestamp: req.resolvedAt ? formatDateDisplay(req.resolvedAt) : undefined,
+          actor: req.resolvedBy || 'IT Admin',
+          isDone: req.status === 'Approved' || req.status === 'Resolved' || req.status === 'Rejected',
+          isCurrent: req.status === 'Approved' || req.status === 'Resolved' || req.status === 'Rejected',
+          isRejected: req.status === 'Rejected',
+        },
+      ];
+
+      items.push({
+        id: req.id,
+        type: 'sim_request',
+        title: `${req.requestType}${req.issueType ? `: ${req.issueType}` : ''}`,
+        categoryLabel: 'SIM & Telecom Request',
+        categoryColor: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+        date: req.createdAt,
+        rawDate: rawTime,
+        status: req.status,
+        requestDetails: req.reason,
+        urgency: req.urgency,
+        itemsSummary: req.contactNumber ? `Target SIM: ${req.contactNumber}` : req.purpose ? `Purpose: ${req.purpose}` : undefined,
+        adminRemarks: remarks,
+        adminName: req.resolvedBy || 'IT Admin',
+        actionDate: req.resolvedAt || req.updatedAt,
+        timeline,
+        originalRecord: req,
+      });
+    });
+
+    // 3. Staff Asset Queries
+    myAssetQueries.forEach(q => {
+      const rawTime = new Date(q.createdAt).getTime() || Date.now();
+      const remarks = q.resolutionNotes || q.stillUnresolvedNotes;
+
+      const timeline = (q.history && q.history.length > 0)
+        ? q.history.map((h, idx) => ({
+            title: h.status,
+            description: h.notes || `Status updated to ${h.status}`,
+            timestamp: formatDateDisplay(h.timestamp),
+            actor: h.updatedBy,
+            isDone: true,
+            isCurrent: idx === q.history.length - 1,
+            isRejected: h.status === 'Still Unresolved',
+          }))
+        : [
+            {
+              title: 'Query Logged',
+              description: `${q.queryType}: ${q.subject}`,
+              timestamp: formatDateDisplay(q.createdAt),
+              actor: q.employeeName,
+              isDone: true,
+              isCurrent: q.status === 'Pending Acknowledgement',
+            },
+            {
+              title: 'Acknowledgement',
+              description: q.acknowledgedBy ? `Acknowledged by ${q.acknowledgedBy}` : 'Awaiting Admin Acknowledgement',
+              timestamp: q.acknowledgedAt ? formatDateDisplay(q.acknowledgedAt) : undefined,
+              actor: q.acknowledgedBy || 'IT Admin',
+              isDone: Boolean(q.acknowledgedAt || q.status !== 'Pending Acknowledgement'),
+              isCurrent: q.status === 'Acknowledged' || q.status === 'In Progress',
+            },
+            {
+              title: q.status,
+              description: remarks || 'Resolution in progress',
+              timestamp: q.resolvedAt ? formatDateDisplay(q.resolvedAt) : q.stillUnresolvedDate ? formatDateDisplay(q.stillUnresolvedDate) : undefined,
+              actor: q.resolvedBy || q.acknowledgedBy || 'IT Admin',
+              isDone: q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed',
+              isCurrent: q.status === 'Resolved' || q.status === 'Closed' || q.status === 'Handover Completed' || q.status === 'Still Unresolved',
+              isRejected: q.status === 'Still Unresolved',
+            },
+          ];
+
+      items.push({
+        id: q.id,
+        type: 'asset_query',
+        title: `Asset Query: ${q.subject}`,
+        categoryLabel: 'Staff Asset Ticket',
+        categoryColor: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+        date: q.createdAt,
+        rawDate: rawTime,
+        status: q.status,
+        requestDetails: q.description,
+        itemsSummary: `Asset: ${q.assetName} (${q.assetNumber})`,
+        adminRemarks: remarks,
+        adminName: q.resolvedBy || q.acknowledgedBy || 'IT Support',
+        actionDate: q.resolvedAt || q.stillUnresolvedDate || q.updatedAt,
+        timeline,
+        originalRecord: q,
+      });
+    });
+
+    // 4. Service Records (Workstation Repairs)
+    myServiceRecords.forEach(s => {
+      const rawTime = new Date(s.serviceDate).getTime() || Date.now();
+      const remarks = s.resolution || s.workPerformed || s.remarks;
+
+      const timeline = [
+        {
+          title: 'Service Incident Logged',
+          description: `${s.problemCategory}: ${s.problem || s.deviceName}`,
+          timestamp: formatDateDisplay(s.serviceDate),
+          actor: s.employeeName || employee.name,
+          isDone: true,
+          isCurrent: false,
+        },
+        {
+          title: 'Technician Assigned',
+          description: `Assigned to ${s.technician || 'Technician'}${s.serviceProviderShopName ? ` (${s.serviceProviderShopName})` : ''}`,
+          timestamp: formatDateDisplay(s.serviceDate),
+          actor: s.technician || 'Technician',
+          isDone: true,
+          isCurrent: s.serviceStatus !== 'Completed',
+        },
+        {
+          title: s.serviceStatus === 'Completed' ? 'Service Completed' : 'Service Progress',
+          description: remarks || `Status: ${s.serviceStatus}`,
+          timestamp: formatDateDisplay(s.serviceDate),
+          actor: s.technician || 'Technician',
+          isDone: s.serviceStatus === 'Completed',
+          isCurrent: s.serviceStatus === 'Completed',
+        },
+      ];
+
+      items.push({
+        id: s.id,
+        type: 'service_record',
+        title: `Hardware Repair: ${s.deviceName || s.assetNumber}`,
+        categoryLabel: 'Maintenance & Service',
+        categoryColor: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+        date: s.serviceDate,
+        rawDate: rawTime,
+        status: s.serviceStatus,
+        requestDetails: s.problem || s.problemCategory,
+        itemsSummary: `Asset: ${s.assetNumber} • Cost: ${formatCurrency(Number(s.serviceCost) || 0)}`,
+        adminRemarks: remarks,
+        adminName: s.technician || 'IT Technician',
+        actionDate: s.serviceDate,
+        timeline,
+        originalRecord: s,
+      });
+    });
+
+    return items.sort((a, b) => b.rawDate - a.rawDate);
+  }, [employee, myAssetRequests, mySimRequests, myAssetQueries, myServiceRecords]);
+
+  // Filtered Activities based on status pills
+  const filteredActivities = useMemo(() => {
+    if (activityStatusFilter === 'All') return myUnifiedActivityTimeline;
+    return myUnifiedActivityTimeline.filter(item => {
+      const s = item.status.toLowerCase();
+      if (activityStatusFilter === 'Approved') {
+        return s.includes('approved') || s.includes('resolved') || s.includes('fulfilled') || s.includes('completed');
+      }
+      if (activityStatusFilter === 'Rejected') {
+        return s.includes('rejected') || s.includes('unresolved');
+      }
+      if (activityStatusFilter === 'Pending') {
+        return s.includes('pending');
+      }
+      if (activityStatusFilter === 'In Progress') {
+        return s.includes('progress') || s.includes('acknowledged');
+      }
+      return true;
+    });
+  }, [myUnifiedActivityTimeline, activityStatusFilter]);
+
+  // Activity summary stats
+  const activityStats = useMemo(() => {
+    const total = myUnifiedActivityTimeline.length;
+    const approved = myUnifiedActivityTimeline.filter(i => {
+      const s = i.status.toLowerCase();
+      return s.includes('approved') || s.includes('resolved') || s.includes('fulfilled') || s.includes('completed');
+    }).length;
+    const rejected = myUnifiedActivityTimeline.filter(i => {
+      const s = i.status.toLowerCase();
+      return s.includes('rejected') || s.includes('unresolved');
+    }).length;
+    const pending = myUnifiedActivityTimeline.filter(i => {
+      const s = i.status.toLowerCase();
+      return s.includes('pending');
+    }).length;
+    return { total, approved, rejected, pending };
+  }, [myUnifiedActivityTimeline]);
 
   // Calculate service & maintenance summary for workstation
   const serviceSummary = useMemo(() => {
@@ -1050,6 +1362,20 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
         </button>
         <button
           onClick={() => {
+            setActiveSection('activity');
+            setActiveTab('activity');
+          }}
+          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            activeSection === 'activity'
+              ? 'bg-indigo-600 text-white shadow-xs font-bold'
+              : 'bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white border border-indigo-200/80 dark:border-indigo-800/80'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5 text-indigo-500" />
+          <span>My Activity & Status ({myUnifiedActivityTimeline.length})</span>
+        </button>
+        <button
+          onClick={() => {
             setActiveSection('requests');
             setActiveTab('requests');
           }}
@@ -1731,6 +2057,369 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 1.8. EMPLOYEE APPROVAL / REJECTION ACTIVITY & REQUEST STATUS SECTION */}
+      {(activeSection === 'all' || activeSection === 'activity') && (
+        <div className="bg-white dark:bg-[#101726] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs space-y-5">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                    My Activity & Request Status History
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    Real-time Admin Telemetry
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Track your equipment requisitions, SIM requests, asset queries, and Admin approval remarks.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Action */}
+            <button
+              onClick={() => setShowAssetRequestModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Request</span>
+            </button>
+          </div>
+
+          {/* Metric Stats Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div
+              onClick={() => setActivityStatusFilter('All')}
+              className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                activityStatusFilter === 'All'
+                  ? 'bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-300 dark:border-indigo-700 ring-2 ring-indigo-500/30'
+                  : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between text-slate-400">
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Total Requisitions</span>
+                <Activity className="w-4 h-4 text-indigo-500" />
+              </div>
+              <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                {activityStats.total}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Combined lifecycle items
+              </div>
+            </div>
+
+            <div
+              onClick={() => setActivityStatusFilter('Approved')}
+              className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                activityStatusFilter === 'Approved'
+                  ? 'bg-emerald-50/80 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-500/30'
+                  : 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40 hover:border-emerald-300'
+              }`}
+            >
+              <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Approved / Resolved</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div className="text-xl font-black text-emerald-700 dark:text-emerald-300 mt-1">
+                {activityStats.approved}
+              </div>
+              <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                Fulfilled by Admin
+              </div>
+            </div>
+
+            <div
+              onClick={() => setActivityStatusFilter('Pending')}
+              className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                activityStatusFilter === 'Pending'
+                  ? 'bg-amber-50/80 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 ring-2 ring-amber-500/30'
+                  : 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40 hover:border-amber-300'
+              }`}
+            >
+              <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Pending Review</span>
+                <Clock className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="text-xl font-black text-amber-700 dark:text-amber-300 mt-1">
+                {activityStats.pending}
+              </div>
+              <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                Awaiting Admin action
+              </div>
+            </div>
+
+            <div
+              onClick={() => setActivityStatusFilter('Rejected')}
+              className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                activityStatusFilter === 'Rejected'
+                  ? 'bg-rose-50/80 dark:bg-rose-950/50 border-rose-300 dark:border-rose-700 ring-2 ring-rose-500/30'
+                  : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/40 hover:border-rose-300'
+              }`}
+            >
+              <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Rejected</span>
+                <AlertTriangle className="w-4 h-4 text-rose-500" />
+              </div>
+              <div className="text-xl font-black text-rose-700 dark:text-rose-300 mt-1">
+                {activityStats.rejected}
+              </div>
+              <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">
+                Action remarks provided
+              </div>
+            </div>
+          </div>
+
+          {/* Status Filter Buttons */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1">
+                <Filter className="w-3.5 h-3.5" />
+                <span>Filter Status:</span>
+              </span>
+              {(['All', 'Approved', 'Pending', 'Rejected', 'In Progress'] as const).map(status => (
+                <button
+                  key={status}
+                  onClick={() => setActivityStatusFilter(status)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activityStatusFilter === status
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-slate-400 font-mono">
+              Showing {filteredActivities.length} of {myUnifiedActivityTimeline.length} activities
+            </span>
+          </div>
+
+          {/* Activities Cards List */}
+          {filteredActivities.length > 0 ? (
+            <div className="space-y-4">
+              {filteredActivities.map(item => {
+                const isExpanded = expandedActivityId === item.id;
+                const isApproved = item.status === 'Approved' || item.status === 'Fulfilled' || item.status === 'Resolved' || item.status === 'Completed' || item.status === 'Closed';
+                const isRejected = item.status === 'Rejected' || item.status === 'Still Unresolved';
+                const isPending = item.status === 'Pending' || item.status === 'Pending Acknowledgement';
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`rounded-2xl border transition-all overflow-hidden ${
+                      isApproved
+                        ? 'border-emerald-200 dark:border-emerald-800/80 bg-white dark:bg-[#101726] shadow-2xs'
+                        : isRejected
+                        ? 'border-rose-200 dark:border-rose-800/80 bg-white dark:bg-[#101726] shadow-2xs'
+                        : isPending
+                        ? 'border-amber-200 dark:border-amber-800/80 bg-white dark:bg-[#101726] shadow-2xs'
+                        : 'border-blue-200 dark:border-blue-800/80 bg-white dark:bg-[#101726]'
+                    }`}
+                  >
+                    {/* Card Top Header Bar */}
+                    <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-800/80">
+                      <div className="flex items-start gap-3">
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border shrink-0 ${item.categoryColor}`}>
+                          {item.categoryLabel}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                              {item.title}
+                            </h3>
+                            <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                              {item.id}
+                            </span>
+                            {item.urgency && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                item.urgency === 'Critical' || item.urgency === 'Urgent'
+                                  ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                  : item.urgency === 'High'
+                                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                  : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                              }`}>
+                                Urgency: {item.urgency}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              Requested: {formatDateDisplay(item.date)}
+                            </span>
+                            {item.itemsSummary && (
+                              <>
+                                <span>&bull;</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-300">
+                                  {item.itemsSummary}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="flex items-center gap-2.5 self-start sm:self-center shrink-0">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-2xs ${
+                          isApproved
+                            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                            : isRejected
+                            ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700'
+                            : isPending
+                            ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                            : 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                        }`}>
+                          {isApproved && <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                          {isRejected && <X className="w-4 h-4 text-rose-600 dark:text-rose-400" />}
+                          {isPending && <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse" />}
+                          {!isApproved && !isRejected && !isPending && <Wrench className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+                          <span>{item.status}</span>
+                        </span>
+
+                        <button
+                          onClick={() => setExpandedActivityId(isExpanded ? null : item.id)}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                          title={isExpanded ? 'Collapse Timeline' : 'Expand Timeline History'}
+                        >
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card Details Body */}
+                    <div className="p-4 sm:p-5 space-y-4">
+                      {/* Request Details Reason */}
+                      <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <span className="font-bold text-slate-900 dark:text-white block mb-0.5">
+                          Requirement Details / Reason:
+                        </span>
+                        {item.requestDetails}
+                      </div>
+
+                      {/* ADMIN REMARKS / REASON CALLOUT BOX */}
+                      {(item.adminRemarks || isApproved || isRejected) && (
+                        <div className={`p-4 rounded-xl border flex items-start gap-3 shadow-2xs ${
+                          isRejected
+                            ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                            : isApproved
+                            ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                            : 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200'
+                        }`}>
+                          <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                            isRejected ? 'bg-rose-500 text-white' : isApproved ? 'bg-emerald-500 text-white' : 'bg-purple-500 text-white'
+                          }`}>
+                            <Shield className="w-4 h-4" />
+                          </div>
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <h4 className="text-xs font-bold flex items-center gap-1.5">
+                                <span>Admin Remark & Action Decision:</span>
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/60 dark:bg-black/40 font-semibold">
+                                  Decision by {item.adminName || 'IT Administrator'}
+                                </span>
+                              </h4>
+                              {item.actionDate && (
+                                <span className="text-[10px] opacity-80 font-mono">
+                                  {formatDateDisplay(item.actionDate)}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-medium leading-relaxed">
+                              {item.adminRemarks || (isApproved ? 'Request was reviewed and approved by Admin.' : isRejected ? 'Request was rejected by Admin.' : 'No remarks provided.')}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* VISUAL HISTORY TIMELINE STEPPER */}
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>Request Lifecycle & Status Timeline</span>
+                        </h4>
+
+                        <div className="relative pl-6 space-y-3.5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+                          {item.timeline.map((step, idx) => (
+                            <div key={idx} className="relative flex items-start gap-3 text-xs">
+                              {/* Stepper Node Circle */}
+                              <div className={`absolute -left-6 top-0.5 w-5 h-5 rounded-full flex items-center justify-center border text-[10px] font-bold ${
+                                step.isRejected
+                                  ? 'bg-rose-500 text-white border-rose-600'
+                                  : step.isDone
+                                  ? 'bg-emerald-500 text-white border-emerald-600'
+                                  : step.isCurrent
+                                  ? 'bg-amber-500 text-white border-amber-600 animate-pulse'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-300 dark:border-slate-700'
+                              }`}>
+                                {step.isRejected ? <X className="w-3 h-3" /> : step.isDone ? <Check className="w-3 h-3" /> : idx + 1}
+                              </div>
+
+                              <div className="flex-1 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className={`font-bold ${
+                                    step.isRejected
+                                      ? 'text-rose-600 dark:text-rose-400'
+                                      : step.isDone
+                                      ? 'text-slate-900 dark:text-white'
+                                      : 'text-slate-500 dark:text-slate-400'
+                                  }`}>
+                                    {step.title}
+                                  </span>
+                                  {step.timestamp && (
+                                    <span className="text-[10px] font-mono text-slate-400">
+                                      {step.timestamp}
+                                    </span>
+                                  )}
+                                </div>
+                                {step.description && (
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                                    {step.description}
+                                  </p>
+                                )}
+                                {step.actor && (
+                                  <div className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 mt-1">
+                                    Actor: {step.actor}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+              <Activity className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                No activity or requests found matching "{activityStatusFilter}" status
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                When you submit hardware requisitions, SIM requests, or asset queries, their status & Admin remarks will track here.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowAssetRequestModal(true)}
+                className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Submit Equipment Requisition</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
