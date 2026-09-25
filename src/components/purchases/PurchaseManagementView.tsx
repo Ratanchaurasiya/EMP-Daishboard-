@@ -355,7 +355,7 @@ export const PurchaseManagementView: React.FC = () => {
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-sm transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
             Export CSV
@@ -380,7 +380,7 @@ export const PurchaseManagementView: React.FC = () => {
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Grand Total Investment */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-750 shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Grand Total Capital
@@ -402,7 +402,7 @@ export const PurchaseManagementView: React.FC = () => {
         </div>
 
         {/* Card 2: Devices & Assets Breakdown */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-750 shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Fleet Units Purchased
@@ -422,7 +422,7 @@ export const PurchaseManagementView: React.FC = () => {
         </div>
 
         {/* Card 3: Accessories Spend */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-750 shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Peripherals & Bundled
@@ -442,7 +442,7 @@ export const PurchaseManagementView: React.FC = () => {
         </div>
 
         {/* Card 4: Inventory Deployment & Receipts */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-750 shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Fleet Status & Receipts
@@ -463,7 +463,7 @@ export const PurchaseManagementView: React.FC = () => {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-750 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
+      <div className="p-4 rounded-2xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
           <input
@@ -480,7 +480,7 @@ export const PurchaseManagementView: React.FC = () => {
           <select
             value={filterDeviceType}
             onChange={e => setFilterDeviceType(e.target.value)}
-            className="px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300"
+            className="px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 cursor-pointer"
           >
             <option value="all">All Asset Categories</option>
             <option value="Laptop">Laptops</option>
@@ -498,7 +498,7 @@ export const PurchaseManagementView: React.FC = () => {
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            className="px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300"
+            className="px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 cursor-pointer"
           >
             <option value="all">All Statuses</option>
             <option value="In Stock">In Stock</option>
@@ -511,7 +511,7 @@ export const PurchaseManagementView: React.FC = () => {
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value as any)}
-            className="px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300"
+            className="px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 cursor-pointer"
           >
             <option value="date">Sort by Date</option>
             <option value="cost">Sort by Total Cost</option>
@@ -529,7 +529,7 @@ export const PurchaseManagementView: React.FC = () => {
       </div>
 
       {/* Main Purchases Table */}
-      <div className="bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-750 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         {filteredPurchases.length === 0 ? (
           <div className="text-center py-16 px-4">
             <ShoppingBag className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
@@ -541,13 +541,24 @@ export const PurchaseManagementView: React.FC = () => {
                 ? 'Record your first purchase order for laptops, PCs, mobile phones, monitors, or accessories.'
                 : 'No records matched your search filters. Try adjusting your query.'}
             </p>
-            {purchases.length === 0 && (
+            {purchases.length === 0 ? (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow transition-colors cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 Record First Purchase
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterDeviceType('all');
+                  setFilterStatus('all');
+                }}
+                className="inline-flex items-center gap-1.5 mt-4 px-3.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+              >
+                <span>Reset Search & Filters</span>
               </button>
             )}
           </div>

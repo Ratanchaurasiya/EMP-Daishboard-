@@ -27,7 +27,7 @@ export const AssetInventory: React.FC<AssetInventoryProps> = ({
   onSelectEmployee,
   onOpenAddService,
 }) => {
-  const { assets, employees, userRole, globalFilters, returnAsset, setActiveTab } = useApp();
+  const { assets, employees, userRole, globalFilters, setGlobalFilters, returnAsset, setActiveTab } = useApp();
 
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -401,8 +401,34 @@ export const AssetInventory: React.FC<AssetInventoryProps> = ({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
               {filteredAssets.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
-                    No hardware assets found matching filters.
+                  <td colSpan={isAdmin ? 10 : 9} className="py-12 px-4 text-center">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                        <Headphones className="w-6 h-6" />
+                      </div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                        No hardware assets found matching your filter criteria
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {globalFilters.search
+                          ? `No peripherals or gear match "${globalFilters.search}". Try clearing your search query or adjusting your filters.`
+                          : 'Try changing the asset type or status filter above.'}
+                      </p>
+                      {(typeFilter || statusFilter || globalFilters.search) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTypeFilter('');
+                            setStatusFilter('');
+                            setGlobalFilters({ search: '' });
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          <RotateCcw className="w-3 h-3 text-slate-500" />
+                          <span>Reset Filter Criteria</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (

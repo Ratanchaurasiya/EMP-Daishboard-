@@ -398,7 +398,7 @@ export const SystemPcSupportView: React.FC = () => {
       )}
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800 p-4 rounded-xl backdrop-blur-md">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 p-4 rounded-xl shadow-2xs backdrop-blur-md">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
@@ -406,12 +406,12 @@ export const SystemPcSupportView: React.FC = () => {
             placeholder="Search by technician name, shop, city, address, phone or specialty..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+            className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -424,7 +424,7 @@ export const SystemPcSupportView: React.FC = () => {
             <select
               value={selectedServiceType}
               onChange={e => setSelectedServiceType(e.target.value)}
-              className="bg-slate-800/80 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer pr-8"
+              className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer pr-8"
             >
               <option value="ALL">All Service Types ({serviceProviders.length})</option>
               {SERVICE_TYPES.filter(t => t !== 'Custom').map(type => (
@@ -438,13 +438,13 @@ export const SystemPcSupportView: React.FC = () => {
           {/* Preferred Filter */}
           <button
             onClick={() => setOnlyPreferred(!onlyPreferred)}
-            className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               onlyPreferred
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-lg shadow-amber-500/10'
-                : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-750'
+                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/50 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
-            <Star className={`w-3.5 h-3.5 ${onlyPreferred ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+            <Star className={`w-3.5 h-3.5 ${onlyPreferred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'}`} />
             Preferred Only
           </button>
         </div>
@@ -452,19 +452,19 @@ export const SystemPcSupportView: React.FC = () => {
 
       {/* Service Providers Grid */}
       {filteredProviders.length === 0 ? (
-        <div className="text-center py-16 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 backdrop-blur-sm">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto text-indigo-400 mb-4">
+        <div className="text-center py-16 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-8 shadow-sm dark:shadow-none backdrop-blur-sm">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center mx-auto text-indigo-600 dark:text-indigo-400 mb-4">
             <Wrench className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-2">No Service Providers Found</h3>
-          <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">No Service Providers Found</h3>
+          <p className="text-slate-600 dark:text-slate-400 text-sm max-w-md mx-auto mb-6">
             {searchQuery || selectedServiceType !== 'ALL' || onlyPreferred
               ? 'No service providers match your current filters. Try resetting search criteria or add a new provider.'
               : 'There are no PC/laptop service providers registered in the database yet.'}
           </p>
           <button
             onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Add First Provider
@@ -480,30 +480,30 @@ export const SystemPcSupportView: React.FC = () => {
                 key={provider.id}
                 className={`group relative rounded-2xl border transition-all duration-300 p-6 flex flex-col justify-between backdrop-blur-xl ${
                   isSelected
-                    ? 'bg-gradient-to-b from-indigo-950/60 to-slate-900 border-indigo-500/60 shadow-xl shadow-indigo-500/10 ring-2 ring-indigo-500/40'
-                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90 shadow-lg'
+                    ? 'bg-gradient-to-b from-indigo-50/80 to-white dark:from-indigo-950/60 dark:to-slate-900 border-indigo-400 dark:border-indigo-500/60 shadow-xl shadow-indigo-500/10 ring-2 ring-indigo-500/40'
+                    : 'bg-white dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-slate-700 hover:shadow-md dark:hover:bg-slate-900/90 shadow-sm dark:shadow-lg'
                 }`}
               >
                 {/* Header */}
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-lg shadow-inner">
+                      <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-gradient-to-br dark:from-indigo-500/20 dark:to-cyan-500/20 border border-indigo-100 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 font-bold text-lg shadow-inner">
                         {provider.technicianName.charAt(0)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="text-base md:text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">
+                          <h3 className="text-base md:text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
                             {provider.technicianName}
                           </h3>
                           {provider.isPreferred && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-semibold tracking-wide">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-semibold tracking-wide">
                               <Star className="w-2.5 h-2.5 fill-amber-400" />
                               Preferred
                             </span>
                           )}
                         </div>
-                        <p className="text-sm font-medium text-slate-300 flex items-center gap-1.5 mt-0.5">
+                        <p className="text-sm font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5 mt-0.5">
                           <Building className="w-3.5 h-3.5 text-slate-400" />
                           {provider.shopName}
                         </p>
@@ -515,14 +515,14 @@ export const SystemPcSupportView: React.FC = () => {
                       <button
                         onClick={() => handleOpenEditModal(provider)}
                         title="Edit Provider"
-                        className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                        className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setDeleteConfirmId(provider.id)}
                         title="Delete Provider"
-                        className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-400 transition-colors"
+                        className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -531,57 +531,57 @@ export const SystemPcSupportView: React.FC = () => {
 
                   {/* Badge & Rating Row */}
                   <div className="flex flex-wrap items-center gap-2 mb-4">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 text-xs font-semibold text-indigo-300">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-slate-800/80 border border-indigo-100 dark:border-slate-700/80 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
                       {getServiceTypeIcon(provider.serviceType)}
                       {provider.serviceType}
                     </span>
 
                     {provider.rating && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-300">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-600 dark:text-amber-300">
                         <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                         {provider.rating.toFixed(1)}
                       </span>
                     )}
 
                     {provider.experienceYears && (
-                      <span className="text-xs text-slate-400 flex items-center gap-1">
-                        <Briefcase className="w-3 h-3 text-slate-500" />
+                      <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Briefcase className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                         {provider.experienceYears}+ yrs exp
                       </span>
                     )}
                   </div>
 
                   {/* Details List */}
-                  <div className="space-y-2 text-xs text-slate-300 bg-slate-950/40 rounded-xl p-3.5 border border-slate-800/80 mb-4">
+                  <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950/40 rounded-xl p-3.5 border border-slate-200 dark:border-slate-800/80 mb-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-slate-400" />
                         Mobile / Calling:
                       </span>
                       <a
                         href={`tel:${provider.phoneNumber}`}
-                        className="font-mono text-indigo-400 hover:text-indigo-300 hover:underline font-semibold"
+                        className="font-mono text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline font-semibold"
                       >
                         {provider.phoneNumber}
                       </a>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 flex items-center gap-1.5">
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                         WhatsApp Direct:
                       </span>
-                      <span className="font-mono text-emerald-400 font-semibold">
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
                         +{provider.whatsappNumber || provider.phoneNumber.replace(/\D/g, '')}
                       </span>
                     </div>
 
-                    <div className="flex items-start justify-between gap-2 pt-1 border-t border-slate-800/60">
-                      <span className="text-slate-400 flex items-center gap-1.5 shrink-0">
-                        <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                    <div className="flex items-start justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/60">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 shrink-0">
+                        <MapPin className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
                         Address:
                       </span>
-                      <span className="text-right text-slate-300">
+                      <span className="text-right text-slate-700 dark:text-slate-300">
                         {provider.address}
                         {provider.city ? `, ${provider.city}` : ''}
                         {provider.pincode ? ` - ${provider.pincode}` : ''}
@@ -589,17 +589,17 @@ export const SystemPcSupportView: React.FC = () => {
                     </div>
 
                     {provider.workingHours && (
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
-                        <span className="text-slate-400 flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800/60">
+                        <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                           Hours:
                         </span>
-                        <span className="text-slate-300 font-medium">{provider.workingHours}</span>
+                        <span className="text-slate-700 dark:text-slate-300 font-medium">{provider.workingHours}</span>
                       </div>
                     )}
 
                     {provider.remarks && (
-                      <div className="pt-2 border-t border-slate-800/60 text-slate-400 italic">
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800/60 text-slate-500 dark:text-slate-400 italic">
                         "{provider.remarks}"
                       </div>
                     )}
@@ -607,7 +607,7 @@ export const SystemPcSupportView: React.FC = () => {
                 </div>
 
                 {/* Card Actions */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-2 border-t border-slate-800">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <button
                     onClick={() => handleContactOnWhatsApp(provider)}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/40 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
@@ -625,7 +625,7 @@ export const SystemPcSupportView: React.FC = () => {
                       className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
                         isSelected
                           ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border-slate-700'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-slate-700'
                       }`}
                     >
                       {isSelected ? (
@@ -648,25 +648,25 @@ export const SystemPcSupportView: React.FC = () => {
       {/* ADD / EDIT SERVICE PROVIDER MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-8 animate-scaleUp">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-8 animate-scaleUp">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/50">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400">
                   <Wrench className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     {editingProvider ? 'Edit Service Provider' : 'Add New PC / Laptop Repair Provider'}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Register hardware technician, chip-level shop, or AMC maintenance vendor
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -677,7 +677,7 @@ export const SystemPcSupportView: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Technician Name */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Technician / Contact Person <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
@@ -687,17 +687,17 @@ export const SystemPcSupportView: React.FC = () => {
                       placeholder="e.g. Rakesh Sharma"
                       value={formData.technicianName}
                       onChange={e => setFormData({ ...formData, technicianName: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                   {formErrors.technicianName && (
-                    <p className="text-rose-400 text-xs mt-1">{formErrors.technicianName}</p>
+                    <p className="text-rose-500 dark:text-rose-400 text-xs mt-1">{formErrors.technicianName}</p>
                   )}
                 </div>
 
                 {/* Shop / Company Name */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Shop / Company Name <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
@@ -707,15 +707,15 @@ export const SystemPcSupportView: React.FC = () => {
                       placeholder="e.g. Apex PC Care & Chip Repair"
                       value={formData.shopName}
                       onChange={e => setFormData({ ...formData, shopName: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
-                  {formErrors.shopName && <p className="text-rose-400 text-xs mt-1">{formErrors.shopName}</p>}
+                  {formErrors.shopName && <p className="text-rose-500 dark:text-rose-400 text-xs mt-1">{formErrors.shopName}</p>}
                 </div>
 
                 {/* Phone Number */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Mobile / Phone Number <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
@@ -732,34 +732,34 @@ export const SystemPcSupportView: React.FC = () => {
                           whatsappNumber: formData.whatsappNumber || val.replace(/\D/g, ''),
                         });
                       }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                   {formErrors.phoneNumber && (
-                    <p className="text-rose-400 text-xs mt-1">{formErrors.phoneNumber}</p>
+                    <p className="text-rose-500 dark:text-rose-400 text-xs mt-1">{formErrors.phoneNumber}</p>
                   )}
                 </div>
 
                 {/* WhatsApp Number */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     WhatsApp Direct Number
                   </label>
                   <div className="relative">
-                    <MessageCircle className="w-4 h-4 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <MessageCircle className="w-4 h-4 text-emerald-500 dark:text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       placeholder="e.g. 9811298765 (digits only)"
                       value={formData.whatsappNumber}
                       onChange={e => setFormData({ ...formData, whatsappNumber: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
                 </div>
 
                 {/* Service Type */}
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Service Type & Specialization <span className="text-rose-400">*</span>
                   </label>
                   <select
@@ -767,7 +767,7 @@ export const SystemPcSupportView: React.FC = () => {
                     onChange={e =>
                       setFormData({ ...formData, serviceType: e.target.value as ServiceProviderType })
                     }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                   >
                     {SERVICE_TYPES.map(type => (
                       <option key={type} value={type}>
@@ -780,7 +780,7 @@ export const SystemPcSupportView: React.FC = () => {
                 {/* Custom Service Type Input */}
                 {formData.serviceType === 'Custom' && (
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-indigo-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider mb-1.5">
                       Specify Custom Service Type <span className="text-rose-400">*</span>
                     </label>
                     <input
@@ -788,17 +788,17 @@ export const SystemPcSupportView: React.FC = () => {
                       placeholder="e.g. Data Recovery & Forensic Drive Imaging"
                       value={formData.customServiceType}
                       onChange={e => setFormData({ ...formData, customServiceType: e.target.value })}
-                      className="w-full bg-slate-950 border border-indigo-500/50 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-indigo-500/50 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
                     />
                     {formErrors.customServiceType && (
-                      <p className="text-rose-400 text-xs mt-1">{formErrors.customServiceType}</p>
+                      <p className="text-rose-500 dark:text-rose-400 text-xs mt-1">{formErrors.customServiceType}</p>
                     )}
                   </div>
                 )}
 
                 {/* Address */}
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Shop / Service Center Address <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
@@ -808,15 +808,15 @@ export const SystemPcSupportView: React.FC = () => {
                       placeholder="e.g. Shop #108, Nehru Place Tech Complex"
                       value={formData.address}
                       onChange={e => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
-                  {formErrors.address && <p className="text-rose-400 text-xs mt-1">{formErrors.address}</p>}
+                  {formErrors.address && <p className="text-rose-500 dark:text-rose-400 text-xs mt-1">{formErrors.address}</p>}
                 </div>
 
                 {/* City */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     City
                   </label>
                   <input
@@ -824,14 +824,14 @@ export const SystemPcSupportView: React.FC = () => {
                     placeholder="e.g. New Delhi"
                     value={formData.city}
                     onChange={e => setFormData({ ...formData, city: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 {/* State / Pincode */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                       State
                     </label>
                     <input
@@ -839,11 +839,11 @@ export const SystemPcSupportView: React.FC = () => {
                       placeholder="e.g. Delhi"
                       value={formData.state}
                       onChange={e => setFormData({ ...formData, state: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                       Pincode
                     </label>
                     <input
@@ -851,7 +851,7 @@ export const SystemPcSupportView: React.FC = () => {
                       placeholder="110019"
                       value={formData.pincode}
                       onChange={e => setFormData({ ...formData, pincode: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
@@ -859,7 +859,7 @@ export const SystemPcSupportView: React.FC = () => {
                 {/* Rating & Experience */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                       Rating (1 - 5)
                     </label>
                     <input
@@ -869,11 +869,11 @@ export const SystemPcSupportView: React.FC = () => {
                       max="5"
                       value={formData.rating}
                       onChange={e => setFormData({ ...formData, rating: parseFloat(e.target.value) || 5 })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                       Experience (Yrs)
                     </label>
                     <input
@@ -882,14 +882,14 @@ export const SystemPcSupportView: React.FC = () => {
                       max="50"
                       value={formData.experienceYears}
                       onChange={e => setFormData({ ...formData, experienceYears: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
 
                 {/* Working Hours */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Working Hours
                   </label>
                   <input
@@ -897,30 +897,30 @@ export const SystemPcSupportView: React.FC = () => {
                     placeholder="e.g. 10:00 AM - 8:30 PM (Mon-Sat)"
                     value={formData.workingHours}
                     onChange={e => setFormData({ ...formData, workingHours: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 {/* Preferred Partner Toggle */}
-                <div className="md:col-span-2 flex items-center justify-between p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl">
+                <div className="md:col-span-2 flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl">
                   <div className="flex items-center gap-2.5">
-                    <Star className={`w-4 h-4 ${formData.isPreferred ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+                    <Star className={`w-4 h-4 ${formData.isPreferred ? 'fill-amber-400 text-amber-500 dark:text-amber-400' : 'text-slate-400'}`} />
                     <div>
-                      <div className="text-xs font-semibold text-white">Mark as Preferred IT Partner</div>
-                      <div className="text-[11px] text-slate-400">Preferred partners appear highlighted at the top of service vendor lists</div>
+                      <div className="text-xs font-semibold text-slate-900 dark:text-white">Mark as Preferred IT Partner</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Preferred partners appear highlighted at the top of service vendor lists</div>
                     </div>
                   </div>
                   <input
                     type="checkbox"
                     checked={formData.isPreferred}
                     onChange={e => setFormData({ ...formData, isPreferred: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 bg-slate-800 border-slate-700 rounded focus:ring-indigo-500"
+                    className="w-4 h-4 text-indigo-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 rounded focus:ring-indigo-500"
                   />
                 </div>
 
                 {/* Remarks */}
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Notes & Specializations
                   </label>
                   <textarea
@@ -928,17 +928,17 @@ export const SystemPcSupportView: React.FC = () => {
                     placeholder="e.g. Expert in Dell/HP motherboard chip-level repair, BGA reballing, and thermal paste replacement."
                     value={formData.remarks}
                     onChange={e => setFormData({ ...formData, remarks: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-colors"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -958,20 +958,20 @@ export const SystemPcSupportView: React.FC = () => {
       {/* DELETE CONFIRMATION MODAL */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
             <div className="text-center space-y-1">
-              <h3 className="text-base font-bold text-white">Delete Service Provider?</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Service Provider?</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Are you sure you want to remove this service provider from the database? This action cannot be undone.
               </p>
             </div>
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium"
               >
                 Cancel
               </button>

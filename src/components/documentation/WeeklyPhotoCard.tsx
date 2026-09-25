@@ -740,7 +740,7 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
                             : st === 'Needs Attention'
                             ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
                             : 'bg-amber-500 text-white border-amber-500 shadow-xs'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       {st}

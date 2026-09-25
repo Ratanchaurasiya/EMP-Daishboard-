@@ -299,16 +299,40 @@ export const AssetQueryList: React.FC = () => {
       {/* Query Cards List */}
       <div className="space-y-3">
         {filteredQueries.length === 0 ? (
-          <div className="p-8 text-center bg-white dark:bg-[#101726] rounded-xl border border-slate-200 dark:border-[#1e293b]">
-            <p className="text-slate-400 text-xs">No asset queries found matching the current criteria.</p>
-            <button
-              type="button"
-              onClick={() => setShowRaiseModal(true)}
-              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white font-semibold rounded-lg text-xs"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Raise First Query</span>
-            </button>
+          <div className="p-10 text-center bg-white dark:bg-[#101726] rounded-xl border border-slate-200 dark:border-[#1e293b] shadow-2xs">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-3">
+              <HelpCircle className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">
+              No Asset Queries Found
+            </h3>
+            <p className="text-slate-500 dark:text-slate-400 text-xs max-w-sm mx-auto mb-4">
+              {searchTerm || activeFilter !== 'all'
+                ? 'No queries matched your search and filter criteria. Try resetting filters or search term.'
+                : 'No staff asset queries have been raised yet.'}
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              {(searchTerm || activeFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setActiveFilter('all');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+                >
+                  Reset Filters
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowRaiseModal(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Raise Query</span>
+              </button>
+            </div>
           </div>
         ) : (
           filteredQueries.map(q => (

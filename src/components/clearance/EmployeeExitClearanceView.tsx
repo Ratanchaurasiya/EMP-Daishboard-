@@ -41,6 +41,11 @@ import { EmployeeAvatar } from '../common/EmployeeAvatar';
 import { InitiateExitClearanceModal } from './InitiateExitClearanceModal';
 import { AssetInspectionModal } from './AssetInspectionModal';
 import { ClearanceCertificateModal } from './ClearanceCertificateModal';
+import { SubmitExitRequestModal } from './SubmitExitRequestModal';
+import { ReviewExitRequestModal } from './ReviewExitRequestModal';
+import { EmployeeExitStatusCard } from './EmployeeExitStatusCard';
+import { ExitRequestsAdminView } from './ExitRequestsAdminView';
+import { ExitHistoryView } from './ExitHistoryView';
 
 interface EmployeeExitClearanceViewProps {
   onSelectEmployee?: (empId: string) => void;
@@ -68,6 +73,10 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
   const [exitTypeFilter, setExitTypeFilter] = useState<string>('All');
   const [expandedClearanceIds, setExpandedClearanceIds] = useState<Set<string>>(new Set());
   const [expandedAuditIds, setExpandedAuditIds] = useState<Set<string>>(new Set());
+  // Top Section Tabs (for Admin)
+  const [mainTab, setMainTab] = useState<'requests' | 'active_clearances' | 'history'>('requests');
+  const [showSubmitModal, setShowSubmitModal] = useState<boolean>(false);
+  const [reviewingClearance, setReviewingClearance] = useState<ExitClearanceRecord | null>(null);
 
   // Modal States
   const [showInitiateModal, setShowInitiateModal] = useState<boolean>(false);
@@ -77,6 +86,28 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
   } | null>(null);
   const [certificateRecord, setCertificateRecord] = useState<ExitClearanceRecord | null>(null);
   const [activePhotoPreview, setActivePhotoPreview] = useState<string | null>(null);
+
+  // Employee's active clearance
+  const myClearance = useMemo(() => {
+    if (!isEmployee) return null;
+    const empId = (currentUser?.id || '').toLowerCase();
+    const empCode = (currentUser?.employeeId || '').toLowerCase();
+    const empEmail = (currentUser?.email || '').toLowerCase();
+    return (
+      exitClearances.find(
+        c =>
+          c.employeeId.toLowerCase() === empId ||
+          c.employeeId.toLowerCase() === empCode ||
+          (c.employeeEmail && c.employeeEmail.toLowerCase() === empEmail)
+      ) || null
+    );
+  }, [exitClearances, isEmployee, currentUser]);
+
+  const pendingRequestsCount = useMemo(() => {
+    return exitClearances.filter(
+      c => c.exitRequest && (c.exitRequest.status === 'Pending' || c.exitRequest.status === 'Under Review')
+    ).length;
+  }, [exitClearances]);
 
   // Toggle card expansion
   const toggleExpand = (id: string) => {
@@ -175,18 +206,113 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
           </div>
         </div>
 
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => setShowInitiateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Initiate Exit Clearance</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {isEmployee && (
+            <button
+              type="button"
+              onClick={() => setShowSubmitModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Raise Exit Request</span>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowInitiateModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Initiate Exit Clearance</span>
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* EMPLOYEE PORTAL EXIT STATUS BANNER */}
+      {isEmployee && (
+        <EmployeeExitStatusCard
+          clearance={myClearance}
+          onRaiseRequest={() => setShowSubmitModal(true)}
+          onViewCertificate={record => setCertificateRecord(record)}
+        />
+      )}
+
+      {/* ADMIN PORTAL TABS */}
+      {isAdmin && (
+        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setMainTab('requests')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mainTab === 'requests'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Exit Requests & Approvals</span>
+            {pendingRequestsCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-rose-600 text-white animate-pulse">
+                {pendingRequestsCount} Pending
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainTab('active_clearances')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mainTab === 'active_clearances'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Active Asset Clearances</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+              {stats.totalActive}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainTab('history')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mainTab === 'history'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Exit History & Archived Records</span>
+          </button>
+        </div>
+      )}
+
+      {/* VIEW 1: EXIT REQUESTS (ADMIN) */}
+      {isAdmin && mainTab === 'requests' && (
+        <ExitRequestsAdminView
+          clearances={exitClearances}
+          onReviewRequest={clr => setReviewingClearance(clr)}
+          onInitiateClearance={() => setShowInitiateModal(true)}
+        />
+      )}
+
+      {/* VIEW 2: EXIT HISTORY (ADMIN) */}
+      {isAdmin && mainTab === 'history' && (
+        <ExitHistoryView
+          clearances={exitClearances}
+          onViewCertificate={record => setCertificateRecord(record)}
+          onSelectEmployee={onSelectEmployee}
+        />
+      )}
+
+      {/* VIEW 3: ACTIVE ASSET CLEARANCES (ADMIN OR EMPLOYEE ACTIVE ITEMS) */}
+      {(!isAdmin || mainTab === 'active_clearances') && (
+        <>
       {/* 1.5 WORKFLOW PIPELINE PROGRESSION CARD */}
       <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs hidden lg:block">
         <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
@@ -747,6 +873,25 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
           })
         )}
       </div>
+      </>
+      )}
+
+      {/* MODAL 5: SUBMIT EXIT REQUEST MODAL (EMPLOYEE) */}
+      {showSubmitModal && (
+        <SubmitExitRequestModal
+          isOpen={showSubmitModal}
+          onClose={() => setShowSubmitModal(false)}
+        />
+      )}
+
+      {/* MODAL 6: REVIEW EXIT REQUEST MODAL (ADMIN) */}
+      {reviewingClearance && (
+        <ReviewExitRequestModal
+          clearance={reviewingClearance}
+          isOpen={Boolean(reviewingClearance)}
+          onClose={() => setReviewingClearance(null)}
+        />
+      )}
 
       {/* MODAL 1: INITIATE EXIT CLEARANCE */}
       {showInitiateModal && (

@@ -836,7 +836,7 @@ export const EditPurchaseModal: React.FC<EditPurchaseModalProps> = ({
                           <select
                             value={item.type}
                             onChange={e => handleUpdateAccessory(item.id, 'type', e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-slate-200 rounded text-xs"
+                            className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded text-xs"
                           >
                             {PURCHASE_ACCESSORY_TYPES.map(t => (
                               <option key={t} value={t}>
@@ -851,7 +851,7 @@ export const EditPurchaseModal: React.FC<EditPurchaseModalProps> = ({
                             placeholder="Item model or description"
                             value={item.name}
                             onChange={e => handleUpdateAccessory(item.id, 'name', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-slate-200 rounded text-xs"
+                            className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded text-xs"
                           />
                         </div>
                         <div className="col-span-2">
@@ -861,7 +861,7 @@ export const EditPurchaseModal: React.FC<EditPurchaseModalProps> = ({
                             placeholder="Qty"
                             value={item.quantity}
                             onChange={e => handleUpdateAccessory(item.id, 'quantity', Math.max(1, parseInt(e.target.value, 10) || 1))}
-                            className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-slate-200 rounded text-xs text-center font-semibold"
+                            className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded text-xs text-center font-semibold"
                           />
                         </div>
                         <div className="col-span-2">
@@ -873,7 +873,7 @@ export const EditPurchaseModal: React.FC<EditPurchaseModalProps> = ({
                               placeholder="Price"
                               value={item.unitCost || ''}
                               onChange={e => handleUpdateAccessory(item.id, 'unitCost', parseFloat(e.target.value) || 0)}
-                              className="w-full pl-5 pr-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-slate-200 rounded text-xs text-right font-bold"
+                              className="w-full pl-5 pr-2 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded text-xs text-right font-bold"
                             />
                           </div>
                         </div>

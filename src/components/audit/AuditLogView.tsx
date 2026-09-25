@@ -7,7 +7,7 @@ interface AuditLogViewProps {
 }
 
 export const AuditLogView: React.FC<AuditLogViewProps> = ({ onSelectEmployee }) => {
-  const { auditLogs, allocationRecords, globalFilters } = useApp();
+  const { auditLogs, allocationRecords, globalFilters, setGlobalFilters } = useApp();
 
   const filteredLogs = useMemo(() => {
     if (!globalFilters.search) return auditLogs;
@@ -50,8 +50,25 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ onSelectEmployee }) 
 
         <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
           {filteredLogs.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-xs">
-              No audit records found matching your query.
+            <div className="py-12 px-4 text-center">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400 mb-2.5">
+                <Clock className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                No audit records found matching your query
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {globalFilters.search ? `No log items matched "${globalFilters.search}"` : 'Event stream is currently empty.'}
+              </p>
+              {globalFilters.search && (
+                <button
+                  type="button"
+                  onClick={() => setGlobalFilters({ search: '' })}
+                  className="mt-3 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800 transition-colors cursor-pointer"
+                >
+                  Clear Search Filter
+                </button>
+              )}
             </div>
           ) : (
             filteredLogs.map(log => {
@@ -204,7 +221,14 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ onSelectEmployee }) 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-              {allocationRecords.map(rec => (
+              {allocationRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-slate-400 text-xs">
+                    No historical allocation records registered.
+                  </td>
+                </tr>
+              ) : (
+                allocationRecords.map(rec => (
                 <tr key={rec.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                   <td className="py-3 px-4">
                     {onSelectEmployee ? (
@@ -252,7 +276,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ onSelectEmployee }) 
                     </span>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

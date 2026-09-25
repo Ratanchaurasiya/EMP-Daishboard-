@@ -358,7 +358,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
 
     const items: {
       id: string;
-      type: 'asset_request' | 'sim_request' | 'asset_query' | 'service_record';
+      type: 'asset_request' | 'sim_request' | 'asset_query' | 'service_record' | 'exit_clearance';
       title: string;
       categoryLabel: string;
       categoryColor: string;
@@ -602,8 +602,57 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       });
     });
 
+    // 5. Exit & Asset Clearance Request
+    if (myExitClearance) {
+      const ec = myExitClearance;
+      const rawTime = ec.exitRequest?.requestedAt
+        ? new Date(ec.exitRequest.requestedAt).getTime()
+        : new Date(ec.createdAt).getTime();
+      const exitStatus = ec.exitRequest?.status || (ec.status === 'Full & Final Approved' ? 'Approved' : ec.status);
+      const adminRemarks = ec.exitRequest?.adminRemarks || ec.exitRequest?.changesRequestedNotes || ec.exitRequest?.rejectionReason || ec.approvalRemarks || ec.notes;
+      const reviewer = ec.exitRequest?.reviewedBy || ec.approvedByAdmin || 'Admin';
+
+      const timeline = [
+        {
+          title: 'Exit Request Raised',
+          description: `Proposed Exit Date: ${ec.exitRequest?.proposedExitDate || ec.exitDate}. Reason: ${ec.exitRequest?.reason || ec.exitType}`,
+          timestamp: formatDateDisplay(ec.exitRequest?.requestedAt || ec.createdAt),
+          actor: ec.employeeName || employee?.name,
+          isDone: true,
+          isCurrent: exitStatus === 'Pending' || exitStatus === 'Under Review',
+        },
+        {
+          title: exitStatus === 'Approved' ? 'Exit Approved' : exitStatus === 'Changes Requested' ? 'Changes Requested' : exitStatus === 'Rejected' ? 'Exit Rejected' : 'Administrative Review',
+          description: adminRemarks || (exitStatus === 'Approved' ? 'Approved by Admin' : 'Pending Administrative Review'),
+          timestamp: ec.exitRequest?.reviewedAt ? formatDateDisplay(ec.exitRequest.reviewedAt) : undefined,
+          actor: reviewer,
+          isDone: exitStatus === 'Approved' || exitStatus === 'Rejected' || exitStatus === 'Changes Requested',
+          isCurrent: exitStatus === 'Approved' || exitStatus === 'Rejected' || exitStatus === 'Changes Requested',
+          isRejected: exitStatus === 'Rejected',
+        },
+      ];
+
+      items.push({
+        id: ec.id,
+        type: 'exit_clearance',
+        title: `Exit Request: ${ec.exitType} (${exitStatus})`,
+        categoryLabel: 'Exit Clearance',
+        categoryColor: 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+        date: ec.exitRequest?.requestedAt || ec.createdAt,
+        rawDate: rawTime,
+        status: exitStatus,
+        requestDetails: ec.exitRequest?.reason || ec.notes || `Separation: ${ec.exitType}`,
+        itemsSummary: `${ec.items.length} Assigned Assets to Clear`,
+        adminRemarks: adminRemarks,
+        adminName: reviewer,
+        actionDate: ec.exitRequest?.reviewedAt || ec.updatedAt,
+        timeline,
+        originalRecord: ec,
+      });
+    }
+
     return items.sort((a, b) => b.rawDate - a.rawDate);
-  }, [employee, myAssetRequests, mySimRequests, myAssetQueries, myServiceRecords]);
+  }, [employee, myAssetRequests, mySimRequests, myAssetQueries, myServiceRecords, myExitClearance]);
 
   // Filtered Activities based on status pills
   const filteredActivities = useMemo(() => {
@@ -611,16 +660,16 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     return myUnifiedActivityTimeline.filter(item => {
       const s = item.status.toLowerCase();
       if (activityStatusFilter === 'Approved') {
-        return s.includes('approved') || s.includes('resolved') || s.includes('fulfilled') || s.includes('completed');
+        return s.includes('approved') || s.includes('resolved') || s.includes('fulfilled') || s.includes('completed') || s.includes('cleared');
       }
       if (activityStatusFilter === 'Rejected') {
         return s.includes('rejected') || s.includes('unresolved');
       }
       if (activityStatusFilter === 'Pending') {
-        return s.includes('pending');
+        return s.includes('pending') || s.includes('under review');
       }
       if (activityStatusFilter === 'In Progress') {
-        return s.includes('progress') || s.includes('acknowledged');
+        return s.includes('progress') || s.includes('acknowledged') || s.includes('changes requested');
       }
       return true;
     });
@@ -631,7 +680,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     const total = myUnifiedActivityTimeline.length;
     const approved = myUnifiedActivityTimeline.filter(i => {
       const s = i.status.toLowerCase();
-      return s.includes('approved') || s.includes('resolved') || s.includes('fulfilled') || s.includes('completed');
+      return s.includes('approved') || s.includes('resolved') || s.includes('fulfilled') || s.includes('completed') || s.includes('cleared');
     }).length;
     const rejected = myUnifiedActivityTimeline.filter(i => {
       const s = i.status.toLowerCase();
@@ -639,7 +688,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     }).length;
     const pending = myUnifiedActivityTimeline.filter(i => {
       const s = i.status.toLowerCase();
-      return s.includes('pending');
+      return s.includes('pending') || s.includes('under review');
     }).length;
     return { total, approved, rejected, pending };
   }, [myUnifiedActivityTimeline]);

@@ -9,7 +9,8 @@ export type EmployeeStatus =
   | 'Inactive'
   | 'Resigned'
   | 'Terminated'
-  | 'Notice Period';
+  | 'Notice Period'
+  | 'Exited';
 
 export const CORPORATE_DEPARTMENTS = [
   'Engineering',
@@ -865,6 +866,31 @@ export interface ExitClearanceSummary {
   totalCompanyCoveredAmount: number;
 }
 
+export type ExitRequestStatus =
+  | 'Pending'
+  | 'Under Review'
+  | 'Approved'
+  | 'Rejected'
+  | 'Changes Requested';
+
+export interface ExitRequestDetails {
+  proposedExitDate: string; // YYYY-MM-DD
+  reason: string; // e.g. "Better Career Opportunity", "Relocation", "Personal Reasons", etc.
+  remarks?: string;
+  supportingDocumentUrl?: string; // Base64 data URL or storage link
+  supportingDocumentName?: string;
+  supportingDocumentSize?: number;
+  status: ExitRequestStatus;
+  requestedAt: string; // ISO
+  requestedBy: string; // Employee Name
+  finalExitDate?: string; // Confirmed by Admin
+  adminRemarks?: string;
+  rejectionReason?: string;
+  changesRequestedNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+}
+
 export interface ExitClearanceRecord {
   id: string; // e.g. "CLR-2026-001"
   employeeId: string; // EMP ID or internal UUID
@@ -874,6 +900,8 @@ export interface ExitClearanceRecord {
   employeePhone?: string;
   department: string;
   designation?: string;
+  team?: string;
+  joiningDate?: string; // YYYY-MM-DD
   exitType: ExitType;
   resignationDate: string; // YYYY-MM-DD
   exitDate: string; // Last working date YYYY-MM-DD
@@ -887,9 +915,38 @@ export interface ExitClearanceRecord {
   summary: ExitClearanceSummary;
   items: ExitClearanceAssetItem[];
   auditTrail: ExitClearanceAuditEntry[];
+  exitRequest?: ExitRequestDetails;
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExitHistoryRecord {
+  id: string;
+  employeeId: string;
+  companyEmployeeNumber?: string;
+  employeeName: string;
+  department: string;
+  designation?: string;
+  team?: string;
+  joiningDate: string;
+  exitRequestDate?: string;
+  exitDate: string;
+  exitReason: string;
+  requestedBy: string;
+  approvedBy?: string;
+  approvalDate?: string;
+  exitStatus: string;
+  adminRemarks?: string;
+  assetClearanceStatus: string;
+  pendingAssetsCount: number;
+  pendingAssetNumbers: string[];
+  simClearanceStatus: string;
+  finalClosureStatus: string;
+  certificateNumber?: string;
+  totalLiableAmount: number;
+  auditTrail: ExitClearanceAuditEntry[];
+  rawClearanceRecord?: ExitClearanceRecord;
 }
 
 

@@ -49,6 +49,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     weeklyPhotoRecords,
     purchases,
     assetRequests,
+    simCards = [],
     exitClearances = [],
     currentUser,
     userRole,
@@ -269,6 +270,25 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 </div>
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-500">
                   {assets.filter(a => a.assetType === 'Mobile Phone').length}
+                </span>
+              </button>
+            )}
+
+            {!isEmployee && (
+              <button
+                onClick={() => handleNavSelect('sim-management')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium transition-colors ${
+                  activeTab === 'sim-management'
+                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Smartphone className="w-4 h-4 text-emerald-500" />
+                  <span>SIM Cards & Mobile Fleet</span>
+                </div>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
+                  {simCards.length}
                 </span>
               </button>
             )}
@@ -627,22 +647,31 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           )}
 
           {/* 5. More Menu Drawer */}
-          <button
-            onClick={() => setShowMoreMenu(prev => !prev)}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer ${
-              showMoreMenu || ['hardware-dashboard', 'lifecycle', 'services', 'audit'].includes(activeTab)
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <div className={`p-1 rounded-lg transition-all relative ${showMoreMenu ? 'bg-blue-50 dark:bg-blue-950/50' : ''}`}>
-              <Menu className="w-5 h-5" />
-              {highIncidentCount > 0 && (
-                <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
-              )}
-            </div>
-            <span className="text-[10px] font-semibold tracking-tight mt-0.5">More</span>
-          </button>
+          {(() => {
+            const isPrimaryTab = isEmployee
+              ? ['dashboard', 'workstation', 'assets', 'services'].includes(activeTab)
+              : ['dashboard', 'employees', 'computers', 'assets'].includes(activeTab);
+            const isMoreActive = showMoreMenu || !isPrimaryTab;
+
+            return (
+              <button
+                onClick={() => setShowMoreMenu(prev => !prev)}
+                className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer ${
+                  isMoreActive
+                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <div className={`p-1 rounded-lg transition-all relative ${isMoreActive ? 'bg-blue-50 dark:bg-blue-950/50' : ''}`}>
+                  <Menu className="w-5 h-5" />
+                  {highIncidentCount > 0 && (
+                    <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
+                  )}
+                </div>
+                <span className="text-[10px] font-semibold tracking-tight mt-0.5">More</span>
+              </button>
+            );
+          })()}
         </div>
       </nav>
     </>

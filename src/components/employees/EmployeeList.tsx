@@ -100,7 +100,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   const totalEmployees = employees.length;
   const activeCount = useMemo(() => employees.filter(e => e.status === 'Active').length, [employees]);
   const inactiveCount = useMemo(
-    () => employees.filter(e => e.status === 'Inactive' || e.status === 'Resigned').length,
+    () => employees.filter(e => e.status === 'Inactive' || e.status === 'Resigned' || e.status === 'Exited').length,
     [employees]
   );
   const activePercentage = totalEmployees > 0 ? Math.round((activeCount / totalEmployees) * 100) : 0;
@@ -438,7 +438,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
             }`}
           >
             <UserX className="w-3.5 h-3.5 text-amber-500" />
-            <span>Inactive / Deactivated</span>
+            <span>Inactive / Exited</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400">
               {inactiveCount}
             </span>

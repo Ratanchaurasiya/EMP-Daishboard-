@@ -1214,9 +1214,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </button>
           <button
             onClick={() => onOpenAddService()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#131d2e] hover:bg-[#1a273e] text-blue-300 border border-blue-500/30 rounded-lg shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 dark:bg-[#131d2e] dark:hover:bg-[#1a273e] dark:text-blue-300 dark:border-blue-500/30 rounded-lg shadow-xs transition-colors cursor-pointer"
           >
-            <Wrench className="w-3.5 h-3.5 text-blue-400" />
+            <Wrench className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span>Log Service Ticket</span>
           </button>
           <button

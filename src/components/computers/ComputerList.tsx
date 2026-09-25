@@ -154,7 +154,7 @@ export const ComputerList: React.FC<ComputerListProps> = ({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Register Computer</span>
+              <span>Register Computer</span>
             </button>
           </div>
         )}

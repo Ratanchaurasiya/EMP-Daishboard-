@@ -175,6 +175,12 @@ export const EmployeeStatusBadge: React.FC<{ status: EmployeeStatus; size?: 'sm'
           Resigned
         </Badge>
       );
+    case 'Exited':
+      return (
+        <Badge variant="neutral" size={size} dot dotColor="bg-rose-500">
+          Exited
+        </Badge>
+      );
     default:
       return <Badge size={size}>{status}</Badge>;
   }
