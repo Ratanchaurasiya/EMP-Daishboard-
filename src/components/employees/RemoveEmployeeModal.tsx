@@ -18,6 +18,7 @@ import {
   Building,
   CheckCircle2,
   Smartphone,
+  Info,
 } from 'lucide-react';
 import { formatDateDisplay } from '../../utils/formatters';
 
@@ -240,6 +241,17 @@ export const RemoveEmployeeModal: React.FC<RemoveEmployeeModalProps> = ({
               <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
                 You have requested permanent removal for the employee profile below. Complete the 3-step verification to permanently purge the employee and all associated records from the database.
               </p>
+            </div>
+
+            {/* Crucial Guidance: Differentiate Exit vs Permanent Removal */}
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed">
+                <span className="font-bold">Is this employee leaving or resigning from the company?</span>
+                <p className="mt-0.5 text-amber-800 dark:text-amber-300">
+                  If this employee is departing, do not permanently delete them. Please cancel and click <strong>"Initiate Exit"</strong> on their profile instead. Initiating exit securely clears hardware, computes late fines, and permanently archives their complete record in <strong>Exit History</strong>.
+                </p>
+              </div>
             </div>
 
             {/* Target Employee Identity Card */}

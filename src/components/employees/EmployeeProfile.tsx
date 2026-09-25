@@ -38,6 +38,8 @@ import {
   Building2,
   FileText,
   Eye,
+  LogOut,
+  History,
 } from 'lucide-react';
 import { AssetEditModal } from '../assets/AssetEditModal';
 import { ComputerAssignModal } from '../computers/ComputerAssignModal';
@@ -59,6 +61,7 @@ import { AssignSimModal } from '../sim/AssignSimModal';
 import { ServiceReceiptPreviewModal } from '../services/ServiceReceiptPreviewModal';
 import { InitiateExitClearanceModal } from '../clearance/InitiateExitClearanceModal';
 import { ClearanceCertificateModal } from '../clearance/ClearanceCertificateModal';
+import { SubmitExitRequestModal } from '../clearance/SubmitExitRequestModal';
 
 interface EmployeeProfileProps {
   employeeId: string;
@@ -104,6 +107,7 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
   const [showRemoveModal, setShowRemoveModal] = useState<boolean>(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState<boolean>(false);
   const [showInitiateClearanceModal, setShowInitiateClearanceModal] = useState<boolean>(false);
+  const [showSubmitExitRequestModal, setShowSubmitExitRequestModal] = useState<boolean>(false);
   const [showCertificateModal, setShowCertificateModal] = useState<boolean>(false);
 
   // SIM Modal States
@@ -251,7 +255,22 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
         </button>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {exitClearance ? (
+          {employee.status === 'Exited' ? (
+            <button
+              onClick={() => {
+                if (isClearanceDone) {
+                  setShowCertificateModal(true);
+                } else {
+                  setActiveTab('exit-clearance');
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer border text-purple-700 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-200 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 border-purple-300/60 dark:border-purple-800/60"
+              title="View Exit History & Clearance Record"
+            >
+              <History className="w-3.5 h-3.5 text-purple-500" />
+              <span>Exited • View Exit History</span>
+            </button>
+          ) : exitClearance ? (
             <button
               onClick={() => {
                 if (isClearanceDone) {
@@ -273,14 +292,20 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
               <span>Clearance: {isClearanceDone ? 'Certificate Available' : exitClearance.status}</span>
             </button>
           ) : (
-            isAdmin && (
+            (isAdmin || (currentUser?.role === 'employee' && (currentUser.id === employee.id || currentUser.employeeId === employee.employeeId))) && (
               <button
-                onClick={() => setShowInitiateClearanceModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200/80 dark:border-rose-800/80 rounded-lg shadow-2xs transition-colors cursor-pointer"
-                title="Initiate Employee Exit & Asset Clearance"
+                onClick={() => {
+                  if (isAdmin) {
+                    setShowInitiateClearanceModal(true);
+                  } else {
+                    setShowSubmitExitRequestModal(true);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200/80 dark:border-rose-800/80 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                title="Initiate Employee Exit & Asset Clearance (Safe offboarding with record preservation in Exit History)"
               >
-                <UserX className="w-3.5 h-3.5 text-rose-500" />
-                <span>Exit & Clearance</span>
+                <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                <span>Initiate Exit</span>
               </button>
             )
           )}
@@ -348,18 +373,50 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
             </button>
           )}
 
-          {isAdmin && (
+          {isAdmin && employee.status !== 'Exited' && (
             <button
               onClick={() => setShowRemoveModal(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-900/60 rounded-lg shadow-2xs transition-colors cursor-pointer"
-              title="Permanently remove all data for this employee"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300 bg-slate-100 hover:bg-red-50 dark:bg-slate-800 dark:hover:bg-red-950/40 border border-slate-200 dark:border-slate-700 hover:border-red-300 dark:hover:border-red-800/60 rounded-lg shadow-2xs transition-colors cursor-pointer"
+              title="Exceptional permanent database deletion. Note: For normal employee departures or resignations, please use 'Initiate Exit' instead so historical records are preserved."
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Remove Employee Data</span>
+              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+              <span>Permanent Delete (Exceptional)</span>
             </button>
           )}
         </div>
       </div>
+
+      {/* Exited Employee Notice Banner */}
+      {employee.status === 'Exited' && (
+        <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-start justify-between gap-3 text-xs animate-fade-in">
+          <div className="flex items-start gap-2.5">
+            <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5">
+              <LogOut className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-900 dark:text-white">
+                  Exited Employee Record (Offboarded)
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/20 text-purple-700 dark:text-purple-300 font-mono">
+                  Preserved in Exit History
+                </span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-0.5 leading-relaxed">
+                This employee has officially exited the organization. Complete historical profile, hardware asset lifecycle, SIM card allocations, service records, and exit clearance audit trail are permanently preserved.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('exit-clearance')}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>Open Exit History</span>
+          </button>
+        </div>
+      )}
 
       {/* Deactivated Notice Banner */}
       {(employee.status === 'Inactive' || employee.status === 'Resigned') && (
@@ -1616,6 +1673,13 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
           isOpen={showInitiateClearanceModal}
           onClose={() => setShowInitiateClearanceModal(false)}
           preSelectedEmployeeId={employee.id}
+        />
+      )}
+
+      {showSubmitExitRequestModal && (
+        <SubmitExitRequestModal
+          isOpen={showSubmitExitRequestModal}
+          onClose={() => setShowSubmitExitRequestModal(false)}
         />
       )}
 
