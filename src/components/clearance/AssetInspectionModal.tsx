@@ -304,7 +304,7 @@ export const AssetInspectionModal: React.FC<AssetInspectionModalProps> = ({
                   className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                     inspectionCondition === opt.value
                       ? `${opt.color} font-bold shadow-xs ring-1 ring-offset-1`
-                      : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900'
+                      : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 bg-white dark:bg-[#090d16]'
                   }`}
                 >
                   <span className="block font-semibold text-xs">{opt.label}</span>
@@ -333,7 +333,7 @@ export const AssetInspectionModal: React.FC<AssetInspectionModalProps> = ({
                     onChange={e => setDamageReason(e.target.value)}
                     placeholder="e.g. Screen cracked, keyboard water spill, hinge broken"
                     required
-                    className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
                   />
                 </div>
 
@@ -350,7 +350,7 @@ export const AssetInspectionModal: React.FC<AssetInspectionModalProps> = ({
                       onChange={e => setRepairCost(Number(e.target.value) || 0)}
                       placeholder="0"
                       required
-                      className="w-full pl-7 pr-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono font-bold"
+                      className="w-full pl-7 pr-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -364,7 +364,7 @@ export const AssetInspectionModal: React.FC<AssetInspectionModalProps> = ({
                 <select
                   value={liabilityPolicy}
                   onChange={e => setLiabilityPolicy(e.target.value as LiabilityPolicy)}
-                  className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium"
+                  className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
                 >
                   <option value="Company Absorbed">
                     Company Absorbed (Normal wear & tear / Company Covers — ₹0 Employee Dues)
@@ -448,7 +448,7 @@ export const AssetInspectionModal: React.FC<AssetInspectionModalProps> = ({
                       onChange={e => setMissingReplacementCost(Number(e.target.value) || 0)}
                       placeholder="0"
                       required
-                      className="w-full pl-7 pr-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono font-bold"
+                      className="w-full pl-7 pr-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -460,7 +460,7 @@ export const AssetInspectionModal: React.FC<AssetInspectionModalProps> = ({
                   <select
                     value={liabilityPolicy}
                     onChange={e => setLiabilityPolicy(e.target.value as LiabilityPolicy)}
-                    className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
                   >
                     <option value="Employee Liability">
                       Employee Liability (Deductible from Full & Final Settlement)
@@ -531,7 +531,7 @@ export const AssetInspectionModal: React.FC<AssetInspectionModalProps> = ({
               value={inspectionNotes}
               onChange={e => setInspectionNotes(e.target.value)}
               placeholder="e.g. Device received with original adapter and box. Screen tested OK, no cosmetic faults."
-              className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs"
+              className="w-full px-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
             />
           </div>
 

@@ -153,64 +153,70 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
   }, [exitClearances]);
 
   return (
-    <div className="space-y-5 animate-fade-in text-xs">
-      {/* 1. SECTION HEADER & WORKFLOW HERO BANNER */}
-      <div className="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 sm:p-6 shadow-xl border border-slate-800">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* 1. SECTION TOP HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20 shadow-2xs">
+            <UserX className="w-5 h-5" />
+          </div>
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
-                Automated Offboarding Governance
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-                EASH HRM & IT Custody
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                Employee Exit & Asset Clearance
+              </h1>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-mono">
+                Offboarding & No-Dues
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-              Employee Exit & Asset Clearance
-            </h1>
-            <p className="text-slate-300 text-xs mt-1 max-w-2xl leading-relaxed">
-              When employees resign or depart, their assigned computers, mobile phones, SIM cards, and peripherals automatically enter the clearance cycle with strict 2–5 day return deadlines, automated ₹500/day late return fine calculations, damage inspections, and verifiable No-Dues certification.
+            <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 max-w-2xl leading-relaxed">
+              Track separation cycles, enforce 2–5 day asset return deadlines, calculate ₹500/day late fines, inspect condition, and issue official No-Dues Certificates.
             </p>
           </div>
-
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowInitiateModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition-all cursor-pointer shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Initiate Exit Clearance</span>
-            </button>
-          )}
         </div>
 
-        {/* Interactive Step-by-Step Flow Pipeline */}
-        <div className="mt-5 pt-4 border-t border-slate-800/80 hidden lg:grid grid-cols-6 gap-2 text-center text-[10px]">
-          <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-            <span className="text-amber-400 font-bold block mb-0.5">Step 1</span>
-            <span className="font-semibold text-slate-200">Resignation / Exit Notice</span>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setShowInitiateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Initiate Exit Clearance</span>
+          </button>
+        )}
+      </div>
+
+      {/* 1.5 WORKFLOW PIPELINE PROGRESSION CARD */}
+      <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs hidden lg:block">
+        <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+          <span>Offboarding Clearance Protocol (2–5 Days Window)</span>
+          <span className="text-slate-400 dark:text-slate-500 font-normal">Automated Offboarding & Asset Surrender Pipeline</span>
+        </div>
+        <div className="grid grid-cols-6 gap-2 text-center text-[10px]">
+          <div className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-2.5 border border-slate-200/80 dark:border-slate-800">
+            <span className="text-amber-600 dark:text-amber-400 font-bold block mb-0.5">Step 1</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Resignation / Exit Notice</span>
           </div>
-          <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-            <span className="text-amber-400 font-bold block mb-0.5">Step 2</span>
-            <span className="font-semibold text-slate-200">Clearance Window (2–5 Days)</span>
+          <div className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-2.5 border border-slate-200/80 dark:border-slate-800">
+            <span className="text-amber-600 dark:text-amber-400 font-bold block mb-0.5">Step 2</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Clearance Window (2–5 Days)</span>
           </div>
-          <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-            <span className="text-amber-400 font-bold block mb-0.5">Step 3</span>
-            <span className="font-semibold text-slate-200">Assigned Assets Surrender</span>
+          <div className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-2.5 border border-slate-200/80 dark:border-slate-800">
+            <span className="text-amber-600 dark:text-amber-400 font-bold block mb-0.5">Step 3</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Assigned Assets Surrender</span>
           </div>
-          <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-            <span className="text-amber-400 font-bold block mb-0.5">Step 4</span>
-            <span className="font-semibold text-slate-200">Physical Inspection</span>
+          <div className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-2.5 border border-slate-200/80 dark:border-slate-800">
+            <span className="text-amber-600 dark:text-amber-400 font-bold block mb-0.5">Step 4</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Physical Inspection</span>
           </div>
-          <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-            <span className="text-amber-400 font-bold block mb-0.5">Step 5</span>
-            <span className="font-semibold text-slate-200">Late Fines & Policy Dues</span>
+          <div className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-2.5 border border-slate-200/80 dark:border-slate-800">
+            <span className="text-amber-600 dark:text-amber-400 font-bold block mb-0.5">Step 5</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Late Fines & Policy Dues</span>
           </div>
-          <div className="bg-emerald-500/20 rounded-lg p-2 border border-emerald-500/30">
-            <span className="text-emerald-300 font-bold block mb-0.5">Final Step</span>
-            <span className="font-bold text-white">Full & Final Certificate</span>
+          <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-lg p-2.5 border border-emerald-200 dark:border-emerald-800">
+            <span className="text-emerald-700 dark:text-emerald-300 font-bold block mb-0.5">Final Step</span>
+            <span className="font-bold text-emerald-900 dark:text-white">Full & Final Certificate</span>
           </div>
         </div>
       </div>
@@ -218,7 +224,7 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
       {/* 2. STATS SUMMARY CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Active Clearances</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Active Clearances</span>
           <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
             {stats.totalActive}
           </div>
@@ -226,39 +232,39 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
         </div>
 
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Pending Returns</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Pending Returns</span>
           <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
             {stats.pendingItems}
           </div>
-          <span className="text-[10px] text-slate-500">Unsubmitted Devices</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">Unsubmitted Devices</span>
         </div>
 
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Damage / Missing</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Damage / Missing</span>
           <div className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1">
             {stats.damagedOrMissing}
           </div>
-          <span className="text-[10px] text-rose-500 font-medium">Flagged Items</span>
+          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-medium">Flagged Items</span>
         </div>
 
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Late Return Fines</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Late Return Fines</span>
           <div className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
             {formatCurrency(stats.totalLateFines)}
           </div>
-          <span className="text-[10px] text-slate-500">₹500/day accrued</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">₹500/day accrued</span>
         </div>
 
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Recoverable</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Total Recoverable</span>
           <div className="text-xl font-black text-blue-600 dark:text-blue-400 font-mono mt-1">
             {formatCurrency(stats.totalRecoverable)}
           </div>
-          <span className="text-[10px] text-slate-500">Employee Liabilities</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">Employee Liabilities</span>
         </div>
 
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] text-slate-400 uppercase font-bold block">Certified & Cleared</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Certified & Cleared</span>
           <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
             {stats.totalApproved}
           </div>
@@ -516,12 +522,12 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
                           key={item.id}
                           className={`p-3.5 rounded-xl border transition-all ${
                             isItemVerified
-                              ? 'bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200/70 dark:border-emerald-900/40'
+                              ? 'bg-emerald-50/60 dark:bg-emerald-950/15 border-emerald-200/90 dark:border-emerald-900/40'
                               : isItemDamaged
-                              ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-900/50'
+                              ? 'bg-amber-50/70 dark:bg-amber-950/25 border-amber-200/90 dark:border-amber-900/50'
                               : isItemMissing
-                              ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/50'
-                              : 'bg-slate-50/60 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-800'
+                              ? 'bg-rose-50/70 dark:bg-rose-950/25 border-rose-200/90 dark:border-rose-900/50'
+                              : 'bg-slate-50/80 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -534,7 +540,7 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
                                     ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                                     : isItemMissing
                                     ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                                    : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                 }`}
                               >
                                 {item.assetType === 'Laptop' || item.assetType === 'Desktop' ? (
@@ -665,9 +671,9 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
                                 <button
                                   type="button"
                                   onClick={() => setInspectingItem({ item, clearanceId: clr.id })}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-semibold text-[10px] transition-colors cursor-pointer shadow-2xs"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-[10px] transition-colors cursor-pointer shadow-2xs"
                                 >
-                                  <Wrench className="w-3 h-3 text-amber-400" />
+                                  <Wrench className="w-3 h-3 text-white" />
                                   <span>{isItemPending ? 'Receive & Inspect Asset' : 'Re-Inspect / Update'}</span>
                                 </button>
                               </div>

@@ -263,7 +263,7 @@ export const InitiateExitClearanceModal: React.FC<InitiateExitClearanceModalProp
               <select
                 value={exitType}
                 onChange={e => setExitType(e.target.value as ExitType)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
               >
                 <option value="Resignation">Resignation</option>
                 <option value="Termination">Termination</option>
@@ -283,7 +283,7 @@ export const InitiateExitClearanceModal: React.FC<InitiateExitClearanceModalProp
                 value={resignationDate}
                 onChange={e => setResignationDate(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
               />
             </div>
 
@@ -296,7 +296,7 @@ export const InitiateExitClearanceModal: React.FC<InitiateExitClearanceModalProp
                 value={exitDate}
                 onChange={e => setExitDate(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
               />
             </div>
           </div>
@@ -352,7 +352,7 @@ export const InitiateExitClearanceModal: React.FC<InitiateExitClearanceModalProp
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="e.g. Standard 30-day notice served. IT clearance required for Full & Final payroll release."
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
             />
           </div>
 
