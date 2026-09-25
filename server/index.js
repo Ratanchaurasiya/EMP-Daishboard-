@@ -115,6 +115,7 @@ app.get('/api/bootstrap', async (req, res) => {
       serviceProviders,
       assetQueries,
       removedEmployees,
+      exitClearances,
       stats,
     ] = await Promise.all([
       db.getAll('employees'),
@@ -132,6 +133,7 @@ app.get('/api/bootstrap', async (req, res) => {
       db.getAll('service_providers'),
       db.getAll('asset_queries'),
       db.getAll('removed_employees'),
+      db.getAll('exit_clearances'),
       db.getStats(),
     ]);
 
@@ -155,6 +157,7 @@ app.get('/api/bootstrap', async (req, res) => {
         serviceProviders,
         assetQueries,
         removedEmployees,
+        exitClearances,
       },
       stats,
     });
@@ -1329,6 +1332,71 @@ app.delete('/api/removed-employees/:id', async (req, res) => {
   }
 });
 
+// ==================== EMPLOYEE EXIT & ASSET CLEARANCE CRUD ====================
+app.get('/api/exit-clearances', async (req, res) => {
+  try {
+    const clearances = await db.getAll('exit_clearances');
+    res.json({ success: true, data: clearances });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/exit-clearances/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const clearance = await db.getById('exit_clearances', id);
+    if (!clearance) {
+      return res.status(404).json({ success: false, error: 'Exit clearance record not found' });
+    }
+    res.json({ success: true, data: clearance });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/exit-clearances', async (req, res) => {
+  try {
+    const record = req.body;
+    if (!record || !record.id) {
+      return res.status(400).json({ success: false, error: 'Record ID is required for exit clearance' });
+    }
+    const saved = await db.upsert('exit_clearances', record);
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/exit-clearances/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const record = req.body;
+    if (!record) {
+      return res.status(400).json({ success: false, error: 'Record data required' });
+    }
+    record.id = id;
+    const saved = await db.upsert('exit_clearances', record);
+    res.json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/exit-clearances/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await db.delete('exit_clearances', id);
+    if (success) {
+      res.json({ success: true, message: 'Exit clearance record deleted' });
+    } else {
+      res.status(404).json({ success: false, error: 'Exit clearance record could not be deleted' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ==================== BATCH SYNC FROM CLIENT INDEXEDDB ====================
 app.post('/api/sync', async (req, res) => {
   try {
@@ -1348,6 +1416,7 @@ app.post('/api/sync', async (req, res) => {
       serviceProviders,
       assetQueries,
       removedEmployees,
+      exitClearances,
     } = req.body;
 
     if (Array.isArray(employees)) {
@@ -1395,6 +1464,9 @@ app.post('/api/sync', async (req, res) => {
     if (Array.isArray(removedEmployees)) {
       for (const rem of removedEmployees) await db.upsert('removed_employees', rem);
     }
+    if (Array.isArray(exitClearances)) {
+      for (const clr of exitClearances) await db.upsert('exit_clearances', clr);
+    }
 
     const stats = await db.getStats();
     res.json({ success: true, message: 'Database synchronized', stats });
@@ -1423,6 +1495,7 @@ app.post('/api/clear', async (req, res) => {
       'service_providers',
       'asset_queries',
       'removed_employees',
+      'exit_clearances',
     ];
     for (const c of collections) {
       await db.clear(c);

@@ -22,9 +22,11 @@ import {
   ShoppingBag,
   GitBranch,
   HelpCircle,
+  UserX,
 } from 'lucide-react';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
 import { getEmployeeAssignedCompanyAssets } from '../../utils/assetUtils';
+import { ExitClearanceStatus } from '../../types';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -61,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     simCards,
     simRequests,
     serviceProviders,
+    exitClearances = [],
     userRole,
     currentUser,
     selectedEmployeeId,
@@ -153,6 +156,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       ).length
     : 0;
 
+  const isClearanceDone = (status: ExitClearanceStatus) => status === 'Full & Final Approved' || status === 'Cleared';
+  const isClearanceOverdue = (c: { status: ExitClearanceStatus; returnDeadline?: string }) =>
+    !isClearanceDone(c.status) && Boolean(c.returnDeadline && new Date(c.returnDeadline) < new Date());
+
+  const activeClearancesCount = exitClearances.filter(c => !isClearanceDone(c.status)).length;
+  const overdueClearancesCount = exitClearances.filter(c => isClearanceOverdue(c)).length;
+  const myExitClearance = loggedEmployee
+    ? exitClearances.find(
+        c => c.employeeId === loggedEmployee.id || c.employeeId === loggedEmployee.employeeId
+      )
+    : null;
+
   // Grouped Navigation for Admin
   const adminNavGroups: AdminNavGroup[] = [
     {
@@ -236,6 +251,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           shortLabel: 'Staff',
           icon: Users,
           badge: `${employees.length}`,
+        },
+        {
+          id: 'exit-clearance',
+          label: 'Exit & Asset Clearance',
+          shortLabel: 'Clearance',
+          icon: UserX,
+          badge: overdueClearancesCount > 0
+            ? `${overdueClearancesCount} Overdue`
+            : (activeClearancesCount > 0 ? `${activeClearancesCount} Active` : (exitClearances.length > 0 ? `${exitClearances.length}` : null)),
+          badgeColor: overdueClearancesCount > 0
+            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 font-bold'
+            : (activeClearancesCount > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-slate-500/10 text-slate-500 border-slate-500/20'),
+          isWarning: overdueClearancesCount > 0,
         },
         {
           id: 'requests',
@@ -360,6 +388,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       icon: Camera,
       badge: weeklyPhotoRecords.length > 0 ? `${weeklyPhotoRecords.length}` : null,
     },
+    {
+      id: 'exit-clearance',
+      label: 'Exit & Asset Clearance',
+      icon: UserX,
+      badge: myExitClearance
+        ? (isClearanceDone(myExitClearance.status) ? 'Cleared' : myExitClearance.status)
+        : null,
+      badgeColor: myExitClearance && isClearanceOverdue(myExitClearance)
+        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+        : (myExitClearance && isClearanceDone(myExitClearance.status)
+          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+          : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'),
+    },
   ];
 
   return (
@@ -483,7 +524,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                         className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold ${
                           isActive
                             ? 'bg-emerald-700/50 text-emerald-200'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50'
+                            : (item as any).badgeColor ||
+                              'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50'
                         }`}
                       >
                         {item.badge}

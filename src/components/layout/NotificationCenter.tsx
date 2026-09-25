@@ -49,6 +49,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     simCards,
     simRecharges,
     assetQueries,
+    exitClearances,
     setActiveTab,
     setSelectedComputerId,
     setSelectedEmployeeId,
@@ -143,11 +144,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       simCards,
       simRecharges,
       assetQueries,
+      exitClearances,
       employees,
       currentUser,
       userRole,
     });
-  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, simRequests, simCards, simRecharges, assetQueries, employees, currentUser, userRole]);
+  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, simRequests, simCards, simRecharges, assetQueries, exitClearances, employees, currentUser, userRole]);
 
   // Filter out dismissed
   const visibleNotifications = useMemo(() => {

@@ -7,7 +7,9 @@ export type EmployeeStatus =
   | 'On Leave'
   | 'Contractual'
   | 'Inactive'
-  | 'Resigned';
+  | 'Resigned'
+  | 'Terminated'
+  | 'Notice Period';
 
 export const CORPORATE_DEPARTMENTS = [
   'Engineering',
@@ -283,7 +285,12 @@ export interface AuditLog {
     | 'Service Provider Deleted'
     | 'Admin Password Changed'
     | 'Employee Password Changed'
-    | 'Admin OTP Requested';
+    | 'Admin OTP Requested'
+    | 'Exit Clearance Initiated'
+    | 'Asset Clearance Inspected'
+    | 'Asset Clearance Settled'
+    | 'Exit Clearance Approved'
+    | 'Exit Clearance Removed';
   details: string;
   actor: string;
   timestamp: string;
@@ -763,5 +770,127 @@ export interface RemovedEmployeeRecord {
     assignedSimsCount?: number;
   };
 }
+
+// ==================== EMPLOYEE EXIT & ASSET CLEARANCE ====================
+export type ExitType =
+  | 'Resignation'
+  | 'Termination'
+  | 'Mutual Separation'
+  | 'End of Contract'
+  | 'Retirement'
+  | 'Other';
+
+export type ExitClearanceStatus =
+  | 'Pending Asset Return'
+  | 'Under Inspection'
+  | 'Action Required / Liability Pending'
+  | 'Cleared'
+  | 'Full & Final Approved';
+
+export type ClearanceItemStatus =
+  | 'Pending'
+  | 'Submitted'
+  | 'Verified'
+  | 'Damaged'
+  | 'Missing'
+  | 'Late';
+
+export type ClearanceAssetType =
+  | 'Laptop'
+  | 'Desktop'
+  | 'Mobile Phone'
+  | 'SIM Card'
+  | 'Peripheral'
+  | 'Accessory'
+  | 'Other';
+
+export type LiabilityPolicy =
+  | 'Company Absorbed'
+  | 'Employee Liability'
+  | 'Shared 50-50'
+  | 'Warranty Covered'
+  | 'Waived'
+  | 'Under Review';
+
+export interface ExitClearanceAssetItem {
+  id: string; // Unique item ID
+  assetId?: string; // Reference to Computer.id, CompanyAsset.id, or SimCard.id
+  assetNumber: string; // e.g. "LAP-001", "PHN-002", "SIM-005", "MOU-012"
+  deviceName: string; // e.g. "Dell Latitude 5430", "Jio Corporate SIM", "Logitech Wireless Mouse"
+  assetType: ClearanceAssetType | string;
+  serialNumber?: string;
+  conditionAtExit?: string;
+  returnStatus: ClearanceItemStatus;
+  submissionDate?: string | null; // YYYY-MM-DD
+  deadlineDate: string; // YYYY-MM-DD
+  isLate: boolean;
+  lateDays: number;
+  lateFinePerDay: number; // ₹500 default
+  lateFineAmount: number; // lateDays * lateFinePerDay
+  fineWaived: boolean;
+  fineWaiveReason?: string;
+  inspectionCondition?: AssetCondition | 'Good' | 'Fair' | 'Damaged' | 'Missing' | 'Minor Wear';
+  damageReason?: string;
+  repairRequired?: boolean;
+  repairCost: number; // Actual repair cost in INR ₹
+  repairReceiptFileName?: string;
+  repairReceiptUrl?: string; // Base64 data URL or storage URI
+  missingReplacementCost: number; // INR ₹
+  liabilityPolicy: LiabilityPolicy;
+  liabilityAmount: number; // Final amount recoverable from employee
+  companyAbsorbedAmount: number; // Covered by company policy / normal wear
+  inspectionPhotos?: string[]; // Array of base64 preview URLs
+  inspectionNotes?: string;
+  inspectedBy?: string;
+  inspectedAt?: string;
+}
+
+export interface ExitClearanceAuditEntry {
+  id: string;
+  timestamp: string; // ISO string
+  action: string;
+  actor: string;
+  details: string;
+  amountChanged?: number;
+}
+
+export interface ExitClearanceSummary {
+  totalAssigned: number;
+  totalReturned: number;
+  totalDamaged: number;
+  totalMissing: number;
+  totalLateFines: number;
+  totalRepairCosts: number;
+  totalEmployeeLiableAmount: number;
+  totalCompanyCoveredAmount: number;
+}
+
+export interface ExitClearanceRecord {
+  id: string; // e.g. "CLR-2026-001"
+  employeeId: string; // EMP ID or internal UUID
+  companyEmployeeNumber?: string;
+  employeeName: string;
+  employeeEmail?: string;
+  employeePhone?: string;
+  department: string;
+  designation?: string;
+  exitType: ExitType;
+  resignationDate: string; // YYYY-MM-DD
+  exitDate: string; // Last working date YYYY-MM-DD
+  clearanceWindowDays: number; // 2 to 5 days
+  returnDeadline: string; // YYYY-MM-DD (calculated as exitDate + clearanceWindowDays)
+  status: ExitClearanceStatus;
+  clearanceCertificateNumber?: string; // e.g. "EASH-CERT-CLR-2026-0042"
+  clearedAt?: string;
+  approvedByAdmin?: string;
+  approvalRemarks?: string;
+  summary: ExitClearanceSummary;
+  items: ExitClearanceAssetItem[];
+  auditTrail: ExitClearanceAuditEntry[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 

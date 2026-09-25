@@ -17,6 +17,7 @@ export function useNotificationStats() {
     simCards,
     simRecharges,
     assetQueries,
+    exitClearances,
     employees,
     currentUser,
     userRole,
@@ -39,7 +40,8 @@ export function useNotificationStats() {
         (e.key && e.key.endsWith('_SIM_REQUESTS')) ||
         (e.key && e.key.endsWith('_SERVICES')) ||
         (e.key && e.key.endsWith('_COMPUTERS')) ||
-        (e.key && e.key.endsWith('_ASSETS'))
+        (e.key && e.key.endsWith('_ASSETS')) ||
+        (e.key && e.key.endsWith('_EXIT_CLEARANCES'))
       ) {
         setSyncVersion(v => v + 1);
       }
@@ -83,6 +85,7 @@ export function useNotificationStats() {
         simCards,
         simRecharges,
         assetQueries,
+        exitClearances,
         employees,
         currentUser,
         userRole,
@@ -97,7 +100,7 @@ export function useNotificationStats() {
     } catch {
       // Fallback safe default
     }
-  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, simRequests, simCards, simRecharges, assetQueries, employees, currentUser, userRole, syncVersion]);
+  }, [computers, serviceRecords, purchases, assets, auditLogs, assetRequests, simRequests, simCards, simRecharges, assetQueries, exitClearances, employees, currentUser, userRole, syncVersion]);
 
   return stats;
 }

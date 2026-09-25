@@ -12,6 +12,7 @@ import {
   Employee,
   AuthUser,
   UserRole,
+  ExitClearanceRecord,
 } from '../../types';
 import { isActiveAssignedSim } from '../../utils/simUtils';
 
@@ -59,6 +60,7 @@ export interface GenerateNotificationsParams {
   simCards: SimCard[];
   simRecharges: SimRecharge[];
   assetQueries?: AssetQuery[];
+  exitClearances?: ExitClearanceRecord[];
   employees: Employee[];
   currentUser: AuthUser | null;
   userRole: UserRole;
@@ -76,6 +78,7 @@ export function generateSystemNotifications(params: GenerateNotificationsParams)
     simCards,
     simRecharges,
     assetQueries = [],
+    exitClearances = [],
     employees,
     currentUser,
     userRole,
@@ -94,6 +97,69 @@ export function generateSystemNotifications(params: GenerateNotificationsParams)
     if (!isEmployee) return true;
     return isEmployeeMatch(recEmpId, compEmpNo, email, assignedId, currentUser);
   };
+
+  // ================= 0. EMPLOYEE EXIT & ASSET CLEARANCE NOTIFICATIONS =================
+  (exitClearances || []).forEach(clr => {
+    const isTarget = belongsToCurrentEmployee(clr.employeeId, clr.companyEmployeeNumber, clr.employeeEmail);
+    if (!isTarget && isEmployee) return;
+
+    const deadlineMillis = new Date(clr.returnDeadline).getTime();
+    const isOverdue = now > (deadlineMillis + 24 * 60 * 60 * 1000) && clr.status !== 'Full & Final Approved';
+
+    if (clr.status === 'Full & Final Approved') {
+      items.push({
+        id: `clr-approved-${clr.id}`,
+        category: 'alerts',
+        severity: 'success',
+        title: `Asset Clearance Cleared: ${clr.employeeName}`,
+        description: `Full & Final Exit Asset Clearance approved. Certificate: ${clr.clearanceCertificateNumber || 'Issued'}. Zero outstanding dues.`,
+        timestamp: clr.clearedAt ? clr.clearedAt.substring(0, 10) : 'Cleared',
+        rawDate: clr.clearedAt ? new Date(clr.clearedAt).getTime() : now,
+        tabTarget: 'exit-clearance',
+        targetId: clr.id,
+        actionLabel: 'View Certificate',
+      });
+    } else if (clr.status === 'Action Required / Liability Pending') {
+      items.push({
+        id: `clr-liability-${clr.id}`,
+        category: 'alerts',
+        severity: 'critical',
+        title: `Clearance Action Required: ${clr.employeeName}`,
+        description: `Asset inspection flagged damaged or missing devices. Total recoverable liability: ₹${clr.summary.totalEmployeeLiableAmount.toLocaleString('en-IN')}.`,
+        timestamp: 'Action Required',
+        rawDate: now,
+        tabTarget: 'exit-clearance',
+        targetId: clr.id,
+        actionLabel: 'Review Liability',
+      });
+    } else if (isOverdue) {
+      items.push({
+        id: `clr-overdue-${clr.id}`,
+        category: 'alerts',
+        severity: 'critical',
+        title: `Asset Return Deadline Overdue: ${clr.employeeName}`,
+        description: `Return deadline was ${clr.returnDeadline}. Late fine of ₹500/day per asset applies. Accumulated late fine: ₹${clr.summary.totalLateFines.toLocaleString('en-IN')}.`,
+        timestamp: 'Overdue Deadline',
+        rawDate: now + 1000,
+        tabTarget: 'exit-clearance',
+        targetId: clr.id,
+        actionLabel: isEmployee ? 'Return Assets Now' : 'Inspect Overdue Assets',
+      });
+    } else if (clr.status === 'Pending Asset Return' || clr.status === 'Under Inspection') {
+      items.push({
+        id: `clr-active-${clr.id}`,
+        category: 'alerts',
+        severity: 'warning',
+        title: `Asset Clearance Window Active: ${clr.employeeName}`,
+        description: `${clr.items.filter(i => i.returnStatus === 'Pending').length} of ${clr.summary.totalAssigned} assets pending return before deadline ${clr.returnDeadline}.`,
+        timestamp: `Deadline: ${clr.returnDeadline}`,
+        rawDate: deadlineMillis || now,
+        tabTarget: 'exit-clearance',
+        targetId: clr.id,
+        actionLabel: 'View Checklist',
+      });
+    }
+  });
 
   // 0. Equipment & Asset Requests (Requisitions)
   (assetRequests || []).forEach(req => {

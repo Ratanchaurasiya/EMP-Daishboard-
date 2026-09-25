@@ -57,6 +57,8 @@ import { RequestSimModal } from '../sim/RequestSimModal';
 import { AddRechargeModal } from '../sim/AddRechargeModal';
 import { AssignSimModal } from '../sim/AssignSimModal';
 import { ServiceReceiptPreviewModal } from '../services/ServiceReceiptPreviewModal';
+import { InitiateExitClearanceModal } from '../clearance/InitiateExitClearanceModal';
+import { ClearanceCertificateModal } from '../clearance/ClearanceCertificateModal';
 
 interface EmployeeProfileProps {
   employeeId: string;
@@ -79,6 +81,8 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
     assets,
     serviceRecords,
     simCards,
+    exitClearances = [],
+    setActiveTab,
     userRole,
     currentUser,
     showToast,
@@ -99,6 +103,8 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
   const [showRemoveModal, setShowRemoveModal] = useState<boolean>(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState<boolean>(false);
+  const [showInitiateClearanceModal, setShowInitiateClearanceModal] = useState<boolean>(false);
+  const [showCertificateModal, setShowCertificateModal] = useState<boolean>(false);
 
   // SIM Modal States
   const [showAddSimModal, setShowAddSimModal] = useState<boolean>(false);
@@ -219,6 +225,12 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
 
   const isAdmin = userRole === 'admin';
 
+  const exitClearance = exitClearances.find(
+    c => c.employeeId === employee.id || c.employeeId === employee.employeeId
+  );
+  const isClearanceDone = exitClearance && (exitClearance.status === 'Full & Final Approved' || exitClearance.status === 'Cleared');
+  const isClearanceOverdue = exitClearance && !isClearanceDone && Boolean(exitClearance.returnDeadline && new Date(exitClearance.returnDeadline) < new Date());
+
   const handleCopy = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
@@ -239,6 +251,39 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
         </button>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {exitClearance ? (
+            <button
+              onClick={() => {
+                if (isClearanceDone) {
+                  setShowCertificateModal(true);
+                } else {
+                  setActiveTab('exit-clearance');
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer border ${
+                isClearanceDone
+                  ? 'text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border-emerald-300/60 dark:border-emerald-800/60'
+                  : isClearanceOverdue
+                  ? 'text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border-rose-300/60 dark:border-rose-800/60 animate-pulse'
+                  : 'text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 border-amber-300/60 dark:border-amber-800/60'
+              }`}
+              title="View Exit & Asset Clearance Record"
+            >
+              <UserX className="w-3.5 h-3.5" />
+              <span>Clearance: {isClearanceDone ? 'Certificate Available' : exitClearance.status}</span>
+            </button>
+          ) : (
+            isAdmin && (
+              <button
+                onClick={() => setShowInitiateClearanceModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border border-rose-200/80 dark:border-rose-800/80 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                title="Initiate Employee Exit & Asset Clearance"
+              >
+                <UserX className="w-3.5 h-3.5 text-rose-500" />
+                <span>Exit & Clearance</span>
+              </button>
+            )
+          )}
           {isAdmin && (
             <button
               onClick={() => setShowEditEmployeeModal(true)}
@@ -347,6 +392,71 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
               <span>Restore Account</span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* Exit & Asset Clearance Status Banner */}
+      {exitClearance && (
+        <div
+          className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-fade-in ${
+            isClearanceDone
+              ? 'bg-emerald-500/10 border-emerald-500/30'
+              : isClearanceOverdue
+              ? 'bg-rose-500/10 border-rose-500/30'
+              : 'bg-amber-500/10 border-amber-500/30'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                isClearanceDone
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  : isClearanceOverdue
+                  ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                  : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+              }`}
+            >
+              <UserX className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-slate-900 dark:text-white">
+                  Employee Exit & Asset Clearance: {exitClearance.status}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                  Separation: {exitClearance.exitType}
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                  Deadline: {formatDateDisplay(exitClearance.returnDeadline)}
+                </span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-1">
+                {exitClearance.items.length} assets tracked •{' '}
+                {exitClearance.items.filter(i => i.returnStatus === 'Verified').length} verified returned • ₹
+                {exitClearance.summary?.totalLateFines || 0} late fine • ₹
+                {exitClearance.summary?.totalEmployeeLiableAmount || 0} employee liability
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isClearanceDone ? (
+              <button
+                type="button"
+                onClick={() => setShowCertificateModal(true)}
+                className="px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 rounded-lg cursor-pointer transition-colors"
+              >
+                View No-Dues Certificate
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setActiveTab('exit-clearance')}
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-xs cursor-pointer transition-colors"
+              >
+                Open Clearance Desk →
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1500,6 +1610,22 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
         onClose={() => setPreviewReceiptRecord(null)}
         record={previewReceiptRecord}
       />
+
+      {showInitiateClearanceModal && (
+        <InitiateExitClearanceModal
+          isOpen={showInitiateClearanceModal}
+          onClose={() => setShowInitiateClearanceModal(false)}
+          preSelectedEmployeeId={employee.id}
+        />
+      )}
+
+      {showCertificateModal && exitClearance && (
+        <ClearanceCertificateModal
+          record={exitClearance}
+          isOpen={showCertificateModal}
+          onClose={() => setShowCertificateModal(false)}
+        />
+      )}
     </div>
   );
 };

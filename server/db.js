@@ -275,6 +275,19 @@ if (isPostgresUrl) {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_pg_rem_emp ON removed_employees (employee_id);
+
+      CREATE TABLE IF NOT EXISTS exit_clearances (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        employee_name VARCHAR(255) NULL,
+        department VARCHAR(255) NULL,
+        exit_date VARCHAR(50) NULL,
+        status VARCHAR(100) NULL,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_pg_clr_emp ON exit_clearances (employee_id);
+      CREATE INDEX IF NOT EXISTS idx_pg_clr_status ON exit_clearances (status);
     `);
 
     console.log('[Database] Cloud PostgreSQL tables & indices verified.');
@@ -535,6 +548,19 @@ if (!pgPool && isMySqlUrl) {
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_rem_emp (employee_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+      CREATE TABLE IF NOT EXISTS exit_clearances (
+        id VARCHAR(100) NOT NULL PRIMARY KEY,
+        employee_id VARCHAR(100) NULL,
+        employee_name VARCHAR(255) NULL,
+        department VARCHAR(255) NULL,
+        exit_date VARCHAR(50) NULL,
+        status VARCHAR(100) NULL,
+        data JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_clr_emp (employee_id),
+        INDEX idx_clr_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
     console.log('[Database] Cloud MySQL / MariaDB tables & indices verified.');
@@ -725,6 +751,17 @@ if (!pgPool && !mysqlPool) {
           data TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS exit_clearances (
+          id TEXT PRIMARY KEY,
+          employeeId TEXT,
+          employeeName TEXT,
+          department TEXT,
+          exitDate TEXT,
+          status TEXT,
+          data TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
       `);
     } else {
       if (isProduction) {
@@ -759,6 +796,7 @@ let fallbackState = {
   service_providers: [],
   asset_queries: [],
   removed_employees: [],
+  exit_clearances: [],
   system_settings: {},
 };
 
@@ -1210,6 +1248,28 @@ export const db = {
             item.removedBy || 'Admin',
             dataStr,
           ]);
+        } else if (collection === 'exit_clearances') {
+          const q = `
+            INSERT INTO exit_clearances (id, employee_id, employee_name, department, exit_date, status, data, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              employee_id = EXCLUDED.employee_id,
+              employee_name = EXCLUDED.employee_name,
+              department = EXCLUDED.department,
+              exit_date = EXCLUDED.exit_date,
+              status = EXCLUDED.status,
+              data = EXCLUDED.data,
+              updated_at = NOW()
+          `;
+          await pgPool.query(q, [
+            item.id,
+            item.employeeId || '',
+            item.employeeName || '',
+            item.department || '',
+            item.exitDate || '',
+            item.status || 'Pending Asset Return',
+            dataStr,
+          ]);
         } else if (collection === 'system_settings') {
           const q = `
             INSERT INTO system_settings (key, value, updated_at)
@@ -1515,6 +1575,28 @@ export const db = {
             item.department || '',
             item.removedDate || '',
             item.removedBy || 'Admin',
+            dataStr,
+          ]);
+        } else if (collection === 'exit_clearances') {
+          const q = `
+            INSERT INTO exit_clearances (id, employee_id, employee_name, department, exit_date, status, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+              employee_id = VALUES(employee_id),
+              employee_name = VALUES(employee_name),
+              department = VALUES(department),
+              exit_date = VALUES(exit_date),
+              status = VALUES(status),
+              data = VALUES(data),
+              updated_at = NOW()
+          `;
+          await mysqlPool.query(q, [
+            item.id,
+            item.employeeId || '',
+            item.employeeName || '',
+            item.department || '',
+            item.exitDate || '',
+            item.status || 'Pending Asset Return',
             dataStr,
           ]);
         } else if (collection === 'system_settings') {
@@ -1832,6 +1914,29 @@ export const db = {
             item.department || '',
             item.removedDate || '',
             item.removedBy || 'Admin',
+            dataStr,
+            now
+          );
+        } else if (collection === 'exit_clearances') {
+          const stmt = sqliteDB.prepare(`
+            INSERT INTO exit_clearances (id, employeeId, employeeName, department, exitDate, status, data, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              employeeId = excluded.employeeId,
+              employeeName = excluded.employeeName,
+              department = excluded.department,
+              exitDate = excluded.exitDate,
+              status = excluded.status,
+              data = excluded.data,
+              updated_at = excluded.updated_at
+          `);
+          stmt.run(
+            item.id,
+            item.employeeId || '',
+            item.employeeName || '',
+            item.department || '',
+            item.exitDate || '',
+            item.status || 'Pending Asset Return',
             dataStr,
             now
           );
@@ -2226,6 +2331,7 @@ export const db = {
       'service_providers',
       'asset_queries',
       'removed_employees',
+      'exit_clearances',
     ];
     const counts = {};
     let total = 0;

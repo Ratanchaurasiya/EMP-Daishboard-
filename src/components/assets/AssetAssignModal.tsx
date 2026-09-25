@@ -193,8 +193,6 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
     }
   }, [isOpen, selectedType, modalMode]);
 
-  if (!isOpen) return null;
-
   // Available unassigned assets & computers from fleet pool
   const availablePool = React.useMemo(() => {
     const list: Array<{
@@ -243,6 +241,8 @@ export const AssetAssignModal: React.FC<AssetAssignModalProps> = ({
 
     return list;
   }, [computers, assets, selectedAssetId]);
+
+  if (!isOpen) return null;
 
   const handleRegenerateTag = () => {
     const tag = generateTag(selectedType);

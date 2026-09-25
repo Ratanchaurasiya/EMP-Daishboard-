@@ -28,6 +28,7 @@ import { AssetRequestList } from './components/requests/AssetRequestList';
 import { AssetQueryList } from './components/queries/AssetQueryList';
 import { SimManagementView } from './components/sim/SimManagementView';
 import { SystemPcSupportView } from './components/support/SystemPcSupportView';
+import { EmployeeExitClearanceView } from './components/clearance/EmployeeExitClearanceView';
 import { ToastContainer } from './components/common/Toast';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { SharedEmployeeView } from './components/employees/SharedEmployeeView';
@@ -93,30 +94,6 @@ const DashboardContent: React.FC = () => {
     setShowReturnAsset(true);
   };
 
-  // Public Direct Access: Zero-login employee shared custody view
-  const isSharedRoute =
-    activeTab === 'shared' ||
-    (typeof window !== 'undefined' &&
-      (window.location.hash.startsWith('#/shared') || window.location.hash.startsWith('#/share')));
-
-  if (isSharedRoute) {
-    return (
-      <>
-        <SharedEmployeeView
-          employeeId={selectedEmployeeId}
-          onExit={() => {
-            if (isAuthenticated) {
-              window.location.hash = '#/employees';
-            } else {
-              window.location.hash = '#/login';
-            }
-          }}
-        />
-        <ToastContainer />
-      </>
-    );
-  }
-
   // Strictly enforce redirection to #/login when not authenticated (prevents browser Back button access)
   useEffect(() => {
     if (!isAuthenticated && typeof window !== 'undefined') {
@@ -146,6 +123,30 @@ const DashboardContent: React.FC = () => {
       }
     };
   }, [isAuthenticated]);
+
+  // Public Direct Access: Zero-login employee shared custody view
+  const isSharedRoute =
+    activeTab === 'shared' ||
+    (typeof window !== 'undefined' &&
+      (window.location.hash.startsWith('#/shared') || window.location.hash.startsWith('#/share')));
+
+  if (isSharedRoute) {
+    return (
+      <>
+        <SharedEmployeeView
+          employeeId={selectedEmployeeId}
+          onExit={() => {
+            if (isAuthenticated) {
+              window.location.hash = '#/employees';
+            } else {
+              window.location.hash = '#/login';
+            }
+          }}
+        />
+        <ToastContainer />
+      </>
+    );
+  }
 
   // If user is not signed in OR explicitly visiting #/login, show the enterprise LoginScreen
   const isLoginRoute =
@@ -180,7 +181,11 @@ const DashboardContent: React.FC = () => {
         <main className="flex-1 p-3.5 sm:p-6 max-w-7xl w-full mx-auto pb-24 lg:pb-8">
           {/* STRICT DATA ISOLATION: When an Employee logs in, render only their personal dashboard */}
           {isEmployee ? (
-            <EmployeeDashboard />
+            activeTab === 'exit-clearance' ? (
+              <EmployeeExitClearanceView onSelectEmployee={handleSelectEmployee} />
+            ) : (
+              <EmployeeDashboard />
+            )
           ) : (
             <>
               {/* TAB 1: EXECUTIVE COMMAND DASHBOARD */}
@@ -322,6 +327,13 @@ const DashboardContent: React.FC = () => {
               {/* TAB 11: SYSTEM / PC SUPPORT & SERVICE PROVIDERS */}
               {(activeTab === 'system-support' || activeTab === 'pc-support') && (
                 <SystemPcSupportView />
+              )}
+
+              {/* TAB 12: EMPLOYEE EXIT & ASSET CLEARANCE */}
+              {activeTab === 'exit-clearance' && (
+                <EmployeeExitClearanceView
+                  onSelectEmployee={handleSelectEmployee}
+                />
               )}
             </>
           )}

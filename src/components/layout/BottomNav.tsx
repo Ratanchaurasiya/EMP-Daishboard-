@@ -22,6 +22,7 @@ import {
   Camera,
   ShoppingBag,
   Box,
+  UserX,
 } from 'lucide-react';
 import { EmployeeAvatar } from '../common/EmployeeAvatar';
 
@@ -48,6 +49,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     weeklyPhotoRecords,
     purchases,
     assetRequests,
+    exitClearances = [],
     currentUser,
     userRole,
     setUserRole,
@@ -343,6 +345,25 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
                 {weeklyPhotoRecords.length}
               </span>
+            </button>
+
+            <button
+              onClick={() => handleNavSelect('exit-clearance')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium transition-colors ${
+                activeTab === 'exit-clearance'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <UserX className="w-4 h-4 text-rose-500" />
+                <span>Exit & Asset Clearance</span>
+              </div>
+              {exitClearances.filter(c => c.status !== 'Full & Final Approved' && c.status !== 'Cleared').length > 0 && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold">
+                  {exitClearances.filter(c => c.status !== 'Full & Final Approved' && c.status !== 'Cleared').length}
+                </span>
+              )}
             </button>
 
             {!isEmployee && (

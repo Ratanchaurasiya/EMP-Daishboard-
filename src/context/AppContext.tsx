@@ -33,6 +33,14 @@ import {
   AssetQueryType,
   AssetQueryHistoryItem,
   RemovedEmployeeRecord,
+  ExitClearanceRecord,
+  ExitClearanceAssetItem,
+  ExitClearanceAuditEntry,
+  ExitType,
+  ExitClearanceStatus,
+  LiabilityPolicy,
+  ClearanceItemStatus,
+  EmployeeStatus,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -49,7 +57,7 @@ import {
   INITIAL_SERVICE_PROVIDERS,
   INITIAL_ASSET_QUERIES,
 } from '../data/initialSeedData';
-import { getEmployeePhoneFirst6 } from '../utils/formatters';
+import { getEmployeePhoneFirst6, formatDateDisplay } from '../utils/formatters';
 import { assetCoreDB, DatabaseStats } from '../db/indexedDB';
 import {
   downloadDatabaseBackup,
@@ -167,6 +175,30 @@ interface AppContextType {
   removeEmployeePermanently: (id: string, removalReason?: string) => void;
   removeAllEmployees: (options?: { returnAssetsToInventory?: boolean }) => void;
   removedEmployees: RemovedEmployeeRecord[];
+
+  // Employee Exit & Asset Clearance
+  exitClearances: ExitClearanceRecord[];
+  initiateExitClearance: (
+    employeeId: string,
+    exitData: {
+      exitType: ExitType;
+      resignationDate: string;
+      exitDate: string;
+      clearanceWindowDays: number;
+      notes?: string;
+    }
+  ) => { success: boolean; error?: string; clearanceId?: string };
+  updateExitClearanceAsset: (
+    clearanceId: string,
+    itemId: string,
+    updates: Partial<ExitClearanceAssetItem>,
+    auditDetail?: string
+  ) => void;
+  approveFinalExitClearance: (
+    clearanceId: string,
+    approvalRemarks?: string
+  ) => { success: boolean; error?: string };
+  deleteExitClearance: (clearanceId: string) => void;
   
   addComputer: (computerData: Omit<Computer, 'id'>) => { success: boolean; error?: string };
   updateComputer: (id: string, updates: Partial<Computer>) => void;
@@ -371,6 +403,7 @@ const VALID_TABS_LIST = [
   'service-flowchart',
   'system-support',
   'pc-support',
+  'exit-clearance',
 ];
 
 const EMPLOYEE_ALLOWED_TABS = [
@@ -382,6 +415,7 @@ const EMPLOYEE_ALLOWED_TABS = [
   'requests',
   'asset-queries',
   'weekly-photos',
+  'exit-clearance',
 ];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -594,6 +628,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [removedEmployees, setRemovedEmployees] = useState<RemovedEmployeeRecord[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_REMOVED_EMPLOYEES`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [exitClearances, setExitClearances] = useState<ExitClearanceRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_EXIT_CLEARANCES`);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -991,6 +1034,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let effectiveServiceProviders: ServiceProvider[] = [];
         let effectiveAssetQueries: AssetQuery[] = [];
         let effectiveRemovedEmployees: RemovedEmployeeRecord[] = [];
+        let effectiveExitClearances: ExitClearanceRecord[] = [];
 
         const isBackendValid = Boolean(bootstrap?.success && bootstrap?.data);
         const hasBackendData = isBackendValid && (
@@ -1003,7 +1047,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           (bootstrap!.data.simRecharges && bootstrap!.data.simRecharges.length > 0) ||
           (bootstrap!.data.serviceProviders && bootstrap!.data.serviceProviders.length > 0) ||
           (bootstrap!.data.assetQueries && bootstrap!.data.assetQueries.length > 0) ||
-          (bootstrap!.data.removedEmployees && bootstrap!.data.removedEmployees.length > 0)
+          (bootstrap!.data.removedEmployees && bootstrap!.data.removedEmployees.length > 0) ||
+          (bootstrap!.data.exitClearances && bootstrap!.data.exitClearances.length > 0)
         );
 
         const isCleanSlateReset = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
@@ -1025,6 +1070,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           effectiveServiceProviders = bootstrap.data.serviceProviders || [];
           effectiveAssetQueries = bootstrap.data.assetQueries || [];
           effectiveRemovedEmployees = bootstrap.data.removedEmployees || [];
+          effectiveExitClearances = bootstrap.data.exitClearances || [];
 
           // Sync into local caches so offline/local cache is identical
           assetCoreDB.putAll('employees', effectiveEmployees).catch(() => {});
@@ -1059,6 +1105,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           if (effectiveRemovedEmployees.length > 0) {
             assetCoreDB.putAll('removedEmployees', effectiveRemovedEmployees).catch(() => {});
+          }
+          if (effectiveExitClearances.length > 0) {
+            assetCoreDB.putAll('exitClearances', effectiveExitClearances).catch(() => {});
           }
         } else {
           // Fallback or Initial SQLite Seed from local cache
@@ -1194,8 +1243,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               } catch {}
             }
 
+            const cachedClrStr = localStorage.getItem(`${STORAGE_KEY}_EXIT_CLEARANCES`);
+            if (cachedClrStr && effectiveExitClearances.length === 0 && !isCleanSlate) {
+              try {
+                effectiveExitClearances = JSON.parse(cachedClrStr);
+              } catch {}
+            }
+
             // If backend is online and empty, auto-sync our existing data to SQLite database so it's permanently stored on disk!
-            if (bootstrap?.success && !isCleanSlate && (effectiveEmployees.length > 0 || effectiveComputers.length > 0 || effectiveAssets.length > 0 || effectivePurchases.length > 0 || effectiveRequests.length > 0 || effectiveSimCards.length > 0 || effectiveServiceProviders.length > 0 || effectiveAssetQueries.length > 0)) {
+            if (bootstrap?.success && !isCleanSlate && (effectiveEmployees.length > 0 || effectiveComputers.length > 0 || effectiveAssets.length > 0 || effectivePurchases.length > 0 || effectiveRequests.length > 0 || effectiveSimCards.length > 0 || effectiveServiceProviders.length > 0 || effectiveAssetQueries.length > 0 || effectiveExitClearances.length > 0)) {
               console.log('[Database] Migrating local data to SQLite database permanently...');
               api.syncAll({
                 employees: effectiveEmployees,
@@ -1212,6 +1268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 simRequests: effectiveSimRequests,
                 serviceProviders: effectiveServiceProviders,
                 assetQueries: effectiveAssetQueries,
+                exitClearances: effectiveExitClearances,
               }).catch(() => {});
             }
           } catch (e) {
@@ -1242,6 +1299,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAssetQueries(effectiveAssetQueries);
         if (effectiveRemovedEmployees.length > 0) {
           setRemovedEmployees(effectiveRemovedEmployees);
+        }
+        if (effectiveExitClearances.length > 0) {
+          setExitClearances(effectiveExitClearances);
         }
 
         const stats = await assetCoreDB.getStats();
@@ -6611,6 +6671,486 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Helper date calculators for Exit & Asset Clearance
+  const computeClearanceDeadline = (dateStr: string, windowDays: number) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    d.setDate(d.getDate() + windowDays);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const computeAssetLateDays = (deadlineStr: string, submissionStr?: string | null) => {
+    if (!deadlineStr) return 0;
+    const deadline = new Date(deadlineStr);
+    deadline.setHours(23, 59, 59, 999);
+    const compareDate = submissionStr ? new Date(submissionStr) : new Date();
+    if (isNaN(deadline.getTime()) || isNaN(compareDate.getTime())) return 0;
+    if (compareDate <= deadline) return 0;
+    const diffMs = compareDate.getTime() - deadline.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  };
+
+  // 1. Initiate Exit & Asset Clearance
+  const initiateExitClearance: AppContextType['initiateExitClearance'] = (employeeId, exitData) => {
+    if (userRole !== 'admin' && currentUser?.role === 'employee') {
+      showToast('Unauthorized: Administrative privileges required.', 'error');
+      return { success: false, error: 'Unauthorized: Administrative privileges required.' };
+    }
+
+    const emp = employees.find(e => e.id === employeeId || e.employeeId === employeeId);
+    if (!emp) {
+      showToast('Employee not found in directory.', 'error');
+      return { success: false, error: 'Employee not found' };
+    }
+
+    // Check if an active clearance already exists
+    const existingActive = exitClearances.find(
+      c => (c.employeeId === emp.id || c.employeeId === emp.employeeId) && c.status !== 'Full & Final Approved'
+    );
+    if (existingActive) {
+      showToast(`An active exit clearance (${existingActive.id}) is already in progress for ${emp.name}.`, 'info');
+      return { success: false, error: `Active clearance already exists (${existingActive.id})`, clearanceId: existingActive.id };
+    }
+
+    const windowDays = Math.max(2, Math.min(5, Number(exitData.clearanceWindowDays) || 3));
+    const returnDeadline = computeClearanceDeadline(exitData.exitDate, windowDays);
+
+    // Automatically snapshot assigned computers/laptops
+    const empComputers = computers.filter(
+      c => c.assignedEmployeeId === emp.id || c.assignedEmployeeId === emp.employeeId
+    );
+
+    // Automatically snapshot assigned peripherals & phones
+    const empAssets = assets.filter(
+      a => a.assignedEmployeeId === emp.id || a.assignedEmployeeId === emp.employeeId
+    );
+
+    // Automatically snapshot assigned SIM cards
+    const empSims = simCards.filter(
+      s => s.assignedEmployeeId === emp.id || s.assignedEmployeeId === emp.employeeId
+    );
+
+    const items: ExitClearanceAssetItem[] = [];
+
+    // Map computers
+    empComputers.forEach(comp => {
+      items.push({
+        id: 'CLR-COMP-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        assetId: comp.id,
+        assetNumber: comp.assetNumber,
+        deviceName: `${comp.manufacturer || ''} ${comp.model || ''} (${comp.deviceType})`.trim(),
+        assetType: comp.deviceType || 'Laptop',
+        serialNumber: comp.serialNumber || '',
+        conditionAtExit: comp.condition || 'Good',
+        returnStatus: 'Pending',
+        submissionDate: null,
+        deadlineDate: returnDeadline,
+        isLate: false,
+        lateDays: 0,
+        lateFinePerDay: 500,
+        lateFineAmount: 0,
+        fineWaived: false,
+        repairCost: 0,
+        missingReplacementCost: 0,
+        liabilityPolicy: 'Company Absorbed',
+        liabilityAmount: 0,
+        companyAbsorbedAmount: 0,
+        inspectionNotes: '',
+      });
+    });
+
+    // Map assets
+    empAssets.forEach(asset => {
+      items.push({
+        id: 'CLR-ASSET-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        assetId: asset.id,
+        assetNumber: asset.assetNumber,
+        deviceName: `${asset.brand || ''} ${asset.model || ''} (${asset.assetType})`.trim(),
+        assetType: asset.assetType,
+        serialNumber: asset.serialNumber || asset.imeiNumber || '',
+        conditionAtExit: asset.condition || 'Good',
+        returnStatus: 'Pending',
+        submissionDate: null,
+        deadlineDate: returnDeadline,
+        isLate: false,
+        lateDays: 0,
+        lateFinePerDay: 500,
+        lateFineAmount: 0,
+        fineWaived: false,
+        repairCost: 0,
+        missingReplacementCost: 0,
+        liabilityPolicy: 'Company Absorbed',
+        liabilityAmount: 0,
+        companyAbsorbedAmount: 0,
+        inspectionNotes: '',
+      });
+    });
+
+    // Map SIM cards
+    empSims.forEach(sim => {
+      items.push({
+        id: 'CLR-SIM-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        assetId: sim.id,
+        assetNumber: sim.contactNumber,
+        deviceName: `${sim.carrier || 'Corporate'} SIM (${sim.contactNumber})`,
+        assetType: 'SIM Card',
+        serialNumber: sim.simNumber || '',
+        conditionAtExit: 'Good',
+        returnStatus: 'Pending',
+        submissionDate: null,
+        deadlineDate: returnDeadline,
+        isLate: false,
+        lateDays: 0,
+        lateFinePerDay: 500,
+        lateFineAmount: 0,
+        fineWaived: false,
+        repairCost: 0,
+        missingReplacementCost: 0,
+        liabilityPolicy: 'Company Absorbed',
+        liabilityAmount: 0,
+        companyAbsorbedAmount: 0,
+        inspectionNotes: '',
+      });
+    });
+
+    const nowIso = new Date().toISOString();
+    const adminActor = currentUser?.name || 'IT Administrator';
+    const clearanceId = 'CLR-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-5);
+
+    const newRecord: ExitClearanceRecord = {
+      id: clearanceId,
+      employeeId: emp.id,
+      companyEmployeeNumber: emp.companyEmployeeNumber,
+      employeeName: emp.name,
+      employeeEmail: emp.email,
+      employeePhone: emp.phone,
+      department: emp.department,
+      designation: emp.designation,
+      exitType: exitData.exitType,
+      resignationDate: exitData.resignationDate,
+      exitDate: exitData.exitDate,
+      clearanceWindowDays: windowDays,
+      returnDeadline,
+      status: 'Pending Asset Return',
+      summary: {
+        totalAssigned: items.length,
+        totalReturned: 0,
+        totalDamaged: 0,
+        totalMissing: 0,
+        totalLateFines: 0,
+        totalRepairCosts: 0,
+        totalEmployeeLiableAmount: 0,
+        totalCompanyCoveredAmount: 0,
+      },
+      items,
+      auditTrail: [
+        {
+          id: 'AUD-CLR-' + Date.now(),
+          timestamp: nowIso,
+          action: 'Clearance Initiated',
+          actor: adminActor,
+          details: `Exit Clearance initiated (${exitData.exitType}) with ${windowDays}-day return window until ${returnDeadline}. ${items.length} assigned devices enrolled into clearance process.`,
+        },
+      ],
+      notes: exitData.notes || '',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    // Update employee status to 'Resigned' or 'Terminated'
+    const newEmpStatus: EmployeeStatus = exitData.exitType === 'Termination' ? 'Terminated' : 'Resigned';
+    updateEmployee(emp.id, {
+      status: newEmpStatus,
+      remarks: `${emp.remarks ? emp.remarks + ' | ' : ''}Exit clearance initiated (${exitData.exitType}) with return deadline ${returnDeadline}.`,
+    });
+
+    const nextClearances = [newRecord, ...exitClearances];
+    setExitClearances(nextClearances);
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_EXIT_CLEARANCES`, JSON.stringify(nextClearances));
+    } catch {}
+
+    assetCoreDB.putAll('exitClearances', nextClearances).catch(() => {});
+    api.createExitClearance(newRecord).catch(e => console.warn('Cloud DB exit clearance write error:', e));
+
+    addAuditEntry(
+      'Exit Clearance Initiated',
+      `Initiated exit clearance for ${emp.name} (${emp.employeeId}). ${items.length} assets scheduled for return by ${formatDateDisplay(returnDeadline)}.`
+    );
+
+    showToast(`Exit & Asset Clearance initiated for ${emp.name}. Return deadline set to ${formatDateDisplay(returnDeadline)}.`, 'success');
+    return { success: true, clearanceId: newRecord.id };
+  };
+
+  // 2. Update Asset Inspection & Clearance Item
+  const updateExitClearanceAsset: AppContextType['updateExitClearanceAsset'] = (
+    clearanceId,
+    itemId,
+    updates,
+    auditDetail
+  ) => {
+    const clearance = exitClearances.find(c => c.id === clearanceId);
+    if (!clearance) return;
+
+    const adminActor = currentUser?.name || 'IT Administrator';
+    const nowIso = new Date().toISOString();
+
+    const updatedItems = clearance.items.map(item => {
+      if (item.id !== itemId) return item;
+      const merged = { ...item, ...updates };
+
+      // Calculate late days & fine
+      const lateDays = computeAssetLateDays(merged.deadlineDate, merged.submissionDate);
+      merged.lateDays = lateDays;
+      merged.isLate = lateDays > 0;
+      merged.lateFineAmount = merged.fineWaived ? 0 : lateDays * (merged.lateFinePerDay || 500);
+
+      // Auto update returnStatus based on inspection condition if not manually set
+      if (
+        merged.inspectionCondition === 'Good' ||
+        merged.inspectionCondition === 'Fair' ||
+        merged.inspectionCondition === 'Minor Wear'
+      ) {
+        if (merged.returnStatus === 'Pending' || merged.returnStatus === 'Damaged' || merged.returnStatus === 'Missing') {
+          merged.returnStatus = 'Verified';
+        }
+      } else if (merged.inspectionCondition === 'Damaged') {
+        merged.returnStatus = 'Damaged';
+      } else if (merged.inspectionCondition === 'Missing') {
+        merged.returnStatus = 'Missing';
+      }
+
+      // Calculate liability amounts based on policy
+      if (merged.inspectionCondition === 'Damaged') {
+        const cost = merged.repairCost || 0;
+        if (merged.liabilityPolicy === 'Employee Liability') {
+          merged.liabilityAmount = cost;
+          merged.companyAbsorbedAmount = 0;
+        } else if (
+          merged.liabilityPolicy === 'Company Absorbed' ||
+          merged.liabilityPolicy === 'Warranty Covered' ||
+          merged.liabilityPolicy === 'Waived'
+        ) {
+          merged.liabilityAmount = 0;
+          merged.companyAbsorbedAmount = cost;
+        } else if (merged.liabilityPolicy === 'Shared 50-50') {
+          merged.liabilityAmount = Math.round(cost / 2);
+          merged.companyAbsorbedAmount = Math.round(cost / 2);
+        }
+      } else if (merged.inspectionCondition === 'Missing') {
+        const cost = merged.missingReplacementCost || 0;
+        if (merged.liabilityPolicy === 'Employee Liability') {
+          merged.liabilityAmount = cost;
+          merged.companyAbsorbedAmount = 0;
+        } else if (merged.liabilityPolicy === 'Company Absorbed' || merged.liabilityPolicy === 'Waived') {
+          merged.liabilityAmount = 0;
+          merged.companyAbsorbedAmount = cost;
+        } else if (merged.liabilityPolicy === 'Shared 50-50') {
+          merged.liabilityAmount = Math.round(cost / 2);
+          merged.companyAbsorbedAmount = Math.round(cost / 2);
+        }
+      } else {
+        merged.liabilityAmount = 0;
+        merged.companyAbsorbedAmount = 0;
+      }
+
+      return merged;
+    });
+
+    // Summary re-calculation
+    const totalAssigned = updatedItems.length;
+    const totalReturned = updatedItems.filter(
+      i => i.returnStatus === 'Verified' || i.returnStatus === 'Submitted'
+    ).length;
+    const totalDamaged = updatedItems.filter(
+      i => i.returnStatus === 'Damaged' || i.inspectionCondition === 'Damaged'
+    ).length;
+    const totalMissing = updatedItems.filter(
+      i => i.returnStatus === 'Missing' || i.inspectionCondition === 'Missing'
+    ).length;
+    const totalLateFines = updatedItems.reduce((sum, i) => sum + (i.fineWaived ? 0 : (i.lateFineAmount || 0)), 0);
+    const totalRepairCosts = updatedItems.reduce((sum, i) => sum + (i.repairCost || 0), 0);
+    const totalEmployeeLiableAmount = updatedItems.reduce(
+      (sum, i) => sum + (i.fineWaived ? 0 : (i.lateFineAmount || 0)) + (i.liabilityAmount || 0),
+      0
+    );
+    const totalCompanyCoveredAmount = updatedItems.reduce((sum, i) => sum + (i.companyAbsorbedAmount || 0), 0);
+
+    // Compute status
+    let nextStatus: ExitClearanceStatus = clearance.status;
+    const allVerified = updatedItems.length > 0 && updatedItems.every(i => i.returnStatus === 'Verified');
+    const hasUnresolvedIssues = updatedItems.some(
+      i => (i.returnStatus === 'Damaged' || i.returnStatus === 'Missing') && i.liabilityPolicy === 'Under Review'
+    );
+
+    if (allVerified) {
+      nextStatus = 'Cleared';
+    } else if (hasUnresolvedIssues) {
+      nextStatus = 'Action Required / Liability Pending';
+    } else if (updatedItems.some(i => i.returnStatus !== 'Pending')) {
+      nextStatus = 'Under Inspection';
+    } else {
+      nextStatus = 'Pending Asset Return';
+    }
+
+    const auditEntry: ExitClearanceAuditEntry = {
+      id: 'AUD-CLR-' + Date.now(),
+      timestamp: nowIso,
+      action: 'Asset Inspected / Updated',
+      actor: adminActor,
+      details: auditDetail || `Updated clearance inspection for asset. Status: ${nextStatus}.`,
+      amountChanged: totalEmployeeLiableAmount,
+    };
+
+    const updatedRecord: ExitClearanceRecord = {
+      ...clearance,
+      status: nextStatus,
+      items: updatedItems,
+      summary: {
+        totalAssigned,
+        totalReturned,
+        totalDamaged,
+        totalMissing,
+        totalLateFines,
+        totalRepairCosts,
+        totalEmployeeLiableAmount,
+        totalCompanyCoveredAmount,
+      },
+      auditTrail: [auditEntry, ...clearance.auditTrail],
+      updatedAt: nowIso,
+    };
+
+    const nextClearances = exitClearances.map(c => (c.id === clearanceId ? updatedRecord : c));
+    setExitClearances(nextClearances);
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_EXIT_CLEARANCES`, JSON.stringify(nextClearances));
+    } catch {}
+
+    assetCoreDB.putAll('exitClearances', nextClearances).catch(() => {});
+    api.updateExitClearance(clearanceId, updatedRecord).catch(e => console.warn('Cloud DB update error:', e));
+
+    addAuditEntry(
+      'Asset Clearance Inspected',
+      `Inspection recorded for ${clearance.employeeName} (${clearance.companyEmployeeNumber || clearance.employeeId}). Dues/Liabilities: ₹${totalEmployeeLiableAmount}.`
+    );
+    showToast('Asset inspection and clearance record updated successfully.', 'success');
+  };
+
+  // 3. Approve Final Exit & Asset Clearance
+  const approveFinalExitClearance: AppContextType['approveFinalExitClearance'] = (
+    clearanceId,
+    approvalRemarks
+  ) => {
+    const clearance = exitClearances.find(c => c.id === clearanceId);
+    if (!clearance) {
+      return { success: false, error: 'Clearance record not found' };
+    }
+
+    const adminActor = currentUser?.name || 'IT Administrator';
+    const nowIso = new Date().toISOString();
+    const certNum =
+      clearance.clearanceCertificateNumber ||
+      `EASH-CERT-CLR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // Automatically release verified returned devices back to available stock
+    clearance.items.forEach(item => {
+      if (item.returnStatus === 'Verified' || item.returnStatus === 'Submitted') {
+        if (item.assetType === 'Laptop' || item.assetType === 'Desktop') {
+          const comp = computers.find(c => c.id === item.assetId || c.assetNumber === item.assetNumber);
+          if (comp && comp.assignedEmployeeId) {
+            updateComputer(comp.id, {
+              assignedEmployeeId: null,
+              status: 'Available',
+              condition: (item.inspectionCondition as any) || 'Good',
+              remarks: `Returned via Exit Clearance ${clearance.id} on ${nowIso.split('T')[0]}`,
+            });
+          }
+        } else if (item.assetType === 'SIM Card') {
+          const sim = simCards.find(s => s.id === item.assetId || s.contactNumber === item.assetNumber);
+          if (sim && sim.assignedEmployeeId) {
+            unassignSimCard(sim.id);
+          }
+        } else {
+          const asset = assets.find(a => a.id === item.assetId || a.assetNumber === item.assetNumber);
+          if (asset && asset.assignedEmployeeId) {
+            updateCompanyAsset(asset.id, {
+              assignedEmployeeId: null,
+              status: 'Available',
+              condition: (item.inspectionCondition as any) || 'Good',
+              remarks: `Returned via Exit Clearance ${clearance.id} on ${nowIso.split('T')[0]}`,
+            });
+          }
+        }
+      }
+    });
+
+    const approvedRecord: ExitClearanceRecord = {
+      ...clearance,
+      status: 'Full & Final Approved',
+      clearanceCertificateNumber: certNum,
+      clearedAt: nowIso,
+      approvedByAdmin: adminActor,
+      approvalRemarks:
+        approvalRemarks || 'All assigned assets inspected, verified, and accounted for as per company exit policy.',
+      auditTrail: [
+        {
+          id: 'AUD-CLR-' + Date.now(),
+          timestamp: nowIso,
+          action: 'Final Clearance Approved',
+          actor: adminActor,
+          details: `Full & Final Exit Asset Clearance approved by ${adminActor}. Certificate ${certNum} generated. All returned devices released to company stock.`,
+        },
+        ...clearance.auditTrail,
+      ],
+      updatedAt: nowIso,
+    };
+
+    const nextClearances = exitClearances.map(c => (c.id === clearanceId ? approvedRecord : c));
+    setExitClearances(nextClearances);
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_EXIT_CLEARANCES`, JSON.stringify(nextClearances));
+    } catch {}
+
+    assetCoreDB.putAll('exitClearances', nextClearances).catch(() => {});
+    api.updateExitClearance(clearanceId, approvedRecord).catch(e => console.warn('Cloud DB clearance approval error:', e));
+
+    addAuditEntry(
+      'Exit Clearance Approved',
+      `Full & Final Asset Clearance approved for ${clearance.employeeName} (${clearance.employeeId}). Certificate: ${certNum}.`
+    );
+
+    showToast(`Full & Final Asset Clearance approved for ${clearance.employeeName}. Certificate issued!`, 'success');
+    return { success: true };
+  };
+
+  // 4. Delete Exit Clearance
+  const deleteExitClearance: AppContextType['deleteExitClearance'] = clearanceId => {
+    const clearance = exitClearances.find(c => c.id === clearanceId);
+    if (!clearance) return;
+
+    const nextClearances = exitClearances.filter(c => c.id !== clearanceId);
+    setExitClearances(nextClearances);
+
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_EXIT_CLEARANCES`, JSON.stringify(nextClearances));
+    } catch {}
+
+    assetCoreDB.putAll('exitClearances', nextClearances).catch(() => {});
+    api.deleteExitClearance(clearanceId).catch(() => {});
+
+    addAuditEntry(
+      'Exit Clearance Removed',
+      `Removed exit clearance record ${clearanceId} for ${clearance.employeeName}.`
+    );
+    showToast(`Exit clearance record ${clearanceId} removed.`, 'info');
+  };
+
   const contextValue: AppContextType = {
     employees,
     computers,
@@ -6666,6 +7206,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     removeEmployeePermanently,
     removeAllEmployees,
     removedEmployees,
+    exitClearances,
+    initiateExitClearance,
+    updateExitClearanceAsset,
+    approveFinalExitClearance,
+    deleteExitClearance,
     addComputer,
     updateComputer,
     removeComputerPermanently,

@@ -87,6 +87,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
     simRequests,
     simRecharges,
     assetQueries = [],
+    exitClearances = [],
     currentUser,
     userRole,
     updateEmployee,
@@ -342,6 +343,14 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
       )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [assetQueries, employee]);
+
+  // Active Exit Clearance record for this employee
+  const myExitClearance = useMemo(() => {
+    if (!employee) return null;
+    return (exitClearances || []).find(
+      c => c.employeeId === employee.id || c.employeeId === employee.employeeId
+    );
+  }, [exitClearances, employee]);
 
   // Unified Activity & Requisition Timeline aggregating all employee request lifecycle events
   const myUnifiedActivityTimeline = useMemo(() => {
@@ -1345,6 +1354,69 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = () => {
           </div>
         )}
       </div>
+
+      {/* Active Exit & Asset Clearance Process Banner */}
+      {myExitClearance && (() => {
+        const isDone = myExitClearance.status === 'Full & Final Approved' || myExitClearance.status === 'Cleared';
+        const isOverdue = !isDone && Boolean(myExitClearance.returnDeadline && new Date(myExitClearance.returnDeadline) < new Date());
+        return (
+          <div
+            className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-fade-in ${
+              isDone
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : isOverdue
+                ? 'bg-rose-500/10 border-rose-500/30'
+                : 'bg-amber-500/10 border-amber-500/30'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                  isDone
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                    : isOverdue
+                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                    : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                <LogOut className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    Employee Exit & Asset Clearance: {myExitClearance.status}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                    Separation: {myExitClearance.exitType}
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                    Deadline: {formatDateDisplay(myExitClearance.returnDeadline)}
+                  </span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] mt-1">
+                  {myExitClearance.items.length} assets assigned for return &bull;{' '}
+                  {myExitClearance.items.filter(i => i.returnStatus === 'Verified').length} items verified &bull; ₹
+                  {myExitClearance.summary?.totalLateFines || 0} late fine &bull; ₹
+                  {myExitClearance.summary?.totalEmployeeLiableAmount || 0} employee liability
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('exit-clearance')}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0 ${
+                isDone
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white'
+              }`}
+            >
+              {isDone
+                ? 'View No-Dues Certificate →'
+                : 'Open Clearance Desk & Deadlines →'}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* QUICK SECTION NAV PILLS */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">

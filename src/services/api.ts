@@ -15,6 +15,7 @@ import {
   ServiceProvider,
   AssetQuery,
   RemovedEmployeeRecord,
+  ExitClearanceRecord,
 } from '../types';
 
 // In development or unified hosting, use relative '/api'
@@ -44,6 +45,7 @@ export interface BootstrapResponse {
     serviceProviders?: ServiceProvider[];
     assetQueries?: AssetQuery[];
     removedEmployees?: RemovedEmployeeRecord[];
+    exitClearances?: ExitClearanceRecord[];
   };
   stats?: any;
 }
@@ -762,6 +764,71 @@ export const api = {
     }
   },
 
+  // ================= EMPLOYEE EXIT & ASSET CLEARANCE =================
+  async getExitClearances(): Promise<ExitClearanceRecord[]> {
+    try {
+      const res = await fetch(`${API_BASE}/exit-clearances`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getExitClearanceById(id: string): Promise<ExitClearanceRecord | null> {
+    try {
+      const res = await fetch(`${API_BASE}/exit-clearances/${encodeURIComponent(id)}`);
+      const json = await res.json();
+      return json.success ? json.data : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async createExitClearance(
+    record: ExitClearanceRecord
+  ): Promise<{ success: boolean; error?: string; data?: ExitClearanceRecord }> {
+    try {
+      const res = await fetch(`${API_BASE}/exit-clearances`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+      });
+      const json = await res.json();
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async updateExitClearance(
+    id: string,
+    record: ExitClearanceRecord
+  ): Promise<{ success: boolean; error?: string; data?: ExitClearanceRecord }> {
+    try {
+      const res = await fetch(`${API_BASE}/exit-clearances/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+      });
+      const json = await res.json();
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
+  },
+
+  async deleteExitClearance(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/exit-clearances/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // ================= BULK SYNC / RESTORE =================
   async syncAll(data: {
     employees?: Employee[];
@@ -779,6 +846,7 @@ export const api = {
     serviceProviders?: ServiceProvider[];
     assetQueries?: AssetQuery[];
     removedEmployees?: RemovedEmployeeRecord[];
+    exitClearances?: ExitClearanceRecord[];
   }): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/sync`, {

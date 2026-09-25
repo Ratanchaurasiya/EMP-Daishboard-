@@ -18,6 +18,7 @@ import {
   SimRequest,
   ServiceProvider,
   AssetQuery,
+  ExitClearanceRecord,
 } from '../types';
 import {
   INITIAL_EMPLOYEES,
@@ -29,7 +30,7 @@ import {
 } from '../data/initialSeedData';
 
 const DB_NAME = 'AssetCore_Enterprise_DB';
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 export type StoreName =
   | 'employees'
@@ -48,6 +49,7 @@ export type StoreName =
   | 'serviceProviders'
   | 'assetQueries'
   | 'removedEmployees'
+  | 'exitClearances'
   | 'systemSettings';
 
 export interface DatabaseStats {
@@ -222,6 +224,14 @@ class IndexedDBManager {
             const remStore = db.createObjectStore('removedEmployees', { keyPath: 'id' });
             remStore.createIndex('employeeId', 'employeeId', { unique: false });
             remStore.createIndex('removedAt', 'removedAt', { unique: false });
+          }
+
+          // 18. Exit Clearances Store
+          if (!db.objectStoreNames.contains('exitClearances')) {
+            const clrStore = db.createObjectStore('exitClearances', { keyPath: 'id' });
+            clrStore.createIndex('employeeId', 'employeeId', { unique: false });
+            clrStore.createIndex('status', 'status', { unique: false });
+            clrStore.createIndex('exitDate', 'exitDate', { unique: false });
           }
         };
 
