@@ -49,7 +49,7 @@ export const EmployeeExitStatusCard: React.FC<EmployeeExitStatusCardProps> = ({
         <button
           type="button"
           onClick={onRaiseRequest}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 dark:font-bold dark:shadow-md dark:shadow-amber-500/20 transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>Raise Exit Request</span>
@@ -219,7 +219,7 @@ export const EmployeeExitStatusCard: React.FC<EmployeeExitStatusCardProps> = ({
           <button
             type="button"
             onClick={onRaiseRequest}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs shadow-xs dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 dark:font-bold transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Submit Revised Exit Request</span>

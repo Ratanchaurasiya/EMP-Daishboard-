@@ -299,7 +299,7 @@ export const SubmitExitRequestModal: React.FC<SubmitExitRequestModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 dark:font-bold dark:shadow-md dark:shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Submitting...' : 'Submit Exit Request'}</span>

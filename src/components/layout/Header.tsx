@@ -457,10 +457,10 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <div className="hidden sm:flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+            <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs dark:bg-gradient-to-br dark:from-orange-500 dark:to-amber-500">
               <Box className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-bold text-orange-500 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="text-xs font-bold text-blue-600 dark:text-orange-500 uppercase tracking-wider flex items-center gap-1.5">
               ASSETCORE
             </span>
             <span className="text-slate-300 dark:text-slate-700 font-light">/</span>
@@ -488,7 +488,7 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'Search specs, tickets, assets... (⌘K)'
                   : 'Command Palette: Search personnel, PC, asset, IMEI... (⌘K)'
               }
-              className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-1.5 text-xs bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all font-sans shadow-2xs"
+              className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-1.5 text-xs bg-slate-50 dark:bg-slate-900/90 border border-slate-300/80 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all font-sans shadow-2xs"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
               {globalFilters.search ? (

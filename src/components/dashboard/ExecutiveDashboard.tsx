@@ -1182,8 +1182,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-[#1e293b]">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0">
-              <Zap className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 dark:bg-orange-500/15 dark:text-orange-400 dark:border-orange-500/30 flex items-center justify-center shrink-0">
+              <Zap className="w-4 h-4 text-blue-600 dark:text-orange-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -1206,7 +1206,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={() => exportFleetCSV()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg shadow-md shadow-orange-500/25 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-xs dark:bg-gradient-to-r dark:from-orange-500 dark:to-amber-500 dark:hover:from-orange-600 dark:hover:to-amber-600 dark:shadow-md dark:shadow-orange-500/25 transition-all cursor-pointer"
             title="Download complete company fleet audit spreadsheet (.csv)"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -1655,8 +1655,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           className="p-4 rounded-xl bg-white dark:bg-[#111726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-emerald-500/40 transition-all cursor-pointer group"
         >
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 flex items-center justify-center shrink-0">
-              <Users className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/25 flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
               Workstation Allocation
@@ -1666,7 +1666,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <span className="text-3xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
               {readinessRate}%
             </span>
-            <span className="text-[11px] font-semibold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-md font-mono">
+            <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 dark:text-amber-300 dark:bg-amber-500/20 dark:border-amber-500/30 px-2 py-0.5 rounded-md font-mono">
               {equippedEmployees} / {totalEmployees} Equipped
             </span>
           </div>
@@ -1682,8 +1682,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           className="p-4 rounded-xl bg-white dark:bg-[#111726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-teal-500/40 transition-all cursor-pointer group"
         >
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-teal-500/15 text-teal-400 border border-teal-500/25 flex items-center justify-center shrink-0">
-              <Heart className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-full bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-500/15 dark:text-teal-400 dark:border-teal-500/25 flex items-center justify-center shrink-0">
+              <Heart className="w-4 h-4 text-teal-600 dark:text-teal-400" />
             </div>
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
               Fleet Health Index
@@ -1693,7 +1693,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <span className="text-3xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
               {fleetHealthScore}%
             </span>
-            <span className="text-[11px] font-semibold text-teal-300 bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 rounded-md font-mono">
+            <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 border border-teal-200 dark:text-teal-300 dark:bg-teal-500/20 dark:border-teal-500/30 px-2 py-0.5 rounded-md font-mono">
               {goodOrNewComputers} / {totalComputers} Healthy
             </span>
           </div>
@@ -1709,8 +1709,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           className="p-4 rounded-xl bg-white dark:bg-[#111726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-blue-500/40 transition-all cursor-pointer group"
         >
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25 flex items-center justify-center shrink-0">
-              <Wrench className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/25 flex items-center justify-center shrink-0">
+              <Wrench className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
               Hardware & Mobile Fleet
@@ -1720,7 +1720,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <span className="text-3xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
               {peripheralUtilization}%
             </span>
-            <span className="text-[11px] font-semibold text-purple-300 bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 rounded-md font-mono">
+            <span className="text-[11px] font-semibold text-purple-800 bg-purple-50 border border-purple-200 dark:text-purple-300 dark:bg-purple-500/20 dark:border-purple-500/30 px-2 py-0.5 rounded-md font-mono">
               {assignedAssets} / {totalAssets} Deployed
             </span>
           </div>
@@ -1736,8 +1736,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           className="p-4 rounded-xl bg-white dark:bg-[#111726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-orange-500/40 transition-all cursor-pointer group"
         >
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/25 flex items-center justify-center shrink-0">
-              <IndianRupee className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-full bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-500/15 dark:text-orange-400 dark:border-orange-500/25 flex items-center justify-center shrink-0">
+              <IndianRupee className="w-4 h-4 text-orange-600 dark:text-orange-400" />
             </div>
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
               Total Fleet Maintenance
@@ -1747,7 +1747,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <span className="text-3xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
               {formatCurrency(totalLifetimeSpend)}
             </span>
-            <span className="text-[11px] font-semibold text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md font-mono border border-slate-200 dark:border-[#1e293b]">
+            <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md font-mono border border-slate-200 dark:border-[#1e293b]">
               {serviceRecords.length} {serviceRecords.length === 1 ? 'invoice' : 'invoices'}
             </span>
           </div>
@@ -1763,8 +1763,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           className="p-4 rounded-xl bg-white dark:bg-[#111726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-amber-500/50 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/25 flex items-center justify-center shrink-0">
-              <ShoppingBag className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-full bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-500 dark:border-amber-500/25 flex items-center justify-center shrink-0">
+              <ShoppingBag className="w-4 h-4 text-amber-600 dark:text-amber-500" />
             </div>
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
               PC/Laptop Purchases
@@ -1774,7 +1774,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <span className="text-3xl font-black font-mono text-slate-900 dark:text-white tracking-tight">
               {purchases.length} Units
             </span>
-            <span className="text-[11px] font-semibold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md font-mono">
+            <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 dark:text-amber-400 dark:bg-amber-500/15 dark:border-amber-500/30 px-2 py-0.5 rounded-md font-mono">
               ₹{totalPurchasesCost.toLocaleString('en-IN')}
             </span>
           </div>

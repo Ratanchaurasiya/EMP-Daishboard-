@@ -211,7 +211,7 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
             <button
               type="button"
               onClick={() => setShowSubmitModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 dark:font-bold transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Raise Exit Request</span>
@@ -222,7 +222,7 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
             <button
               type="button"
               onClick={() => setShowInitiateModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 dark:font-bold transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Initiate Exit Clearance</span>
@@ -246,10 +246,10 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
           <button
             type="button"
             onClick={() => setMainTab('requests')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               mainTab === 'requests'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                ? 'bg-blue-600 text-white shadow-xs dark:bg-amber-500 dark:text-slate-950 dark:font-bold'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
             <FileText className="w-4 h-4" />
@@ -264,10 +264,10 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
           <button
             type="button"
             onClick={() => setMainTab('active_clearances')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               mainTab === 'active_clearances'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                ? 'bg-blue-600 text-white shadow-xs dark:bg-amber-500 dark:text-slate-950 dark:font-bold'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
@@ -280,10 +280,10 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
           <button
             type="button"
             onClick={() => setMainTab('history')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               mainTab === 'history'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                ? 'bg-blue-600 text-white shadow-xs dark:bg-amber-500 dark:text-slate-950 dark:font-bold'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
             <History className="w-4 h-4" />
@@ -466,7 +466,7 @@ export const EmployeeExitClearanceView: React.FC<EmployeeExitClearanceViewProps>
               <button
                 type="button"
                 onClick={() => setShowInitiateModal(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-slate-950 dark:font-bold transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Initiate Exit Clearance</span>

@@ -261,8 +261,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             ? `${overdueClearancesCount} Overdue`
             : (activeClearancesCount > 0 ? `${activeClearancesCount} Active` : (exitClearances.length > 0 ? `${exitClearances.length}` : null)),
           badgeColor: overdueClearancesCount > 0
-            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 font-bold'
-            : (activeClearancesCount > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-slate-500/10 text-slate-500 border-slate-500/20'),
+            ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30 font-bold'
+            : (activeClearancesCount > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30' : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-500/10 dark:text-slate-500 dark:border-slate-500/20'),
           isWarning: overdueClearancesCount > 0,
         },
         {
@@ -271,7 +271,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           shortLabel: 'Requests',
           icon: Layers,
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount} Pending` : (assetRequests.length > 0 ? `${assetRequests.length}` : null),
-          badgeColor: pendingRequestsCount > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' : undefined,
+          badgeColor: pendingRequestsCount > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30' : undefined,
           isWarning: pendingRequestsCount > 0,
         },
         {
@@ -283,8 +283,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             ? `${assetQueries.filter(q => q.status === 'Pending Acknowledgement').length} Ack Needed`
             : (assetQueries && assetQueries.length > 0 ? `${assetQueries.length}` : null),
           badgeColor: (assetQueries?.filter(q => q.status === 'Pending Acknowledgement').length || 0) > 0
-            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold'
-            : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+            ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30 font-bold'
+            : 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20',
           isWarning: (assetQueries?.filter(q => q.status === 'Pending Acknowledgement').length || 0) > 0,
         },
         {
@@ -301,7 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           shortLabel: 'PC Support',
           icon: Wrench,
           badge: serviceProviders.length > 0 ? `${serviceProviders.length} Vendors` : null,
-          badgeColor: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+          badgeColor: 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-400 dark:border-indigo-500/30',
         },
         {
           id: 'weekly-photos',
@@ -309,7 +309,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           shortLabel: 'Photos',
           icon: Camera,
           badge: weeklyPhotoRecords.length > 0 ? `${weeklyPhotoRecords.length}` : null,
-          badgeColor: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+          badgeColor: 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-500 dark:border-blue-500/20',
         },
         {
           id: 'audit',
@@ -427,14 +427,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             className="flex items-center gap-2.5 text-left group cursor-pointer min-w-0 focus:outline-hidden"
             title="AssetCore Enterprise"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center font-bold text-sm shadow-md shadow-orange-500/25 group-hover:scale-105 transition-transform shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-xs dark:bg-gradient-to-br dark:from-orange-500 dark:to-amber-500 dark:shadow-md dark:shadow-orange-500/25 group-hover:scale-105 transition-transform shrink-0">
               <Box className="w-4 h-4" />
             </div>
             {!isCollapsed && (
               <div className="truncate min-w-0">
                 <h1 className="font-bold text-xs text-slate-900 dark:text-white tracking-tight leading-tight flex items-center gap-1.5">
                   <span>AssetCore</span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase">
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30 uppercase">
                     PRO
                   </span>
                 </h1>
@@ -466,7 +466,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   size="xs"
                 />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-orange-500/15 dark:text-orange-400 dark:border-orange-500/30 flex items-center justify-center shrink-0">
                   <User className="w-4 h-4" />
                 </div>
               )}
@@ -504,7 +504,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     onClick={() => handleNavClick(item.id)}
                     className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'justify-between px-2.5 py-2'} rounded-xl text-left transition-all text-xs group cursor-pointer ${
                       isActive
-                        ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                        ? 'bg-blue-600 text-white font-semibold shadow-xs dark:bg-emerald-600'
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium'
                     }`}
                     title={isCollapsed ? item.label : undefined}
@@ -514,7 +514,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                         className={`w-4 h-4 shrink-0 transition-colors ${
                           isActive
                             ? 'text-white'
-                            : 'text-slate-400 dark:text-slate-500 group-hover:text-emerald-500'
+                            : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-emerald-500'
                         }`}
                       />
                       {!isCollapsed && <span>{item.label}</span>}
@@ -523,9 +523,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       <span
                         className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-semibold ${
                           isActive
-                            ? 'bg-emerald-700/50 text-emerald-200'
+                            ? 'bg-blue-700/60 text-blue-100 border border-blue-400/30 dark:bg-emerald-700/50 dark:text-emerald-200'
                             : (item as any).badgeColor ||
-                              'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50'
+                              'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700/50'
                         }`}
                       >
                         {item.badge}
@@ -552,7 +552,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       onClick={() => handleNavClick(item.id)}
                       className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'justify-between px-2.5 py-2'} rounded-xl text-left transition-all text-xs group cursor-pointer ${
                         isActive
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold shadow-lg shadow-orange-500/25'
+                          ? 'bg-blue-600 text-white font-semibold shadow-xs dark:bg-gradient-to-r dark:from-orange-500 dark:to-amber-500 dark:font-bold dark:shadow-lg dark:shadow-orange-500/25'
                           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium'
                       }`}
                       title={isCollapsed ? item.label : undefined}
@@ -562,7 +562,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                           className={`w-4 h-4 shrink-0 transition-colors ${
                             isActive
                               ? 'text-white'
-                              : 'text-slate-400 dark:text-slate-500 group-hover:text-orange-400'
+                              : 'text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-orange-400'
                           }`}
                         />
                         {!isCollapsed && <span>{item.label}</span>}
@@ -572,8 +572,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                         <span
                           className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
                             isActive
-                              ? 'bg-amber-400/25 text-amber-100 border border-amber-400/40'
-                              : 'bg-amber-500/15 text-amber-500 dark:bg-amber-500/15 dark:text-amber-400 border border-amber-500/30'
+                              ? 'bg-blue-700/60 text-blue-100 border border-blue-400/30 dark:bg-amber-400/25 dark:text-amber-100 dark:border-amber-400/40'
+                              : (item as any).badgeColor || 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30'
                           }`}
                         >
                           {item.badge}

@@ -502,7 +502,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               value={localSearch}
               onChange={e => setLocalSearch(e.target.value)}
               placeholder="Search employee, ID, workstation tag, phone SIM, IMEI, specs..."
-              className="w-full text-xs pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-lg text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
             {localSearch && (
               <button
@@ -519,7 +519,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           <select
             value={deptFilter}
             onChange={e => setDeptFilter(e.target.value)}
-            className="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
           >
             <option value="">All Departments</option>
             {departments.map(d => (
@@ -533,7 +533,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
           >
             <option value="">All Statuses</option>
             <option value="Active">Active</option>
@@ -545,7 +545,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           <select
             value={hardwareFilter}
             onChange={e => setHardwareFilter(e.target.value as any)}
-            className="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
           >
             <option value="all">All Hardware States</option>
             <option value="with-computer">With Workstation (Laptop/PC)</option>
@@ -1066,7 +1066,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
         <div className="bg-white dark:bg-[#101726] rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50/80 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200/80 dark:border-slate-800 text-[11px] uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 dark:bg-slate-900/60 dark:text-slate-400 dark:border-slate-800 text-[11px] uppercase tracking-wider">
                 <tr>
                   <th className="py-2.5 px-3 font-semibold">Employee</th>
                   <th className="py-2.5 px-3 font-semibold">Identifiers</th>
@@ -1079,7 +1079,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   <th className="py-2.5 px-3 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-800 dark:text-slate-300">
                 {filteredEmployees.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-slate-400 text-xs">

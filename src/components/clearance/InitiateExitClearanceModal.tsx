@@ -368,7 +368,7 @@ export const InitiateExitClearanceModal: React.FC<InitiateExitClearanceModalProp
             <button
               type="submit"
               disabled={!targetEmployee}
-              className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer dark:bg-amber-600 dark:hover:bg-amber-500"
             >
               <UserX className="w-4 h-4" />
               <span>Initiate Asset Clearance Process</span>
