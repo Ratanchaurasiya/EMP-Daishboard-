@@ -6,14 +6,33 @@ import pg from 'pg';
 
 const { Pool: PgPool } = pg;
 
-if (typeof process.loadEnvFile === 'function') {
-  try {
-    process.loadEnvFile();
-  } catch {}
-}
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Robust .env file loading: check root directory first, then process.cwd()
+const rootEnvPath = path.resolve(__dirname, '..', '.env');
+if (fs.existsSync(rootEnvPath)) {
+  if (typeof process.loadEnvFile === 'function') {
+    try {
+      process.loadEnvFile(rootEnvPath);
+    } catch {
+      try {
+        const envContent = fs.readFileSync(rootEnvPath, 'utf8');
+        for (const line of envContent.split('\n')) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+            const eqIdx = trimmed.indexOf('=');
+            const k = trimmed.slice(0, eqIdx).trim();
+            const v = trimmed.slice(eqIdx + 1).trim().replace(/^['"]|['"]$/g, '');
+            if (!process.env[k]) process.env[k] = v;
+          }
+        }
+      } catch {}
+    }
+  }
+} else if (typeof process.loadEnvFile === 'function') {
+  try { process.loadEnvFile(); } catch {}
+}
 
 // Ensure server/data directory exists for persistent local SQLite storage
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -335,8 +354,9 @@ if (!pgPool && isMySqlUrl) {
     mysqlPool = mysql.createPool(poolConfig);
 
     const connection = await mysqlPool.getConnection();
-    activeEngine = 'Cloud MySQL / MariaDB (Production)';
-    console.log('[Database] Connected successfully to Cloud MySQL / MariaDB production database.');
+    const isRemote = (process.env.MYSQL_HOST && !process.env.MYSQL_HOST.includes('localhost') && !process.env.MYSQL_HOST.includes('127.0.0.1'));
+    activeEngine = isRemote ? 'Remote MySQL / MariaDB' : 'cPanel / Local MySQL (Production)';
+    console.log(`[Database] Connected successfully to ${activeEngine} database.`);
     connection.release();
 
     // Verify & Initialize MySQL Tables Idempotently
@@ -563,24 +583,19 @@ if (!pgPool && isMySqlUrl) {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    console.log('[Database] Cloud MySQL / MariaDB tables & indices verified.');
+    console.log(`[Database] ${activeEngine} tables & indices verified.`);
   } catch (err) {
-    console.error('[Database Error] Failed to connect to MySQL from DATABASE_URL:', err.message);
-    if (isProduction) {
-      console.error('[Database Error] Production requires a valid MySQL connection. Exiting to prevent ephemeral data loss.');
-      throw new Error(`MySQL Connection Failed: ${err.message}`);
-    }
-    console.warn('[Database] Falling back to local development SQLite engine...');
+    console.error('[Database Fatal Error] Failed to connect to MySQL:', err.message);
     mysqlPool = null;
+    throw new Error(`[Database Fatal Error] MySQL Connection Failed: ${err.message}. EASH requires a live MySQL database and will not silently fall back to local SQLite or JSON.`);
   }
 }
 
-// In production / Vercel serverless deployment, ensure a persistent cloud database is configured
-if ((isProduction || isVercelServerless) && !pgPool && !mysqlPool && !allowSqliteInProd) {
-  console.error('[Database Error] Fatal: DATABASE_URL environment variable is missing or invalid in Production.');
-  console.error('[Database Error] Ephemeral SQLite files cannot be used on Vercel serverless platform as data will be lost across cold starts.');
-  console.error('[Database Error] Please set DATABASE_URL in Vercel Project Settings with your Cloud MySQL or PostgreSQL connection string.');
-  throw new Error('DATABASE_URL environment variable is required in production mode for database persistence.');
+// In EASH, MySQL is the required primary and persistent database.
+// Do NOT silently fall back to SQLite or JSON files.
+if (!pgPool && !mysqlPool && !allowSqliteInProd && process.env.ALLOW_SQLITE_FALLBACK !== 'true') {
+  console.error('[Database Fatal Error] MySQL database connection is required. Local fallback is disabled.');
+  throw new Error('[Database Fatal Error] No active MySQL connection pool. Please ensure MySQL is running and connection details in .env are correct.');
 }
 
 // -------------------------------------------------------------
@@ -839,7 +854,7 @@ export const db = {
   },
   get dbPath() {
     if (pgPool) return 'Cloud PostgreSQL (Managed Database Cluster)';
-    if (mysqlPool) return 'Cloud MySQL / MariaDB (Managed Database Cluster)';
+    if (mysqlPool) return `${activeEngine} (Localhost / Dedicated)`;
     return useFallback ? JSON_BACKUP_PATH : DB_PATH;
   },
 

@@ -114,7 +114,7 @@ export const EmployeeWeeklyPhotoSection: React.FC<EmployeeWeeklyPhotoSectionProp
         if (!existing.latestAuditDate || r.inspectionDate > existing.latestAuditDate) {
           existing.latestAuditDate = r.inspectionDate;
           existing.latestCondition = p.condition;
-          existing.latestPhotoUrl = p.photoUrl;
+          existing.latestPhotoUrl = p.photoUrl || p.googleDriveLink;
         }
       });
     });

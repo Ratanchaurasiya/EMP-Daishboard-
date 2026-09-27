@@ -14,8 +14,12 @@ import {
   IndianRupee,
   Wrench,
   CheckCircle2,
+  Link2,
+  ExternalLink,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import { resolveFileOrImageUrl, isImageUrl } from '../../utils/fileUrlUtils';
 
 interface UploadServiceReceiptModalProps {
   isOpen: boolean;
@@ -37,6 +41,8 @@ export const UploadServiceReceiptModal: React.FC<UploadServiceReceiptModalProps>
   const [receiptDate, setReceiptDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [receiptFileName, setReceiptFileName] = useState<string>('');
   const [receiptFileUrl, setReceiptFileUrl] = useState<string>('');
+  const [inputUrl, setInputUrl] = useState<string>('');
+  const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
   const [repairCost, setRepairCost] = useState<number>(0);
   const [shopName, setShopName] = useState<string>('');
   const [technicianName, setTechnicianName] = useState<string>('');
@@ -171,9 +177,26 @@ export const UploadServiceReceiptModal: React.FC<UploadServiceReceiptModalProps>
     }
   };
 
+  const handleUrlChange = (url: string) => {
+    setInputUrl(url);
+    const trimmed = url.trim();
+    if (!trimmed) {
+      setReceiptFileUrl('');
+      setReceiptFileName('');
+      setFileSizeStr('');
+      return;
+    }
+    const resolved = resolveFileOrImageUrl(trimmed);
+    setReceiptFileUrl(resolved.previewUrl || trimmed);
+    setReceiptFileName(resolved.fileName || 'Service Receipt Document');
+    setFileSizeStr(resolved.isGoogleDrive ? 'Google Drive Cloud' : 'Web URL');
+    setPreviewError('');
+  };
+
   const handleRemoveFile = () => {
     setReceiptFileName('');
     setReceiptFileUrl('');
+    setInputUrl('');
     setFileSizeStr('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -241,8 +264,12 @@ export const UploadServiceReceiptModal: React.FC<UploadServiceReceiptModalProps>
   if (typeof document === 'undefined') return null;
 
   const currentRecord = serviceRecords.find(s => s.id === selectedRecordId);
-  const isImage = receiptFileUrl?.startsWith('data:image/') || receiptFileName.match(/\.(jpeg|jpg|png|webp|gif)$/i);
-  const isPdf = receiptFileUrl?.startsWith('data:application/pdf') || receiptFileName.endsWith('.pdf');
+  const isImage = isImageUrl(receiptFileUrl, receiptFileName);
+  const isPdf = Boolean(
+    receiptFileUrl?.startsWith('data:application/pdf') ||
+    receiptFileUrl?.toLowerCase().includes('.pdf') ||
+    receiptFileName?.toLowerCase().endsWith('.pdf')
+  );
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs overflow-y-auto animate-fade-in">
@@ -448,71 +475,146 @@ export const UploadServiceReceiptModal: React.FC<UploadServiceReceiptModalProps>
 
           {/* File Upload Area */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              Upload Receipt File (JPG, PNG, PDF &lt; 10MB)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Receipt Attachment (JPG, PNG, PDF &lt; 10MB)
+              </label>
+
+              {/* Upload Mode Selector */}
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setUploadMode('file')}
+                  className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 ${
+                    uploadMode === 'file'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <UploadCloud className="w-3 h-3" />
+                  <span>Upload File</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadMode('url')}
+                  className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 ${
+                    uploadMode === 'url'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <Link2 className="w-3 h-3" />
+                  <span>Paste URL / Drive</span>
+                </button>
+              </div>
+            </div>
 
             {!receiptFileUrl ? (
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
-                  isDragOver
-                    ? 'border-emerald-500 bg-emerald-500/10'
-                    : 'border-slate-300 dark:border-slate-700 hover:border-emerald-400 bg-slate-50/50 dark:bg-slate-900/50'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
-                  onChange={handleFileInputChange}
-                  className="hidden"
-                />
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3">
-                  <UploadCloud className="w-6 h-6" />
-                </div>
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Click to select or drag &amp; drop receipt file
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Supported: JPEG, PNG, WEBP, and PDF documents (Max 10MB)
-                </p>
-              </div>
-            ) : (
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                    <FileText className="w-5 h-5" />
+              uploadMode === 'file' ? (
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                    isDragOver
+                      ? 'border-emerald-500 bg-emerald-500/10'
+                      : 'border-slate-300 dark:border-slate-700 hover:border-emerald-400 bg-slate-50/50 dark:bg-slate-900/50'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                  />
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3">
+                    <UploadCloud className="w-6 h-6" />
                   </div>
-                  <div className="overflow-hidden">
-                    <div className="font-semibold text-xs text-slate-900 dark:text-white truncate">
-                      {receiptFileName || 'receipt_document'}
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Click to select or drag &amp; drop receipt file
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Supported: JPEG, PNG, WEBP, and PDF documents (Max 10MB)
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Link2 className="w-4 h-4 text-emerald-500" />
+                      <span>Google Drive Link / Image URL</span>
+                    </label>
+                    {inputUrl && (
+                      <a
+                        href={inputUrl.startsWith('http') ? inputUrl : `https://${inputUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                      >
+                        <span>Open Link</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="url"
+                    value={inputUrl}
+                    onChange={e => handleUrlChange(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/... or https://example.com/receipt.jpg"
+                    className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 text-slate-900 dark:text-white font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Supports Google Drive share links, cloud document URLs, or direct image/PDF links.
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      {isImage ? <ImageIcon className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                     </div>
-                    <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <span>{isPdf ? 'PDF Document' : isImage ? 'Image File' : 'Attachment'}</span>
-                      {fileSizeStr && (
-                        <>
-                          <span>&bull;</span>
-                          <span>{fileSizeStr}</span>
-                        </>
-                      )}
+                    <div className="overflow-hidden">
+                      <div className="font-semibold text-xs text-slate-900 dark:text-white truncate">
+                        {receiptFileName || 'receipt_document'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                        <span>{isPdf ? 'PDF Document' : isImage ? 'Image File' : 'Attachment'}</span>
+                        {fileSizeStr && (
+                          <>
+                            <span>&bull;</span>
+                            <span>{fileSizeStr}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRemoveFile}
+                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                      title="Remove file"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleRemoveFile}
-                    className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
-                    title="Remove file"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                {/* Preview Thumbnail for Image */}
+                {isImage && (
+                  <div className="relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900/5 max-h-48 flex items-center justify-center">
+                    <img
+                      src={receiptFileUrl}
+                      alt="Service Receipt Preview"
+                      className="max-h-48 object-contain w-auto rounded"
+                    />
+                  </div>
+                )}
               </div>
             )}
 

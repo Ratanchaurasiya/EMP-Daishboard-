@@ -1328,7 +1328,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setDbStats({
             ...stats,
             connected: true,
-            dbName: 'SQLite (assetcore.db)',
+            dbName: bootstrap.engine || 'MySQL (assetcore)',
             totalRecords: bootstrap.stats.totalRecords,
           });
         } else {

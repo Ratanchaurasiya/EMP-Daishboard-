@@ -15,6 +15,7 @@ import {
 import { AssetPhotoItem } from '../../types';
 import { ConditionBadge } from '../common/Badge';
 import { formatDateDisplay, formatFileSize } from '../../utils/formatters';
+import { resolveFileOrImageUrl, isImageUrl } from '../../utils/fileUrlUtils';
 
 interface PhotoLightboxModalProps {
   isOpen: boolean;
@@ -39,16 +40,14 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 
   if (!isOpen || !photoItem) return null;
 
-  const isImage = photoItem.fileType
-    ? photoItem.fileType.startsWith('image/')
-    : photoItem.photoUrl
-    ? photoItem.photoUrl.startsWith('data:image/')
-    : true;
+  const directPhotoUrl = photoItem.photoUrl || (photoItem.googleDriveLink ? resolveFileOrImageUrl(photoItem.googleDriveLink).previewUrl : '');
+  const isImage = isImageUrl(directPhotoUrl, photoItem.fileName, photoItem.fileType);
 
   const handleDownload = () => {
-    if (!photoItem.photoUrl) return;
+    const downloadUrl = directPhotoUrl || photoItem.photoUrl;
+    if (!downloadUrl) return;
     const a = document.createElement('a');
-    a.href = photoItem.photoUrl;
+    a.href = downloadUrl;
     a.download = photoItem.fileName || `${photoItem.assetType}_${photoItem.assetNumber}_${photoItem.capturedAt.substring(0, 10)}.jpg`;
     document.body.appendChild(a);
     a.click();
@@ -162,10 +161,10 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 
         {/* Content Preview Container */}
         <div className="flex-1 min-h-[300px] max-h-[62vh] overflow-auto flex items-center justify-center p-4 bg-slate-950/80">
-          {photoItem.photoUrl ? (
+          {directPhotoUrl ? (
             isImage ? (
               <img
-                src={photoItem.photoUrl}
+                src={directPhotoUrl}
                 alt={`${photoItem.assetType} ${photoItem.assetNumber}`}
                 className="max-h-[58vh] max-w-full object-contain rounded-lg shadow-lg border border-slate-800"
               />

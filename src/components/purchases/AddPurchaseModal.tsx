@@ -31,7 +31,10 @@ import {
   User,
   ChevronDown,
   ChevronUp,
+  Link2,
+  ExternalLink,
 } from 'lucide-react';
+import { resolveFileOrImageUrl } from '../../utils/fileUrlUtils';
 
 interface AddPurchaseModalProps {
   isOpen: boolean;
@@ -146,6 +149,8 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ isOpen, onCl
   const [invoiceDate, setInvoiceDate] = useState('');
   const [invoiceFileName, setInvoiceFileName] = useState('');
   const [invoiceFileUrl, setInvoiceFileUrl] = useState('');
+  const [invoiceUploadMode, setInvoiceUploadMode] = useState<'file' | 'url'>('file');
+  const [invoiceInputUrl, setInvoiceInputUrl] = useState('');
 
   // Custody & Fleet
   const [status, setStatus] = useState<'In Stock' | 'Assigned' | 'Under Service'>('In Stock');
@@ -190,6 +195,25 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ isOpen, onCl
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleInvoiceUrlChange = (url: string) => {
+    setInvoiceInputUrl(url);
+    const trimmed = url.trim();
+    if (!trimmed) {
+      setInvoiceFileUrl('');
+      setInvoiceFileName('');
+      return;
+    }
+    const resolved = resolveFileOrImageUrl(trimmed);
+    setInvoiceFileUrl(resolved.previewUrl || trimmed);
+    setInvoiceFileName(resolved.fileName || 'Invoice Document');
+  };
+
+  const handleRemoveInvoice = () => {
+    setInvoiceFileUrl('');
+    setInvoiceFileName('');
+    setInvoiceInputUrl('');
   };
 
   const handleAddAccessory = () => {
@@ -953,28 +977,114 @@ export const AddPurchaseModal: React.FC<AddPurchaseModalProps> = ({ isOpen, onCl
 
             {/* Receipt Upload Drop Zone */}
             <div className="pt-1">
-              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Attach Bill / Receipt Document (PDF or Image)
-              </label>
-              <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-center bg-white dark:bg-[#090d16] hover:border-amber-500/50 transition-colors">
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={handleFileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                {invoiceFileName ? (
-                  <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Attached: {invoiceFileName}</span>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                  Attach Bill / Receipt Document (PDF or Image)
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {!invoiceFileUrl && (
+                    <div className="flex items-center bg-slate-200/60 dark:bg-slate-800 p-0.5 rounded-md text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceUploadMode('file')}
+                        className={`px-2 py-0.5 rounded font-medium transition-colors flex items-center gap-1 ${
+                          invoiceUploadMode === 'file'
+                            ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                      >
+                        <UploadCloud className="w-3 h-3" />
+                        <span>File</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceUploadMode('url')}
+                        className={`px-2 py-0.5 rounded font-medium transition-colors flex items-center gap-1 ${
+                          invoiceUploadMode === 'url'
+                            ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                      >
+                        <Link2 className="w-3 h-3" />
+                        <span>URL / Drive</span>
+                      </button>
+                    </div>
+                  )}
+                  {invoiceFileName && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveInvoice}
+                      className="text-[10px] text-red-500 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" /> Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {invoiceFileUrl ? (
+                <div className="p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/80 dark:bg-emerald-950/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {invoiceFileName}
+                      </p>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400">
+                        Invoice Document Attached
+                      </p>
+                    </div>
                   </div>
-                ) : (
+                  <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 rounded-full shrink-0">
+                    Ready
+                  </span>
+                </div>
+              ) : invoiceUploadMode === 'file' ? (
+                <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-center bg-white dark:bg-[#090d16] hover:border-amber-500/50 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
                   <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
                     <UploadCloud className="w-4 h-4 text-slate-400" />
                     <span>Drop receipt file here or click to browse</span>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#090d16] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                      <Link2 className="w-3 h-3 text-amber-500" />
+                      <span>Google Drive Link / Image URL</span>
+                    </label>
+                    {invoiceInputUrl && (
+                      <a
+                        href={invoiceInputUrl.startsWith('http') ? invoiceInputUrl : `https://${invoiceInputUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5"
+                      >
+                        <span>Test Link</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="url"
+                    value={invoiceInputUrl}
+                    onChange={e => handleInvoiceUrlChange(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/... or https://example.com/invoice.pdf"
+                    className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md text-xs font-mono focus:outline-hidden focus:border-amber-500 transition-colors"
+                  />
+                  <p className="text-[9px] text-slate-400">
+                    Paste public Google Drive share link or direct invoice URL.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Notes */}

@@ -177,6 +177,21 @@ app.get('/api/employees', async (req, res) => {
   }
 });
 
+app.get('/api/employees/:id', async (req, res) => {
+  try {
+    const q = req.params.id;
+    let employee = await db.getById('employees', q);
+    if (!employee) {
+      const all = await db.getAll('employees');
+      employee = all.find(e => e.id === q || (e.employeeId && e.employeeId.toLowerCase() === q.toLowerCase()));
+    }
+    if (!employee) return res.status(404).json({ success: false, error: 'Employee not found' });
+    res.json({ success: true, data: employee });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/employees', async (req, res) => {
   try {
     const employee = req.body;
@@ -301,10 +316,10 @@ app.delete('/api/employees/:id', async (req, res) => {
 
       // 6. Cascade delete allocation records
       try {
-        const allAllocations = await db.getAll('allocation_records');
+        const allAllocations = await db.getAll('allocations');
         for (const alloc of allAllocations) {
           if (isTarget(alloc.employeeId)) {
-            await db.delete('allocation_records', alloc.id);
+            await db.delete('allocations', alloc.id);
           }
         }
       } catch (allocErr) {
@@ -376,6 +391,16 @@ app.get('/api/computers', async (req, res) => {
   }
 });
 
+app.get('/api/computers/:id', async (req, res) => {
+  try {
+    const computer = await db.getById('computers', req.params.id);
+    if (!computer) return res.status(404).json({ success: false, error: 'Computer not found' });
+    res.json({ success: true, data: computer });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/computers', async (req, res) => {
   try {
     const comp = req.body;
@@ -430,6 +455,21 @@ app.get('/api/assets', async (req, res) => {
   try {
     const assets = await db.getAll('assets');
     res.json({ success: true, data: assets });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/assets/:id', async (req, res) => {
+  try {
+    const q = req.params.id;
+    let asset = await db.getById('assets', q);
+    if (!asset) {
+      const all = await db.getAll('assets');
+      asset = all.find(a => a.id === q || (a.assetNumber && a.assetNumber.toLowerCase() === q.toLowerCase()));
+    }
+    if (!asset) return res.status(404).json({ success: false, error: 'Asset not found' });
+    res.json({ success: true, data: asset });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -556,7 +596,7 @@ app.delete('/api/services/:id', async (req, res) => {
 });
 
 // ==================== AUDIT LOGS ====================
-app.get('/api/audit', async (req, res) => {
+app.get(['/api/audit', '/api/audit-logs'], async (req, res) => {
   try {
     const logs = await db.getAll('audit_logs');
     res.json({ success: true, data: logs });
@@ -565,7 +605,7 @@ app.get('/api/audit', async (req, res) => {
   }
 });
 
-app.post('/api/audit', async (req, res) => {
+app.post(['/api/audit', '/api/audit-logs'], async (req, res) => {
   try {
     const log = req.body;
     const saved = await db.upsert('audit_logs', log);
@@ -809,7 +849,7 @@ app.delete('/api/asset-requests/:id', async (req, res) => {
 });
 
 // ==================== SIM CARDS & TELECOM MANAGEMENT CRUD ====================
-app.get('/api/sims', async (req, res) => {
+app.get(['/api/sims', '/api/sim-cards'], async (req, res) => {
   try {
     const sims = await db.getAll('sim_cards');
     res.json({ success: true, data: sims });
@@ -1510,9 +1550,12 @@ app.post('/api/clear', async (req, res) => {
 });
 
 // ==================== HOSTING & PRODUCTION STATIC ASSETS ====================
-// When deployed on Render / Railway / VPS or production, serve the built Vite app
-const distPath = path.join(__dirname, '..', 'dist');
-if (fs.existsSync(distPath)) {
+// When deployed on Render / Railway / VPS / cPanel, serve the built Vite app
+let distPath = path.join(__dirname, '..', 'dist');
+if (!fs.existsSync(distPath) && fs.existsSync(path.join(__dirname, '..', 'index.html'))) {
+  distPath = path.join(__dirname, '..');
+}
+if (fs.existsSync(distPath) && fs.existsSync(path.join(distPath, 'index.html'))) {
   console.log(`[Static Serving] Serving production frontend from: ${distPath}`);
   app.use(express.static(distPath));
 
@@ -1527,15 +1570,32 @@ if (fs.existsSync(distPath)) {
 
 // Start Server (when run directly)
 if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
-  app.listen(PORT, () => {
+  const envPort = process.env.PORT;
+  const primaryPort = envPort
+    ? (!isNaN(Number(envPort)) ? Number(envPort) : envPort)
+    : 8000;
+
+  app.listen(primaryPort, () => {
     console.log('====================================================');
-    console.log(`🚀 AssetCore Backend Server running on port ${PORT}`);
+    console.log(`🚀 EASH Server running on primary port/socket ${primaryPort}`);
     console.log(`📂 Database engine: ${db.activeEngine}`);
     console.log(`📁 Database path: ${db.dbPath}`);
-    console.log(`🌐 API Health Check: http://localhost:${PORT}/api/health`);
-    console.log(`🔍 Database Diagnostic: http://localhost:${PORT}/api/db-status`);
+    console.log(`🌐 Web App & API: http://localhost:${primaryPort}/index.html#/dashboard`);
+    console.log(`🔍 Database Diagnostic: http://localhost:${primaryPort}/api/db-status`);
     console.log('====================================================');
   });
+
+  // Secondary port only for local multi-port development
+  if (!process.env.PORT && !process.env.PASSENGER_APP_ENV) {
+    try {
+      const secServer = app.listen(5050, () => {
+        console.log(`🔗 EASH Server also listening on secondary port 5050`);
+      });
+      secServer.on('error', () => {
+        // Silently continue if secondary port is occupied
+      });
+    } catch {}
+  }
 }
 
 export default app;

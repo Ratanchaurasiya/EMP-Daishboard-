@@ -31,6 +31,7 @@ import {
 import { AssetPhotoItem, WeeklyAssetPhotoRecord, WeeklyUploadStatus } from '../../types';
 import { ConditionBadge } from '../common/Badge';
 import { formatDateDisplay, formatFileSize } from '../../utils/formatters';
+import { resolveFileOrImageUrl, isImageUrl } from '../../utils/fileUrlUtils';
 import { PhotoLightboxModal } from './PhotoLightboxModal';
 import { useApp } from '../../context/AppContext';
 import { assetCoreDB } from '../../db/indexedDB';
@@ -408,9 +409,11 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
         <div className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {displayedPhotos.map(photo => {
-              const hasFile = !!photo.photoUrl && photo.photoUrl.trim() !== '';
+              const directPhotoUrl = photo.photoUrl || (photo.googleDriveLink ? resolveFileOrImageUrl(photo.googleDriveLink).previewUrl : '');
+              const hasPhoto = !!directPhotoUrl && directPhotoUrl.trim() !== '';
               const hasDrive = !!photo.googleDriveLink && photo.googleDriveLink.trim() !== '';
-              const isImage = photo.fileType ? photo.fileType.startsWith('image/') : (photo.photoUrl ? photo.photoUrl.startsWith('data:image/') : true);
+              const hasFile = hasPhoto || hasDrive;
+              const isImage = isImageUrl(directPhotoUrl, photo.fileName, photo.fileType);
 
               const perAssetDriveUrl = photo.googleDriveLink
                 ? photo.googleDriveLink.startsWith('http')
@@ -424,19 +427,19 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
                   className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 overflow-hidden flex flex-col justify-between transition-all hover:border-blue-300 dark:hover:border-blue-800 hover:shadow-xs"
                 >
                   {/* Media / Preview Area */}
-                  {hasFile ? (
+                  {hasPhoto ? (
                     <div className="relative h-36 w-full bg-slate-950 overflow-hidden group">
                       {isImage ? (
                         <img
-                          src={photo.photoUrl}
+                          src={directPhotoUrl}
                           alt={`${photo.assetType} ${photo.assetNumber}`}
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 cursor-pointer"
-                          onClick={() => setSelectedPhoto(photo)}
+                          onClick={() => setSelectedPhoto({ ...photo, photoUrl: directPhotoUrl })}
                         />
                       ) : (
                         <div
                           className="w-full h-full flex flex-col items-center justify-center p-4 text-slate-300 cursor-pointer"
-                          onClick={() => setSelectedPhoto(photo)}
+                          onClick={() => setSelectedPhoto({ ...photo, photoUrl: directPhotoUrl })}
                         >
                           <FileText className="w-10 h-10 text-blue-400 mb-1" />
                           <p className="text-xs font-bold text-center truncate max-w-full">
@@ -452,7 +455,7 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
                       <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setSelectedPhoto(photo)}
+                          onClick={() => setSelectedPhoto({ ...photo, photoUrl: directPhotoUrl })}
                           className="p-2 rounded-lg bg-white/20 text-white hover:bg-white/30 backdrop-blur-xs transition-colors"
                           title="Inspect File"
                         >
@@ -460,12 +463,23 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDownloadFile(photo)}
+                          onClick={() => handleDownloadFile({ ...photo, photoUrl: directPhotoUrl })}
                           className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 backdrop-blur-xs transition-colors"
                           title="Download File"
                         >
                           <Download className="w-4 h-4" />
                         </button>
+                        {perAssetDriveUrl && (
+                          <a
+                            href={perAssetDriveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 backdrop-blur-xs transition-colors"
+                            title="Open in Google Drive"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        )}
                         {canRemoveAssetDoc && (
                           <button
                             type="button"
@@ -486,7 +500,7 @@ export const WeeklyPhotoCard: React.FC<WeeklyPhotoCardProps> = ({
                       <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
                         <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-900/80 text-emerald-400 border border-emerald-500/30 backdrop-blur-xs flex items-center gap-1 shadow-xs">
                           <Database className="w-2.5 h-2.5" />
-                          <span>IndexedDB Storage</span>
+                          <span>{photo.photoUrl?.startsWith('data:') ? 'IndexedDB Storage' : (photo.googleDriveLink?.includes('drive.google.com') ? 'Google Drive Cloud' : 'Web URL Image')}</span>
                         </span>
                       </div>
                     </div>

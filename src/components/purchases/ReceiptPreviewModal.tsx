@@ -18,6 +18,7 @@ import {
   Building,
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import { resolveFileOrImageUrl, isImageUrl } from '../../utils/fileUrlUtils';
 
 interface ReceiptPreviewModalProps {
   isOpen: boolean;
@@ -39,10 +40,16 @@ export const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({
   if (!isOpen || !purchase) return null;
   if (typeof document === 'undefined') return null;
 
-  const receiptUrl = purchase.invoiceFileUrl;
-  const fileName = purchase.invoiceFileName || `Receipt-${purchase.purchaseNumber}`;
-  const isImage = receiptUrl?.startsWith('data:image/') || fileName.match(/\.(jpeg|jpg|png|webp|gif)$/i);
-  const isPdf = receiptUrl?.startsWith('data:application/pdf') || fileName.endsWith('.pdf');
+  const rawReceiptUrl = purchase.invoiceFileUrl;
+  const resolved = rawReceiptUrl ? resolveFileOrImageUrl(rawReceiptUrl, purchase.invoiceFileName) : null;
+  const receiptUrl = resolved?.previewUrl || rawReceiptUrl;
+  const fileName = purchase.invoiceFileName || resolved?.fileName || `Receipt-${purchase.purchaseNumber}`;
+  const isImage = isImageUrl(receiptUrl, fileName);
+  const isPdf = Boolean(
+    receiptUrl?.startsWith('data:application/pdf') ||
+    receiptUrl?.toLowerCase().includes('.pdf') ||
+    fileName.toLowerCase().endsWith('.pdf')
+  );
 
   const handleDownload = () => {
     if (!receiptUrl) return;

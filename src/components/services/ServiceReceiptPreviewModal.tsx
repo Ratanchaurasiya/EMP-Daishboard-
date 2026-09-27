@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { formatCurrency, formatDateDisplay } from '../../utils/formatters';
+import { resolveFileOrImageUrl, isImageUrl } from '../../utils/fileUrlUtils';
 
 interface ServiceReceiptPreviewModalProps {
   isOpen: boolean;
@@ -36,15 +37,15 @@ export const ServiceReceiptPreviewModal: React.FC<ServiceReceiptPreviewModalProp
   if (!isOpen || !record) return null;
   if (typeof document === 'undefined') return null;
 
-  const receiptUrl = record.receiptFileUrl;
-  const fileName = record.receiptFileName || `ServiceReceipt-${record.id}`;
-  const isImage = Boolean(
-    receiptUrl?.startsWith('data:image/') ||
-    fileName.match(/\.(jpeg|jpg|png|webp|gif|svg)$/i)
-  );
+  const rawReceiptUrl = record.receiptFileUrl;
+  const resolved = rawReceiptUrl ? resolveFileOrImageUrl(rawReceiptUrl, record.receiptFileName) : null;
+  const receiptUrl = resolved?.previewUrl || rawReceiptUrl;
+  const fileName = record.receiptFileName || resolved?.fileName || `ServiceReceipt-${record.id}`;
+  const isImage = isImageUrl(receiptUrl, fileName);
   const isPdf = Boolean(
     receiptUrl?.startsWith('data:application/pdf') ||
-    fileName.endsWith('.pdf')
+    receiptUrl?.toLowerCase().includes('.pdf') ||
+    fileName.toLowerCase().endsWith('.pdf')
   );
 
   const handleDownload = () => {

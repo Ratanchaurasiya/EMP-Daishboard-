@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ProblemCategory, ServiceStatus } from '../../types';
-import { X, Wrench, Check, Mail, UploadCloud, FileText, Trash2, Building2, Phone, UserCheck, Sparkles } from 'lucide-react';
+import { X, Wrench, Check, Mail, UploadCloud, FileText, Trash2, Building2, Phone, UserCheck, Sparkles, Link2, ExternalLink } from 'lucide-react';
 import { IT_SUPPORT_EMAIL, dispatchServiceTicketEmail } from '../../utils/emailService';
+import { resolveFileOrImageUrl } from '../../utils/fileUrlUtils';
 
 interface AddServiceModalProps {
   isOpen: boolean;
@@ -118,6 +119,8 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
   const [receiptFileSize, setReceiptFileSize] = useState<number | undefined>(undefined);
   const [receiptFileUrl, setReceiptFileUrl] = useState<string>('');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
+  const [inputUrl, setInputUrl] = useState<string>('');
 
   if (!isOpen || userRole !== 'admin') return null;
 
@@ -152,12 +155,30 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const handleUrlChange = (url: string) => {
+    setInputUrl(url);
+    const trimmed = url.trim();
+    if (!trimmed) {
+      setReceiptFileUrl('');
+      setReceiptFileName('');
+      setReceiptFileType('');
+      setReceiptFileSize(undefined);
+      return;
+    }
+    const resolved = resolveFileOrImageUrl(trimmed);
+    setReceiptFileUrl(resolved.previewUrl || trimmed);
+    setReceiptFileName(resolved.fileName || 'Service Receipt Document');
+    setReceiptFileType(resolved.fileName?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+    setUploadError(null);
+  };
+
   const clearReceipt = () => {
     setReceiptFileUrl('');
     setReceiptFileName('');
     setReceiptFileType('');
     setReceiptFileSize(undefined);
     setReceiptNumber('');
+    setInputUrl('');
     setUploadError(null);
   };
 
@@ -544,15 +565,46 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
                 <FileText className="w-3.5 h-3.5 text-blue-500" />
                 Attach Repair Invoice / Bill (Optional)
               </span>
-              {receiptFileName && (
-                <button
-                  type="button"
-                  onClick={clearReceipt}
-                  className="text-[10px] text-red-500 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-0.5"
-                >
-                  <Trash2 className="w-3 h-3" /> Remove
-                </button>
-              )}
+
+              <div className="flex items-center gap-1.5">
+                {!receiptFileUrl && (
+                  <div className="flex items-center bg-slate-200/60 dark:bg-slate-800 p-0.5 rounded-md text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('file')}
+                      className={`px-2 py-0.5 rounded font-medium transition-colors flex items-center gap-1 ${
+                        uploadMode === 'file'
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      <UploadCloud className="w-3 h-3" />
+                      <span>File</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('url')}
+                      className={`px-2 py-0.5 rounded font-medium transition-colors flex items-center gap-1 ${
+                        uploadMode === 'url'
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      <Link2 className="w-3 h-3" />
+                      <span>URL / Drive</span>
+                    </button>
+                  </div>
+                )}
+                {receiptFileName && (
+                  <button
+                    type="button"
+                    onClick={clearReceipt}
+                    className="text-[10px] text-red-500 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-0.5"
+                  >
+                    <Trash2 className="w-3 h-3" /> Remove
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -592,7 +644,7 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
                       {receiptFileName}
                     </p>
                     <p className="text-[9px] text-slate-500 dark:text-slate-400">
-                      {receiptFileSize ? `${(receiptFileSize / 1024).toFixed(1)} KB` : 'Attached'}
+                      {receiptFileSize ? `${(receiptFileSize / 1024).toFixed(1)} KB` : 'Attached via link'}
                     </p>
                   </div>
                 </div>
@@ -600,12 +652,12 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
                   Ready
                 </span>
               </div>
-            ) : (
+            ) : uploadMode === 'file' ? (
               <div>
                 <label className="border-2 border-dashed border-slate-200 dark:border-[#1e293b] hover:border-blue-500/50 dark:hover:border-blue-500/50 rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition-colors bg-white/50 dark:bg-[#090d16]/50">
                   <UploadCloud className="w-5 h-5 text-slate-400 dark:text-slate-500 mb-1" />
                   <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                    Click or drag & drop receipt file
+                    Click or drag &amp; drop receipt file
                   </span>
                   <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
                     JPG, PNG, WEBP, or PDF up to 10MB
@@ -617,6 +669,39 @@ export const AddServiceModal: React.FC<AddServiceModalProps> = ({
                     className="hidden"
                   />
                 </label>
+                {uploadError && (
+                  <p className="text-[10px] text-red-500 mt-1 font-medium">{uploadError}</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <Link2 className="w-3 h-3 text-blue-500" />
+                    <span>Google Drive Link / Image URL</span>
+                  </label>
+                  {inputUrl && (
+                    <a
+                      href={inputUrl.startsWith('http') ? inputUrl : `https://${inputUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                    >
+                      <span>Test Link</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={inputUrl}
+                  onChange={e => handleUrlChange(e.target.value)}
+                  placeholder="https://drive.google.com/file/d/... or https://example.com/receipt.jpg"
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-[#1e293b] text-slate-900 dark:text-slate-100 rounded-md text-xs font-mono focus:outline-hidden focus:border-blue-500 transition-colors"
+                />
+                <p className="text-[9px] text-slate-400">
+                  Paste public Google Drive share link or direct file URL.
+                </p>
                 {uploadError && (
                   <p className="text-[10px] text-red-500 mt-1 font-medium">{uploadError}</p>
                 )}
