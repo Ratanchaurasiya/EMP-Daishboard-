@@ -44,7 +44,18 @@ const DB_PATH = process.env.SQLITE_PATH || path.join(DATA_DIR, 'assetcore.db');
 const JSON_BACKUP_PATH = path.join(DATA_DIR, 'database_fallback.json');
 
 // Support Cloud Database URLs (PostgreSQL or MySQL) or discrete DB parameters
-const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PG_URL || process.env.MYSQL_URL || null;
+let DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PG_URL || process.env.MYSQL_URL || null;
+
+const supabaseProjectId = process.env.SUPABASE_PROJECT_ID || 'ckhptmuwzevswvzvtcba';
+const supabaseDbPassword = process.env.SUPABASE_DB_PASSWORD;
+
+if (supabaseDbPassword && (!DATABASE_URL || DATABASE_URL.includes('[YOUR_PASSWORD]'))) {
+  DATABASE_URL = `postgresql://postgres.${supabaseProjectId}:${encodeURIComponent(supabaseDbPassword)}@aws-0-ap-south-1.pooler.supabase.com:6543/postgres`;
+} else if (DATABASE_URL && DATABASE_URL.includes('[YOUR_PASSWORD]')) {
+  // Password placeholder still present, fallback until password is provided
+  DATABASE_URL = null;
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 const isVercelServerless = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV);
 const allowSqliteInProd = process.env.ALLOW_SQLITE_IN_PROD === 'true' || Boolean(process.env.SQLITE_PATH);
@@ -60,7 +71,8 @@ const isPostgresUrl = Boolean(
   (DATABASE_URL && (
     DATABASE_URL.startsWith('postgres://') ||
     DATABASE_URL.startsWith('postgresql://') ||
-    DATABASE_URL.includes('cockroachdb')
+    DATABASE_URL.includes('cockroachdb') ||
+    DATABASE_URL.includes('supabase')
   )) || pgHost
 );
 
