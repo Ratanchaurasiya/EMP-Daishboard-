@@ -603,11 +603,11 @@ if (!pgPool && isMySqlUrl) {
   }
 }
 
-// In EASH, MySQL is the required primary and persistent database.
-// Do NOT silently fall back to SQLite or JSON files.
-if (!pgPool && !mysqlPool && !allowSqliteInProd && process.env.ALLOW_SQLITE_FALLBACK !== 'true') {
-  console.error('[Database Fatal Error] MySQL database connection is required. Local fallback is disabled.');
-  throw new Error('[Database Fatal Error] No active MySQL connection pool. Please ensure MySQL is running and connection details in .env are correct.');
+// In production, an external persistent database (PostgreSQL or MySQL) is required.
+// In development, allow local SQLite when cloud credentials are being configured.
+if (isProduction && !pgPool && !mysqlPool && !allowSqliteInProd && process.env.ALLOW_SQLITE_FALLBACK !== 'true') {
+  console.error('[Database Fatal Error] MySQL or PostgreSQL database connection is required in production. Local fallback is disabled.');
+  throw new Error('[Database Fatal Error] No active database connection pool. Please ensure database is running and connection details in .env are correct.');
 }
 
 // -------------------------------------------------------------
