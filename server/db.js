@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 const { Pool: PgPool } = pg;
 
@@ -32,6 +33,22 @@ if (fs.existsSync(rootEnvPath)) {
   }
 } else if (typeof process.loadEnvFile === 'function') {
   try { process.loadEnvFile(); } catch {}
+}
+
+// Supabase JS Client Configuration
+const supabaseUrl = process.env.SUPABASE_URL || (process.env.SUPABASE_PROJECT_ID ? `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co` : null);
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || null;
+
+let supabaseClient = null;
+if (supabaseUrl && supabaseKey) {
+  try {
+    supabaseClient = createSupabaseClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    console.log(`[Database] Supabase JS Client initialized for URL: ${supabaseUrl}`);
+  } catch (err) {
+    console.warn('[Database] Failed to initialize Supabase client:', err.message);
+  }
 }
 
 // Ensure server/data directory exists for persistent local SQLite storage
@@ -848,10 +865,18 @@ const saveFallback = () => {
   }
 };
 
+if (supabaseClient && !pgPool && !mysqlPool) {
+  activeEngine = 'Supabase Cloud (@supabase/supabase-js)';
+  console.log(`[Database] Active primary database engine: Supabase Cloud (@supabase/supabase-js) (${supabaseUrl})`);
+}
+
 // -------------------------------------------------------------
 // Database Unified Abstraction Object (ACID Persistent Layer)
 // -------------------------------------------------------------
 export const db = {
+  get isSupabase() {
+    return Boolean(supabaseClient && !pgPool && !mysqlPool);
+  },
   get isPostgres() {
     return Boolean(pgPool);
   },
@@ -867,6 +892,7 @@ export const db = {
   get dbPath() {
     if (pgPool) return 'Cloud PostgreSQL (Managed Database Cluster)';
     if (mysqlPool) return `${activeEngine} (Localhost / Dedicated)`;
+    if (supabaseClient && !pgPool && !mysqlPool) return `Supabase Cloud (${supabaseUrl})`;
     return useFallback ? JSON_BACKUP_PATH : DB_PATH;
   },
 
@@ -881,6 +907,38 @@ export const db = {
 
   // Get all items from a collection
   async getAll(collection) {
+    // 0. Supabase JS Client
+    if (supabaseClient && !pgPool && !mysqlPool) {
+      try {
+        const { data, error } = await supabaseClient.from(collection).select('*');
+        if (error) throw error;
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || r)));
+        }
+        // If Supabase table is empty but local SQLite has seeded records, return SQLite records while maintaining connection
+        if (sqliteDB) {
+          try {
+            const orderCol = collection === 'audit_logs' ? 'timestamp' : 'updated_at';
+            const stmt = sqliteDB.prepare(`SELECT data FROM ${collection} ORDER BY ${orderCol} DESC`);
+            const localRows = stmt.all();
+            if (localRows.length > 0) {
+              return localRows.map(r => JSON.parse(r.data));
+            }
+          } catch {}
+        }
+        return (data || []).map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || r)));
+      } catch (err) {
+        console.error(`[Supabase Error] getAll(${collection}):`, err.message);
+        if (sqliteDB) {
+          try {
+            const stmt = sqliteDB.prepare(`SELECT data FROM ${collection}`);
+            return stmt.all().map(r => JSON.parse(r.data));
+          } catch {}
+        }
+        return [];
+      }
+    }
+
     // 1. PostgreSQL
     if (pgPool) {
       try {
@@ -942,6 +1000,26 @@ export const db = {
 
   // Get item by ID
   async getById(collection, id) {
+    if (supabaseClient && !pgPool && !mysqlPool) {
+      try {
+        const { data, error } = await supabaseClient.from(collection).select('*').eq('id', id).maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          if (sqliteDB) {
+            try {
+              const stmt = sqliteDB.prepare(`SELECT data FROM ${collection} WHERE id = ?`);
+              const row = stmt.get(id);
+              if (row) return JSON.parse(row.data);
+            } catch {}
+          }
+          return null;
+        }
+        return typeof data.data === 'string' ? JSON.parse(data.data) : (data.data || data);
+      } catch (err) {
+        console.error(`[Supabase Error] getById(${collection}, ${id}):`, err.message);
+      }
+    }
+
     if (pgPool) {
       try {
         const res = await pgPool.query(`SELECT data FROM "${collection}" WHERE id = $1`, [id]);
@@ -984,6 +1062,83 @@ export const db = {
   async upsert(collection, item) {
     const now = new Date().toISOString();
     const dataStr = JSON.stringify(item);
+
+    // 0. Supabase JS Client Upsert
+    if (supabaseClient && !pgPool && !mysqlPool) {
+      try {
+        const recordId = item.id || item.key;
+        const payload = {
+          id: recordId,
+          data: item,
+          updated_at: new Date().toISOString()
+        };
+        if (collection === 'employees') {
+          payload.employee_id = item.employeeId || item.id;
+          payload.name = item.name || '';
+          payload.department = item.department || '';
+          payload.status = item.status || 'Active';
+        } else if (collection === 'computers') {
+          payload.asset_number = item.assetNumber || item.id;
+          payload.assigned_employee_id = item.assignedEmployeeId || null;
+          payload.status = item.status || 'Available';
+        } else if (collection === 'assets') {
+          payload.asset_number = item.assetNumber || item.id;
+          payload.asset_type = item.assetType || item.type || 'Other';
+          payload.assigned_employee_id = item.assignedEmployeeId || null;
+          payload.status = item.status || 'Available';
+        } else if (collection === 'sim_cards') {
+          payload.contact_number = item.contactNumber || null;
+          payload.assigned_employee_id = item.assignedEmployeeId || null;
+          payload.status = item.status || 'Buffer Stock';
+          payload.purpose = item.purpose || null;
+        } else if (collection === 'service_records') {
+          payload.computer_id = item.computerId || null;
+          payload.employee_id = item.employeeId || null;
+        } else if (collection === 'allocations') {
+          payload.employee_id = item.employeeId || null;
+          payload.asset_id = item.assetId || null;
+        } else if (collection === 'purchases') {
+          payload.purchase_number = item.purchaseNumber || null;
+          payload.device_type = item.deviceType || 'Laptop';
+          payload.brand = item.brand || '';
+          payload.model_name = item.modelName || '';
+          payload.serial_number = item.serialNumber || null;
+          payload.purchase_date = item.purchaseDate || '';
+          payload.vendor = item.vendor || '';
+          payload.device_cost = Number(item.deviceCost || 0);
+          payload.total_accessories_cost = Number(item.totalAccessoriesCost || 0);
+          payload.grand_total_cost = Number(item.grandTotalCost || 0);
+          payload.status = item.status || 'Completed';
+        }
+
+        const { error } = await supabaseClient.from(collection).upsert(payload);
+        if (error) {
+          if (error.message && error.message.includes('row-level security')) {
+            console.warn(`[Supabase RLS Warning] Table "${collection}" has RLS enabled. Please run in Supabase SQL editor: ALTER TABLE ${collection} DISABLE ROW LEVEL SECURITY;`);
+          }
+          throw error;
+        }
+
+        // Keep local SQLite in sync as reliable offline backup
+        if (sqliteDB) {
+          try {
+            const stmt = sqliteDB.prepare(`INSERT OR REPLACE INTO ${collection} (id, data, updated_at) VALUES (?, ?, datetime('now'))`);
+            stmt.run(recordId, dataStr);
+          } catch {}
+        }
+        return item;
+      } catch (err) {
+        console.error(`[Supabase Error] upsert(${collection}):`, err.message);
+        if (sqliteDB) {
+          try {
+            const stmt = sqliteDB.prepare(`INSERT OR REPLACE INTO ${collection} (id, data, updated_at) VALUES (?, ?, datetime('now'))`);
+            stmt.run(item.id || item.key, dataStr);
+            return item;
+          } catch {}
+        }
+        throw err;
+      }
+    }
 
     // 1. PostgreSQL Upsert
     if (pgPool) {
@@ -1989,6 +2144,30 @@ export const db = {
 
   // Delete an item permanently
   async delete(collection, id) {
+    if (supabaseClient && !pgPool && !mysqlPool) {
+      try {
+        const { error } = await supabaseClient.from(collection).delete().eq('id', id);
+        if (error) throw error;
+        if (sqliteDB) {
+          try {
+            const stmt = sqliteDB.prepare(`DELETE FROM ${collection} WHERE id = ?`);
+            stmt.run(id);
+          } catch {}
+        }
+        return true;
+      } catch (err) {
+        console.error(`[Supabase Error] delete(${collection}, ${id}):`, err.message);
+        if (sqliteDB) {
+          try {
+            const stmt = sqliteDB.prepare(`DELETE FROM ${collection} WHERE id = ?`);
+            stmt.run(id);
+            return true;
+          } catch {}
+        }
+        return false;
+      }
+    }
+
     if (pgPool) {
       try {
         const res = await pgPool.query(`DELETE FROM "${collection}" WHERE id = $1`, [id]);
@@ -2029,6 +2208,28 @@ export const db = {
 
   // Delete all items (Admin initiated purge / reset)
   async clear(collection) {
+    if (supabaseClient && !pgPool && !mysqlPool) {
+      try {
+        const { error } = await supabaseClient.from(collection).delete().neq('id', '___empty___');
+        if (error) throw error;
+        if (sqliteDB) {
+          try {
+            sqliteDB.prepare(`DELETE FROM ${collection}`).run();
+          } catch {}
+        }
+        return true;
+      } catch (err) {
+        console.error(`[Supabase Error] clear(${collection}):`, err.message);
+        if (sqliteDB) {
+          try {
+            sqliteDB.prepare(`DELETE FROM ${collection}`).run();
+            return true;
+          } catch {}
+        }
+        return false;
+      }
+    }
+
     if (pgPool) {
       try {
         await pgPool.query(`TRUNCATE TABLE "${collection}"`);
@@ -2362,6 +2563,28 @@ export const db = {
     ];
     const counts = {};
     let total = 0;
+
+    if (supabaseClient && !pgPool && !mysqlPool) {
+      try {
+        for (const c of collections) {
+          const { count, error } = await supabaseClient.from(c).select('*', { count: 'exact', head: true });
+          const cnt = (!error && typeof count === 'number') ? count : 0;
+          counts[c] = cnt;
+          total += cnt;
+        }
+
+        return {
+          connected: true,
+          engine: 'Supabase Cloud (@supabase/supabase-js)',
+          dbPath: `Supabase Cloud (${supabaseUrl})`,
+          totalRecords: total,
+          counts,
+          lastChecked: new Date().toISOString(),
+        };
+      } catch (err) {
+        console.error('[Supabase Error] getStats():', err.message);
+      }
+    }
 
     if (pgPool) {
       try {
