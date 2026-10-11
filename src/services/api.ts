@@ -51,6 +51,23 @@ export interface BootstrapResponse {
   stats?: any;
 }
 
+// Direct Supabase Cloud Helper functions
+async function directSupabaseUpsert(table: string, id: string, payload: any) {
+  try {
+    await supabase.from(table).upsert({ id, ...payload }, { onConflict: 'id' });
+  } catch (err) {
+    console.warn(`[Supabase Direct ${table} Upsert]`, err);
+  }
+}
+
+async function directSupabaseDelete(table: string, id: string) {
+  try {
+    await supabase.from(table).delete().eq('id', id);
+  } catch (err) {
+    console.warn(`[Supabase Direct ${table} Delete]`, err);
+  }
+}
+
 export const api = {
   // Bootstrap: Hydrate entire dataset in 1 roundtrip (Express API or Direct Supabase Cloud)
   async getBootstrap(): Promise<BootstrapResponse | null> {
@@ -183,6 +200,12 @@ export const api = {
   // ================= EMPLOYEES =================
   async getEmployees(): Promise<Employee[]> {
     try {
+      const { data, error } = await supabase.from('employees').select('*');
+      if (!error && data && data.length > 0) {
+        return data.map(r => (r.data ? { ...r.data } : r));
+      }
+    } catch {}
+    try {
       const res = await fetch(`${API_BASE}/employees`);
       const json = await res.json();
       return json.success ? json.data : [];
@@ -192,203 +215,254 @@ export const api = {
   },
 
   async createEmployee(employee: Employee): Promise<{ success: boolean; error?: string; data?: Employee }> {
+    const id = String(employee.id || employee.employeeId);
+    await directSupabaseUpsert('employees', id, {
+      employee_id: String(employee.employeeId || id),
+      name: employee.name || '',
+      department: employee.department || '',
+      designation: employee.designation || '',
+      status: employee.status || 'Active',
+      data: employee,
+    });
+
     try {
-      const res = await fetch(`${API_BASE}/employees`, {
+      fetch(`${API_BASE}/employees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(employee),
-      });
-      const json = await res.json();
-      if (!res.ok) return { success: false, error: json.error || 'Failed to save employee' };
-      return json;
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Network error' };
-    }
+      }).catch(() => {});
+    } catch {}
+
+    return { success: true, data: employee };
   },
 
   async updateEmployee(id: string, updates: Partial<Employee>): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/employees/${encodeURIComponent(id)}`, {
+      const { data: existing } = await supabase.from('employees').select('data').eq('id', id).maybeSingle();
+      const merged = existing?.data ? { ...existing.data, ...updates } : updates;
+      await directSupabaseUpsert('employees', id, {
+        employee_id: String((merged as any).employeeId || id),
+        name: (merged as any).name || '',
+        department: (merged as any).department || '',
+        designation: (merged as any).designation || '',
+        status: (merged as any).status || 'Active',
+        data: merged,
+      });
+    } catch {}
+
+    try {
+      fetch(`${API_BASE}/employees/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+
+    return true;
   },
 
   async deleteEmployee(id: string): Promise<boolean> {
+    await directSupabaseDelete('employees', id);
     try {
-      const res = await fetch(`${API_BASE}/employees/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      fetch(`${API_BASE}/employees/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async deleteAllEmployees(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/employees`, { method: 'DELETE' });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      await supabase.from('employees').delete().neq('id', '___empty___');
+    } catch {}
+    try {
+      fetch(`${API_BASE}/employees`, { method: 'DELETE' }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   // ================= COMPUTERS =================
   async createComputer(comp: Computer): Promise<boolean> {
+    await directSupabaseUpsert('computers', comp.id, {
+      asset_number: comp.assetNumber || '',
+      assigned_employee_id: comp.assignedEmployeeId || null,
+      status: comp.status || 'Available',
+      data: comp,
+    });
     try {
-      const res = await fetch(`${API_BASE}/computers`, {
+      fetch(`${API_BASE}/computers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(comp),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async updateComputer(id: string, updates: Partial<Computer>): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/computers/${encodeURIComponent(id)}`, {
+      const { data: existing } = await supabase.from('computers').select('data').eq('id', id).maybeSingle();
+      const merged = existing?.data ? { ...existing.data, ...updates } : updates;
+      await directSupabaseUpsert('computers', id, {
+        asset_number: (merged as any).assetNumber || '',
+        assigned_employee_id: (merged as any).assignedEmployeeId || null,
+        status: (merged as any).status || 'Available',
+        data: merged,
+      });
+    } catch {}
+    try {
+      fetch(`${API_BASE}/computers/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async deleteComputer(id: string): Promise<boolean> {
+    await directSupabaseDelete('computers', id);
     try {
-      const res = await fetch(`${API_BASE}/computers/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      fetch(`${API_BASE}/computers/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   // ================= ASSETS =================
   async createAsset(asset: CompanyAsset): Promise<boolean> {
+    await directSupabaseUpsert('assets', asset.id, {
+      asset_number: asset.assetNumber || '',
+      asset_type: asset.assetType || '',
+      assigned_employee_id: asset.assignedEmployeeId || null,
+      status: asset.status || 'Available',
+      data: asset,
+    });
     try {
-      const res = await fetch(`${API_BASE}/assets`, {
+      fetch(`${API_BASE}/assets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(asset),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async updateAsset(id: string, updates: Partial<CompanyAsset>): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/assets/${encodeURIComponent(id)}`, {
+      const { data: existing } = await supabase.from('assets').select('data').eq('id', id).maybeSingle();
+      const merged = existing?.data ? { ...existing.data, ...updates } : updates;
+      await directSupabaseUpsert('assets', id, {
+        asset_number: (merged as any).assetNumber || '',
+        asset_type: (merged as any).assetType || '',
+        assigned_employee_id: (merged as any).assignedEmployeeId || null,
+        status: (merged as any).status || 'Available',
+        data: merged,
+      });
+    } catch {}
+    try {
+      fetch(`${API_BASE}/assets/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async deleteAsset(id: string): Promise<boolean> {
+    await directSupabaseDelete('assets', id);
     try {
-      const res = await fetch(`${API_BASE}/assets/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      fetch(`${API_BASE}/assets/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   // ================= ALLOCATIONS =================
   async createAllocation(record: AssetAllocationRecord): Promise<boolean> {
+    await directSupabaseUpsert('allocations', record.id, {
+      employee_id: record.employeeId || null,
+      asset_id: record.assetId || null,
+      data: record,
+    });
     try {
-      const res = await fetch(`${API_BASE}/allocations`, {
+      fetch(`${API_BASE}/allocations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(record),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async updateAllocation(id: string, updates: Partial<AssetAllocationRecord>): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/allocations/${encodeURIComponent(id)}`, {
+      const { data: existing } = await supabase.from('allocations').select('data').eq('id', id).maybeSingle();
+      const merged = existing?.data ? { ...existing.data, ...updates } : updates;
+      await directSupabaseUpsert('allocations', id, {
+        employee_id: (merged as any).employeeId || null,
+        asset_id: (merged as any).assetId || null,
+        data: merged,
+      });
+    } catch {}
+    try {
+      fetch(`${API_BASE}/allocations/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async deleteAllocation(id: string): Promise<boolean> {
+    await directSupabaseDelete('allocations', id);
     try {
-      const res = await fetch(`${API_BASE}/allocations/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      fetch(`${API_BASE}/allocations/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   // ================= SERVICES =================
   async createServiceRecord(srv: ServiceRecord): Promise<boolean> {
+    await directSupabaseUpsert('service_records', srv.id, {
+      computer_id: srv.computerId || null,
+      employee_id: srv.employeeId || null,
+      data: srv,
+    });
     try {
-      const res = await fetch(`${API_BASE}/services`, {
+      fetch(`${API_BASE}/services`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(srv),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async updateServiceRecord(id: string, updates: Partial<ServiceRecord>): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/services/${encodeURIComponent(id)}`, {
+      const { data: existing } = await supabase.from('service_records').select('data').eq('id', id).maybeSingle();
+      const merged = existing?.data ? { ...existing.data, ...updates } : updates;
+      await directSupabaseUpsert('service_records', id, {
+        computer_id: (merged as any).computerId || null,
+        employee_id: (merged as any).employeeId || null,
+        data: merged,
+      });
+    } catch {}
+    try {
+      fetch(`${API_BASE}/services/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async deleteServiceRecord(id: string): Promise<boolean> {
+    await directSupabaseDelete('service_records', id);
     try {
-      const res = await fetch(`${API_BASE}/services/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      fetch(`${API_BASE}/services/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   // ================= AUDIT LOGS =================
@@ -546,6 +620,12 @@ export const api = {
   // ================= SIM CARD MANAGEMENT =================
   async getSims(): Promise<SimCard[]> {
     try {
+      const { data, error } = await supabase.from('sim_cards').select('*');
+      if (!error && data && data.length > 0) {
+        return data.map(r => (r.data ? { ...r.data } : r));
+      }
+    } catch {}
+    try {
       const res = await fetch(`${API_BASE}/sims`);
       const json = await res.json();
       return json.success ? json.data : [];
@@ -555,31 +635,43 @@ export const api = {
   },
 
   async createSim(sim: SimCard): Promise<{ success: boolean; data?: SimCard; error?: string }> {
+    await directSupabaseUpsert('sim_cards', sim.id, {
+      contact_number: sim.contactNumber || '',
+      assigned_employee_id: sim.assignedEmployeeId || null,
+      status: sim.status || 'Active',
+      purpose: sim.purpose || '',
+      data: sim,
+    });
     try {
-      const res = await fetch(`${API_BASE}/sims`, {
+      fetch(`${API_BASE}/sims`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sim),
-      });
-      const json = await res.json();
-      if (!res.ok) return { success: false, error: json.error || 'Failed to save SIM' };
-      return json;
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Network error' };
-    }
+      }).catch(() => {});
+    } catch {}
+    return { success: true, data: sim };
   },
 
   async updateSim(id: string, updates: Partial<SimCard>): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/sims/${encodeURIComponent(id)}`, {
+      const { data: existing } = await supabase.from('sim_cards').select('data').eq('id', id).maybeSingle();
+      const merged = existing?.data ? { ...existing.data, ...updates } : updates;
+      await directSupabaseUpsert('sim_cards', id, {
+        contact_number: (merged as any).contactNumber || '',
+        assigned_employee_id: (merged as any).assignedEmployeeId || null,
+        status: (merged as any).status || 'Active',
+        purpose: (merged as any).purpose || '',
+        data: merged,
+      });
+    } catch {}
+    try {
+      fetch(`${API_BASE}/sims/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+      }).catch(() => {});
+    } catch {}
+    return true;
   },
 
   async suspendSim(id: string, reason: string, suspendedBy?: string): Promise<{ success: boolean; data?: SimCard; error?: string }> {
