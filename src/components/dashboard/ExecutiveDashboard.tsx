@@ -1648,7 +1648,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       ) : null}
 
       {/* 2. HERO EXECUTIVE TELEMETRY RIBBON (5 Precision KPI Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-4">
         {/* KPI 1: Fleet Allocation Readiness */}
         <div
           onClick={() => setActiveTab('employees')}

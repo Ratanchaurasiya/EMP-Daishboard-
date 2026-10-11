@@ -1568,7 +1568,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         showToast(
-          'Inactivity Notice: System idle. Your session is secured and data is safely persisted in IndexedDB.',
+          'Inactivity Notice: System idle. Your session is secured and data is safely held in memory.',
           'info'
         );
       }, INACTIVITY_TIMEOUT_MS);

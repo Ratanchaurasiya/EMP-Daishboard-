@@ -9,20 +9,16 @@
     "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run server\" \"npm run dev:client\"",
     "build": "tsc -b && vite build",
     "start": "node server/index.js",
-    "db:migrate": "node server/migrate.js",
     "test:db": "node scripts/test-crud.js",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "@tailwindcss/vite": "^4.3.3",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "lucide-react": "^1.42.0",
-    "mysql2": "^3.24.4",
-    "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "recharts": "^3.10.1"
@@ -31,7 +27,6 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.13.3",
-    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",

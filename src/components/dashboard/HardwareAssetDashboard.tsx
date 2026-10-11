@@ -476,7 +476,7 @@ export const HardwareAssetDashboard: React.FC<HardwareAssetDashboardProps> = ({
       </div>
 
       {/* 2. FLEET HEALTH & SUMMARY TELEMETRY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* KPI 1: Overall Fleet Deployment */}
         <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs mb-1.5">

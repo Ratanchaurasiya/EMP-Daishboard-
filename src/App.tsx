@@ -164,12 +164,12 @@ const DashboardContent: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 font-sans transition-colors">
+    <div className="flex min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 font-sans transition-colors overflow-x-hidden">
       {/* Sidebar Navigation */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         <Header
           onOpenAddEmployee={() => setShowAddEmployee(true)}
           onOpenAddService={() => handleOpenAddService()}

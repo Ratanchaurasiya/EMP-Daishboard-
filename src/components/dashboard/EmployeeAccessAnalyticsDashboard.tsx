@@ -486,47 +486,47 @@ export const EmployeeAccessAnalyticsDashboard: React.FC<EmployeeAccessAnalyticsD
       </div>
 
       {/* 2. THE 6 EXECUTIVE SUMMARY KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3.5">
         {/* KPI 1: Total Employees */}
-        <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Total Employees</span>
-            <Users className="w-3.5 h-3.5 text-blue-500" />
+        <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1 sm:mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[9px] sm:text-[10px]">Total Employees</span>
+            <Users className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 dark:text-white">
               {totalEmployees}
             </span>
-            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md font-mono">
+            <span className="text-[9px] sm:text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md font-mono shrink-0">
               Directory
             </span>
           </div>
-          <div className="mt-2 text-[10px] text-slate-400 truncate">
-            {departments.length} departments active
+          <div className="mt-1.5 sm:mt-2 text-[9px] sm:text-[10px] text-slate-400 truncate">
+            {departments.length} depts active
           </div>
         </div>
 
         {/* KPI 2: Employees with Assigned Laptop/Desktop */}
         <div
           onClick={() => setFilterCoverage('laptop')}
-          className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-indigo-500/40 transition-colors cursor-pointer group"
+          className="p-3 sm:p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-indigo-500/40 transition-colors cursor-pointer group"
         >
-          <div className="flex items-center justify-between text-slate-500 text-xs mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Assigned Laptop/Desktop</span>
-            <Laptop className="w-3.5 h-3.5 text-indigo-500" />
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1 sm:mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[9px] sm:text-[10px] truncate mr-1">Assigned PC / Laptop</span>
+            <Laptop className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400">
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400">
               {employeesWithLaptopCount}
             </span>
-            <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md font-mono">
+            <span className="text-[9px] sm:text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md font-mono shrink-0">
               {laptopEquippedRate}%
             </span>
           </div>
-          <div className="mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
+          <div className="mt-1.5 sm:mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
             <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${laptopEquippedRate}%` }} />
           </div>
-          <div className="mt-1.5 text-[10px] text-slate-400 flex justify-between font-mono">
+          <div className="mt-1 sm:mt-1.5 text-[9px] sm:text-[10px] text-slate-400 flex justify-between font-mono">
             <span>{totalEmployees - employeesWithLaptopCount} without PC</span>
           </div>
         </div>
@@ -534,24 +534,24 @@ export const EmployeeAccessAnalyticsDashboard: React.FC<EmployeeAccessAnalyticsD
         {/* KPI 3: Employees with Assigned Mobile Phone */}
         <div
           onClick={() => setFilterCoverage('phone')}
-          className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-cyan-500/40 transition-colors cursor-pointer group"
+          className="p-3 sm:p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-cyan-500/40 transition-colors cursor-pointer group"
         >
-          <div className="flex items-center justify-between text-slate-500 text-xs mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Assigned Mobile Phone</span>
-            <Smartphone className="w-3.5 h-3.5 text-cyan-500" />
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1 sm:mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[9px] sm:text-[10px] truncate mr-1">Assigned Mobile</span>
+            <Smartphone className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-cyan-600 dark:text-cyan-400">
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl font-black font-mono text-cyan-600 dark:text-cyan-400">
               {employeesWithPhoneCount}
             </span>
-            <span className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded-md font-mono">
+            <span className="text-[9px] sm:text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded-md font-mono shrink-0">
               {phoneEquippedRate}%
             </span>
           </div>
-          <div className="mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
+          <div className="mt-1.5 sm:mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
             <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${phoneEquippedRate}%` }} />
           </div>
-          <div className="mt-1.5 text-[10px] text-slate-400 flex justify-between font-mono">
+          <div className="mt-1 sm:mt-1.5 text-[9px] sm:text-[10px] text-slate-400 flex justify-between font-mono">
             <span>{availablePhonesCount} spare phones</span>
           </div>
         </div>
@@ -559,46 +559,46 @@ export const EmployeeAccessAnalyticsDashboard: React.FC<EmployeeAccessAnalyticsD
         {/* KPI 4: Employees with Assigned Accessories */}
         <div
           onClick={() => setFilterCoverage('accessories')}
-          className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-emerald-500/40 transition-colors cursor-pointer group"
+          className="p-3 sm:p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-emerald-500/40 transition-colors cursor-pointer group"
         >
-          <div className="flex items-center justify-between text-slate-500 text-xs mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Assigned Accessories</span>
-            <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1 sm:mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[9px] sm:text-[10px] truncate mr-1">Assigned Gear</span>
+            <Headphones className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
               {employeesWithAccessoriesCount}
             </span>
-            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md font-mono">
+            <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md font-mono shrink-0">
               {accessoriesEquippedRate}%
             </span>
           </div>
-          <div className="mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
+          <div className="mt-1.5 sm:mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
             <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${accessoriesEquippedRate}%` }} />
           </div>
-          <div className="mt-1.5 text-[10px] text-slate-400 flex justify-between font-mono">
-            <span>{assignedAccessoriesCount} total gear items</span>
+          <div className="mt-1 sm:mt-1.5 text-[9px] sm:text-[10px] text-slate-400 flex justify-between font-mono">
+            <span>{assignedAccessoriesCount} gear items</span>
           </div>
         </div>
 
         {/* KPI 5: Available vs Assigned Assets */}
-        <div className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Available vs. Assigned</span>
-            <PackageCheck className="w-3.5 h-3.5 text-purple-500" />
+        <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1 sm:mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[9px] sm:text-[10px] truncate mr-1">Assigned vs Buffer</span>
+            <PackageCheck className="w-3.5 h-3.5 text-purple-500 shrink-0" />
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-xl font-black font-mono text-slate-900 dark:text-white">
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-lg sm:text-xl font-black font-mono text-slate-900 dark:text-white">
               {totalAssignedAssets} <span className="text-xs text-slate-400 font-normal">/ {totalAvailableAssets}</span>
             </span>
-            <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md font-mono">
+            <span className="text-[9px] sm:text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded-md font-mono shrink-0">
               {overallAllocationRate}%
             </span>
           </div>
-          <div className="mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
+          <div className="mt-1.5 sm:mt-2 w-full bg-slate-100 dark:bg-slate-900 h-1 rounded-full overflow-hidden">
             <div className="bg-purple-600 h-full rounded-full" style={{ width: `${overallAllocationRate}%` }} />
           </div>
-          <div className="mt-1.5 text-[10px] text-slate-400 flex justify-between font-mono">
+          <div className="mt-1 sm:mt-1.5 text-[9px] sm:text-[10px] text-slate-400 flex justify-between font-mono">
             <span>{totalFleetItems} total assets</span>
           </div>
         </div>
@@ -606,23 +606,23 @@ export const EmployeeAccessAnalyticsDashboard: React.FC<EmployeeAccessAnalyticsD
         {/* KPI 6: Assets Under Repair */}
         <div
           onClick={() => setActiveTab('services')}
-          className="p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-amber-500/40 transition-colors cursor-pointer group"
+          className="p-3 sm:p-4 rounded-xl bg-white dark:bg-[#101726] border border-slate-200/80 dark:border-[#1e293b] shadow-xs hover:border-amber-500/40 transition-colors cursor-pointer group"
         >
-          <div className="flex items-center justify-between text-slate-500 text-xs mb-1.5">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Assets Under Repair</span>
-            <Wrench className="w-3.5 h-3.5 text-amber-500" />
+          <div className="flex items-center justify-between text-slate-500 text-xs mb-1 sm:mb-1.5">
+            <span className="font-semibold uppercase tracking-wider text-[9px] sm:text-[10px] truncate mr-1">In Repair</span>
+            <Wrench className="w-3.5 h-3.5 text-amber-500 shrink-0" />
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-xl sm:text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
               {totalUnderServiceAssets}
             </span>
-            <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md font-mono">
-              {serviceRecords.length} Invoices
+            <span className="text-[9px] sm:text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md font-mono shrink-0">
+              {serviceRecords.length} Bills
             </span>
           </div>
-          <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1e293b]">
-            <span>{underServiceLaptopsCount} PC • {underServiceAssetsCount} Asset</span>
-            <span className="text-amber-500 group-hover:underline">Service →</span>
+          <div className="mt-1.5 sm:mt-2 text-[9px] sm:text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1e293b]">
+            <span className="truncate">{underServiceLaptopsCount} PC • {underServiceAssetsCount} Gear</span>
+            <span className="text-amber-500 group-hover:underline shrink-0">→</span>
           </div>
         </div>
       </div>

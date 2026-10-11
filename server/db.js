@@ -1,2672 +1,376 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import mysql from 'mysql2/promise';
-import pg from 'pg';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-
-const { Pool: PgPool } = pg;
+import { createClient } from '@supabase/supabase-js';
+import * as seedData from './data/initialSeedData.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Robust .env file loading: check root directory first, then process.cwd()
+// Robust .env file loading
 const rootEnvPath = path.resolve(__dirname, '..', '.env');
 if (fs.existsSync(rootEnvPath)) {
-  if (typeof process.loadEnvFile === 'function') {
-    try {
-      process.loadEnvFile(rootEnvPath);
-    } catch {
-      try {
-        const envContent = fs.readFileSync(rootEnvPath, 'utf8');
-        for (const line of envContent.split('\n')) {
-          const trimmed = line.trim();
-          if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
-            const eqIdx = trimmed.indexOf('=');
-            const k = trimmed.slice(0, eqIdx).trim();
-            const v = trimmed.slice(eqIdx + 1).trim().replace(/^['"]|['"]$/g, '');
-            if (!process.env[k]) process.env[k] = v;
-          }
-        }
-      } catch {}
-    }
-  }
-} else if (typeof process.loadEnvFile === 'function') {
-  try { process.loadEnvFile(); } catch {}
-}
-
-// Supabase JS Client Configuration
-const supabaseUrl = process.env.SUPABASE_URL || (process.env.SUPABASE_PROJECT_ID ? `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co` : null);
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || null;
-
-let supabaseClient = null;
-if (supabaseUrl && supabaseKey) {
   try {
-    supabaseClient = createSupabaseClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
-    console.log(`[Database] Supabase JS Client initialized for URL: ${supabaseUrl}`);
-  } catch (err) {
-    console.warn('[Database] Failed to initialize Supabase client:', err.message);
-  }
+    const envContent = fs.readFileSync(rootEnvPath, 'utf8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+        const eqIdx = trimmed.indexOf('=');
+        const k = trimmed.slice(0, eqIdx).trim();
+        const v = trimmed.slice(eqIdx + 1).trim().replace(/^['"]|['"]$/g, '');
+        if (!process.env[k]) process.env[k] = v;
+      }
+    }
+  } catch {}
 }
 
-// Ensure server/data directory exists for persistent local SQLite storage
+// Data directory & file path for local persistence fallback
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const DB_PATH = process.env.SQLITE_PATH || path.join(DATA_DIR, 'assetcore.db');
-const JSON_BACKUP_PATH = path.join(DATA_DIR, 'database_fallback.json');
+const DB_PATH = process.env.JSON_DB_PATH || path.join(DATA_DIR, 'database.json');
 
-// Support Cloud Database URLs (PostgreSQL or MySQL) or discrete DB parameters
-let DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.PG_URL || process.env.MYSQL_URL || null;
+// Supabase Cloud Configuration with Safe Fallbacks for Vercel
+const supabaseUrl = process.env.SUPABASE_URL || (process.env.SUPABASE_PROJECT_ID ? `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co` : null) || 'https://sjsgnooheqiuzwkfzhsi.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || null;
 
-const supabaseProjectId = process.env.SUPABASE_PROJECT_ID || 'ckhptmuwzevswvzvtcba';
-const supabaseDbPassword = process.env.SUPABASE_DB_PASSWORD;
-
-if (supabaseDbPassword && (!DATABASE_URL || DATABASE_URL.includes('[YOUR_PASSWORD]'))) {
-  DATABASE_URL = `postgresql://postgres.${supabaseProjectId}:${encodeURIComponent(supabaseDbPassword)}@aws-0-ap-south-1.pooler.supabase.com:6543/postgres`;
-} else if (DATABASE_URL && DATABASE_URL.includes('[YOUR_PASSWORD]')) {
-  // Password placeholder still present, fallback until password is provided
-  DATABASE_URL = null;
+let supabase = null;
+if (supabaseUrl && supabaseKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    console.log(`[Database] Supabase Cloud Client connected to: ${supabaseUrl}`);
+  } catch (err) {
+    console.warn('[Database] Failed to initialize Supabase client:', err.message);
+  }
 }
 
-const isProduction = process.env.NODE_ENV === 'production';
-const isVercelServerless = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV);
-const allowSqliteInProd = process.env.ALLOW_SQLITE_IN_PROD === 'true' || Boolean(process.env.SQLITE_PATH);
+const COLLECTIONS = [
+  'employees',
+  'computers',
+  'assets',
+  'service_records',
+  'allocations',
+  'audit_logs',
+  'weekly_photos',
+  'purchases',
+  'asset_requests',
+  'system_settings',
+  'sim_cards',
+  'sim_recharges',
+  'sim_requests',
+  'service_providers',
+  'asset_queries',
+  'removed_employees',
+  'exit_clearances',
+];
 
-let pgPool = null;
-let mysqlPool = null;
-let sqliteDB = null;
-let useFallback = false;
-let activeEngine = 'initializing';
+const SEED_MAPPING = {
+  employees: seedData.INITIAL_EMPLOYEES || [],
+  computers: seedData.INITIAL_COMPUTERS || [],
+  assets: seedData.INITIAL_COMPANY_ASSETS || [],
+  allocations: seedData.INITIAL_ALLOCATION_RECORDS || [],
+  service_records: seedData.INITIAL_SERVICE_RECORDS || [],
+  audit_logs: seedData.INITIAL_AUDIT_LOGS || [],
+  weekly_photos: seedData.INITIAL_WEEKLY_PHOTO_RECORDS || [],
+  purchases: seedData.INITIAL_PURCHASES || [],
+  sim_cards: seedData.INITIAL_SIM_CARDS || [],
+  sim_recharges: seedData.INITIAL_SIM_RECHARGES || [],
+  sim_requests: seedData.INITIAL_SIM_REQUESTS || [],
+  service_providers: seedData.INITIAL_SERVICE_PROVIDERS || [],
+  asset_queries: seedData.INITIAL_ASSET_QUERIES || [],
+};
 
-const pgHost = process.env.PGHOST || process.env.POSTGRES_HOST;
-const isPostgresUrl = Boolean(
-  (DATABASE_URL && (
-    DATABASE_URL.startsWith('postgres://') ||
-    DATABASE_URL.startsWith('postgresql://') ||
-    DATABASE_URL.includes('cockroachdb') ||
-    DATABASE_URL.includes('supabase')
-  )) || pgHost
-);
+// In-memory application state
+const state = {};
 
-const mysqlHost = process.env.MYSQL_HOST || process.env.MYSQLHOST || process.env.DB_HOST;
-const isMySqlUrl = Boolean(
-  !isPostgresUrl && (
-    (DATABASE_URL && (
-      DATABASE_URL.startsWith('mysql://') ||
-      DATABASE_URL.startsWith('mysql2://') ||
-      DATABASE_URL.includes('mysql')
-    )) || mysqlHost
-  )
-);
+function mapItemForSupabase(collection, item) {
+  const id = String(item.id || item.key || item.employeeId || '');
+  const base = { id, data: item };
 
-// -------------------------------------------------------------
-// 1. Initialize PostgreSQL Connection Pool if PostgreSQL is configured
-// -------------------------------------------------------------
-if (isPostgresUrl) {
-  try {
-    const isLocalhost = Boolean((DATABASE_URL && (DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1'))) || (pgHost && (pgHost.includes('localhost') || pgHost.includes('127.0.0.1'))));
-    const poolConfig = DATABASE_URL
-      ? {
-          connectionString: DATABASE_URL,
-          max: 20,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 15000,
-          ssl: isLocalhost ? false : { rejectUnauthorized: false },
-        }
-      : {
-          host: pgHost,
-          user: process.env.PGUSER || process.env.POSTGRES_USER || 'postgres',
-          password: process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD || '',
-          database: process.env.PGDATABASE || process.env.POSTGRES_DATABASE || 'assetcore',
-          port: Number(process.env.PGPORT || process.env.POSTGRES_PORT || 5432),
-          max: 20,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 15000,
-          ssl: isLocalhost ? false : { rejectUnauthorized: false },
-        };
+  if (collection === 'employees') {
+    return { ...base, employee_id: String(item.employeeId || id), name: item.name || '', department: item.department || '', designation: item.designation || '', status: item.status || 'Active' };
+  }
+  if (collection === 'computers') {
+    return { ...base, asset_number: String(item.assetNumber || ''), assigned_employee_id: item.assignedEmployeeId ? String(item.assignedEmployeeId) : null, status: item.status || 'Available' };
+  }
+  if (collection === 'assets') {
+    return { ...base, asset_number: String(item.assetNumber || ''), asset_type: item.assetType || '', assigned_employee_id: item.assignedEmployeeId ? String(item.assignedEmployeeId) : null, status: item.status || 'Available' };
+  }
+  if (collection === 'service_records') {
+    return { ...base, computer_id: item.computerId ? String(item.computerId) : null, employee_id: item.employeeId ? String(item.employeeId) : null };
+  }
+  if (collection === 'allocations') {
+    return { ...base, employee_id: item.employeeId ? String(item.employeeId) : null, asset_id: item.assetId ? String(item.assetId) : null };
+  }
+  if (collection === 'audit_logs') {
+    return { ...base, action: item.action || '', actor: item.actor || '', timestamp: item.timestamp || new Date().toISOString() };
+  }
+  if (collection === 'weekly_photos') {
+    return { ...base, employee_id: item.employeeId ? String(item.employeeId) : null, week_start_date: item.weekStartDate || '' };
+  }
+  if (collection === 'purchases') {
+    return { ...base, purchase_number: item.purchaseNumber || '', device_type: item.deviceType || '', brand: item.brand || '', model_name: item.modelName || '', serial_number: item.serialNumber || '', purchase_date: item.purchaseDate || '', vendor: item.vendor || '', device_cost: Number(item.deviceCost || 0), total_accessories_cost: Number(item.totalAccessoriesCost || 0), grand_total_cost: Number(item.grandTotalCost || 0), status: item.status || '' };
+  }
+  if (collection === 'asset_requests') {
+    return { ...base, employee_id: item.employeeId ? String(item.employeeId) : null, employee_name: item.employeeName || '', department: item.department || '', urgency: item.urgency || '', status: item.status || '' };
+  }
+  if (collection === 'sim_cards') {
+    return { ...base, contact_number: item.contactNumber || '', assigned_employee_id: item.assignedEmployeeId ? String(item.assignedEmployeeId) : null, status: item.status || 'Active', purpose: item.purpose || '' };
+  }
+  if (collection === 'sim_recharges') {
+    return { ...base, sim_id: item.simId ? String(item.simId) : null, employee_id: item.employeeId ? String(item.employeeId) : null, recharge_date: item.rechargeDate || '', recharge_amount: Number(item.rechargeAmount || 0), total_amount: Number(item.totalAmount || 0) };
+  }
+  if (collection === 'sim_requests') {
+    return { ...base, employee_id: item.employeeId ? String(item.employeeId) : null, request_type: item.requestType || '', status: item.status || '', urgency: item.urgency || '' };
+  }
+  if (collection === 'service_providers') {
+    return { ...base, technician_name: item.technicianName || '', shop_name: item.shopName || '', phone_number: item.phoneNumber || '', service_type: item.serviceType || '', city: item.city || '' };
+  }
+  if (collection === 'asset_queries') {
+    return { ...base, employee_id: item.employeeId ? String(item.employeeId) : null, asset_number: item.assetNumber || '', status: item.status || '', query_type: item.queryType || '', is_starred: Boolean(item.isStarred) };
+  }
+  if (collection === 'removed_employees') {
+    return { ...base, employee_id: item.employeeId ? String(item.employeeId) : null, name: item.name || '', department: item.department || '', removed_date: item.removedDate || '', removed_by: item.removedBy || '' };
+  }
+  if (collection === 'exit_clearances') {
+    return { ...base, employee_id: item.employeeId ? String(item.employeeId) : null };
+  }
+  return base;
+}
 
-    pgPool = new PgPool(poolConfig);
-
-    // Test connection synchronously on startup
-    const client = await pgPool.connect();
-    activeEngine = 'Cloud PostgreSQL (Production)';
-    console.log('[Database] Connected successfully to Cloud PostgreSQL managed production database.');
-    client.release();
-
-    // Verify & Initialize PostgreSQL Tables Idempotently
-    await pgPool.query(`
-      CREATE TABLE IF NOT EXISTS employees (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        status VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_emp_employee_id ON employees (employee_id);
-
-      CREATE TABLE IF NOT EXISTS computers (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        asset_number VARCHAR(100) NULL,
-        assigned_employee_id VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_comp_asset_number ON computers (asset_number);
-      CREATE INDEX IF NOT EXISTS idx_pg_comp_assigned_emp ON computers (assigned_employee_id);
-
-      CREATE TABLE IF NOT EXISTS assets (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        asset_number VARCHAR(100) NULL,
-        asset_type VARCHAR(100) NULL,
-        assigned_employee_id VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_asset_asset_number ON assets (asset_number);
-      CREATE INDEX IF NOT EXISTS idx_pg_asset_assigned_emp ON assets (assigned_employee_id);
-
-      CREATE TABLE IF NOT EXISTS service_records (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        computer_id VARCHAR(100) NULL,
-        employee_id VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_srv_comp ON service_records (computer_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_srv_emp ON service_records (employee_id);
-
-      CREATE TABLE IF NOT EXISTS allocations (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        asset_id VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_alloc_emp ON allocations (employee_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_alloc_asset ON allocations (asset_id);
-
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        action VARCHAR(255) NULL,
-        actor VARCHAR(255) NULL,
-        timestamp VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS weekly_photos (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        week_start_date VARCHAR(50) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_photo_emp ON weekly_photos (employee_id);
-
-      CREATE TABLE IF NOT EXISTS purchases (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        purchase_number VARCHAR(100) NULL,
-        device_type VARCHAR(100) NULL,
-        brand VARCHAR(100) NULL,
-        model_name VARCHAR(255) NULL,
-        serial_number VARCHAR(100) NULL,
-        purchase_date VARCHAR(50) NULL,
-        vendor VARCHAR(255) NULL,
-        device_cost NUMERIC(12,2) DEFAULT 0,
-        total_accessories_cost NUMERIC(12,2) DEFAULT 0,
-        grand_total_cost NUMERIC(12,2) DEFAULT 0,
-        status VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_purchases_sn ON purchases (serial_number);
-
-      CREATE TABLE IF NOT EXISTS asset_requests (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        employee_name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        urgency VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_req_emp ON asset_requests (employee_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_req_status ON asset_requests (status);
-
-      CREATE TABLE IF NOT EXISTS system_settings (
-        key VARCHAR(255) NOT NULL PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sim_cards (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        contact_number VARCHAR(100) NULL,
-        assigned_employee_id VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        purpose VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_sim_contact ON sim_cards (contact_number);
-      CREATE INDEX IF NOT EXISTS idx_pg_sim_assigned_emp ON sim_cards (assigned_employee_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_sim_status ON sim_cards (status);
-
-      CREATE TABLE IF NOT EXISTS sim_recharges (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        sim_id VARCHAR(100) NULL,
-        employee_id VARCHAR(100) NULL,
-        recharge_date VARCHAR(50) NULL,
-        recharge_amount NUMERIC(12,2) DEFAULT 0,
-        total_amount NUMERIC(12,2) DEFAULT 0,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_rec_sim ON sim_recharges (sim_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_rec_emp ON sim_recharges (employee_id);
-
-      CREATE TABLE IF NOT EXISTS sim_requests (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        request_type VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        urgency VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_simreq_emp ON sim_requests (employee_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_simreq_status ON sim_requests (status);
-
-      CREATE TABLE IF NOT EXISTS service_providers (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        technician_name VARCHAR(255) NULL,
-        shop_name VARCHAR(255) NULL,
-        phone_number VARCHAR(100) NULL,
-        service_type VARCHAR(255) NULL,
-        city VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_prov_type ON service_providers (service_type);
-
-      CREATE TABLE IF NOT EXISTS asset_queries (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        asset_number VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        query_type VARCHAR(100) NULL,
-        is_starred BOOLEAN DEFAULT FALSE,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_qry_emp ON asset_queries (employee_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_qry_status ON asset_queries (status);
-
-      CREATE TABLE IF NOT EXISTS removed_employees (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        removed_date VARCHAR(100) NULL,
-        removed_by VARCHAR(255) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_rem_emp ON removed_employees (employee_id);
-
-      CREATE TABLE IF NOT EXISTS exit_clearances (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        employee_name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        exit_date VARCHAR(50) NULL,
-        status VARCHAR(100) NULL,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_pg_clr_emp ON exit_clearances (employee_id);
-      CREATE INDEX IF NOT EXISTS idx_pg_clr_status ON exit_clearances (status);
-    `);
-
-    console.log('[Database] Cloud PostgreSQL tables & indices verified.');
-  } catch (err) {
-    console.error('[Database Error] Failed to connect to PostgreSQL from DATABASE_URL:', err.message);
-    if (isProduction) {
-      console.error('[Database Error] Production requires a valid persistent database connection. Exiting to prevent ephemeral data loss.');
-      throw new Error(`PostgreSQL Connection Failed: ${err.message}`);
+function loadState() {
+  let loaded = {};
+  if (fs.existsSync(DB_PATH)) {
+    try {
+      const raw = fs.readFileSync(DB_PATH, 'utf8');
+      loaded = JSON.parse(raw);
+    } catch (err) {
+      console.warn('[Database JSON] Could not read database.json, initializing defaults:', err.message);
     }
-    console.warn('[Database] Falling back to local development SQLite engine...');
-    pgPool = null;
   }
-}
 
-// -------------------------------------------------------------
-// 2. Initialize MySQL / MariaDB Connection Pool if MySQL is configured
-// -------------------------------------------------------------
-if (!pgPool && isMySqlUrl) {
-  try {
-    const isLocalhost = Boolean((DATABASE_URL && (DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1'))) || (mysqlHost && (mysqlHost.includes('localhost') || mysqlHost.includes('127.0.0.1'))));
-    const poolConfig = DATABASE_URL
-      ? {
-          uri: DATABASE_URL,
-          waitForConnections: true,
-          connectionLimit: 20,
-          queueLimit: 0,
-          connectTimeout: 15000,
-          multipleStatements: true,
-          ssl: isLocalhost ? undefined : { rejectUnauthorized: false },
-        }
-      : {
-          host: mysqlHost,
-          user: process.env.MYSQL_USER || process.env.MYSQLUSER || process.env.DB_USER || 'root',
-          password: process.env.MYSQL_PASSWORD || process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
-          database: process.env.MYSQL_DATABASE || process.env.MYSQLDATABASE || process.env.DB_NAME || 'assetcore',
-          port: Number(process.env.MYSQL_PORT || process.env.MYSQLPORT || process.env.DB_PORT || 3306),
-          waitForConnections: true,
-          connectionLimit: 20,
-          queueLimit: 0,
-          connectTimeout: 15000,
-          multipleStatements: true,
-          ssl: isLocalhost ? undefined : { rejectUnauthorized: false },
-        };
-
-    mysqlPool = mysql.createPool(poolConfig);
-
-    const connection = await mysqlPool.getConnection();
-    const isRemote = (process.env.MYSQL_HOST && !process.env.MYSQL_HOST.includes('localhost') && !process.env.MYSQL_HOST.includes('127.0.0.1'));
-    activeEngine = isRemote ? 'Remote MySQL / MariaDB' : 'cPanel / Local MySQL (Production)';
-    console.log(`[Database] Connected successfully to ${activeEngine} database.`);
-    connection.release();
-
-    // Verify & Initialize MySQL Tables Idempotently
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS employees (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        status VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_emp_employee_id (employee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS computers (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        asset_number VARCHAR(100) NULL,
-        assigned_employee_id VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_comp_asset_number (asset_number),
-        INDEX idx_comp_assigned_emp (assigned_employee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS assets (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        asset_number VARCHAR(100) NULL,
-        asset_type VARCHAR(100) NULL,
-        assigned_employee_id VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_asset_asset_number (asset_number),
-        INDEX idx_asset_assigned_emp (assigned_employee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS service_records (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        computer_id VARCHAR(100) NULL,
-        employee_id VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_srv_comp (computer_id),
-        INDEX idx_srv_emp (employee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS allocations (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        asset_id VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_alloc_emp (employee_id),
-        INDEX idx_alloc_asset (asset_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        action VARCHAR(255) NULL,
-        actor VARCHAR(255) NULL,
-        timestamp VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS weekly_photos (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        week_start_date VARCHAR(50) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_photo_emp (employee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS purchases (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        purchase_number VARCHAR(100) NULL,
-        device_type VARCHAR(100) NULL,
-        brand VARCHAR(100) NULL,
-        model_name VARCHAR(255) NULL,
-        serial_number VARCHAR(100) NULL,
-        purchase_date VARCHAR(50) NULL,
-        vendor VARCHAR(255) NULL,
-        device_cost DECIMAL(12,2) DEFAULT 0,
-        total_accessories_cost DECIMAL(12,2) DEFAULT 0,
-        grand_total_cost DECIMAL(12,2) DEFAULT 0,
-        status VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_purchases_sn (serial_number)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS asset_requests (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        employee_name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        urgency VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_req_emp (employee_id),
-        INDEX idx_req_status (status)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS system_settings (
-        \`key\` VARCHAR(255) NOT NULL PRIMARY KEY,
-        \`value\` LONGTEXT NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS sim_cards (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        contact_number VARCHAR(100) NULL,
-        assigned_employee_id VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        purpose VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_sim_contact (contact_number),
-        INDEX idx_sim_assigned_emp (assigned_employee_id),
-        INDEX idx_sim_status (status)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS sim_recharges (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        sim_id VARCHAR(100) NULL,
-        employee_id VARCHAR(100) NULL,
-        recharge_date VARCHAR(50) NULL,
-        recharge_amount DECIMAL(12,2) DEFAULT 0,
-        total_amount DECIMAL(12,2) DEFAULT 0,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_rec_sim (sim_id),
-        INDEX idx_rec_emp (employee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS sim_requests (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        request_type VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        urgency VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_simreq_emp (employee_id),
-        INDEX idx_simreq_status (status)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-      CREATE TABLE IF NOT EXISTS service_providers (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        technician_name VARCHAR(255) NULL,
-        shop_name VARCHAR(255) NULL,
-        phone_number VARCHAR(100) NULL,
-        service_type VARCHAR(255) NULL,
-        city VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_prov_type (service_type)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-      CREATE TABLE IF NOT EXISTS asset_queries (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        asset_number VARCHAR(100) NULL,
-        status VARCHAR(100) NULL,
-        query_type VARCHAR(100) NULL,
-        is_starred BOOLEAN DEFAULT FALSE,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_qry_emp (employee_id),
-        INDEX idx_qry_status (status)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-      CREATE TABLE IF NOT EXISTS removed_employees (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        removed_date VARCHAR(100) NULL,
-        removed_by VARCHAR(255) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_rem_emp (employee_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-      CREATE TABLE IF NOT EXISTS exit_clearances (
-        id VARCHAR(100) NOT NULL PRIMARY KEY,
-        employee_id VARCHAR(100) NULL,
-        employee_name VARCHAR(255) NULL,
-        department VARCHAR(255) NULL,
-        exit_date VARCHAR(50) NULL,
-        status VARCHAR(100) NULL,
-        data JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_clr_emp (employee_id),
-        INDEX idx_clr_status (status)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    console.log(`[Database] ${activeEngine} tables & indices verified.`);
-  } catch (err) {
-    console.error('[Database Fatal Error] Failed to connect to MySQL:', err.message);
-    mysqlPool = null;
-    throw new Error(`[Database Fatal Error] MySQL Connection Failed: ${err.message}. EASH requires a live MySQL database and will not silently fall back to local SQLite or JSON.`);
-  }
-}
-
-// In production, an external persistent database (PostgreSQL or MySQL) is required.
-// In development, allow local SQLite when cloud credentials are being configured.
-if (isProduction && !pgPool && !mysqlPool && !allowSqliteInProd && process.env.ALLOW_SQLITE_FALLBACK !== 'true') {
-  console.error('[Database Fatal Error] MySQL or PostgreSQL database connection is required in production. Local fallback is disabled.');
-  throw new Error('[Database Fatal Error] No active database connection pool. Please ensure database is running and connection details in .env are correct.');
-}
-
-// -------------------------------------------------------------
-// 3. Initialize Native SQLite (WAL mode) for disk persistence (Local Dev Only)
-// -------------------------------------------------------------
-if (!pgPool && !mysqlPool) {
-  try {
-    const sqlite = await import('node:sqlite');
-    if (sqlite && sqlite.DatabaseSync) {
-      sqliteDB = new sqlite.DatabaseSync(DB_PATH);
-      sqliteDB.exec('PRAGMA journal_mode = WAL;');
-      sqliteDB.exec('PRAGMA synchronous = NORMAL;');
-      activeEngine = 'Native SQLite (WAL Mode)';
-      console.log(`[Database] Native SQLite initialized at persistent path: ${DB_PATH}`);
-
-      sqliteDB.exec(`
-        CREATE TABLE IF NOT EXISTS employees (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT UNIQUE,
-          name TEXT,
-          department TEXT,
-          status TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS computers (
-          id TEXT PRIMARY KEY,
-          assetNumber TEXT UNIQUE,
-          assignedEmployeeId TEXT,
-          status TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS assets (
-          id TEXT PRIMARY KEY,
-          assetNumber TEXT UNIQUE,
-          assetType TEXT,
-          assignedEmployeeId TEXT,
-          status TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS service_records (
-          id TEXT PRIMARY KEY,
-          computerId TEXT,
-          employeeId TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS allocations (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT,
-          assetId TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS audit_logs (
-          id TEXT PRIMARY KEY,
-          action TEXT,
-          actor TEXT,
-          timestamp TEXT,
-          data TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS weekly_photos (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT,
-          weekStartDate TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS purchases (
-          id TEXT PRIMARY KEY,
-          purchaseNumber TEXT,
-          deviceType TEXT NOT NULL,
-          brand TEXT NOT NULL,
-          modelName TEXT NOT NULL,
-          serialNumber TEXT,
-          purchaseDate TEXT NOT NULL,
-          vendor TEXT NOT NULL,
-          deviceCost REAL NOT NULL,
-          totalAccessoriesCost REAL NOT NULL,
-          grandTotalCost REAL NOT NULL,
-          status TEXT NOT NULL,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS asset_requests (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT,
-          employeeName TEXT,
-          department TEXT,
-          urgency TEXT,
-          status TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS system_settings (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS sim_cards (
-          id TEXT PRIMARY KEY,
-          contactNumber TEXT,
-          assignedEmployeeId TEXT,
-          status TEXT,
-          purpose TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS sim_recharges (
-          id TEXT PRIMARY KEY,
-          simId TEXT,
-          employeeId TEXT,
-          rechargeDate TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS sim_requests (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT,
-          requestType TEXT,
-          status TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS service_providers (
-          id TEXT PRIMARY KEY,
-          technicianName TEXT,
-          shopName TEXT,
-          phoneNumber TEXT,
-          serviceType TEXT,
-          city TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS asset_queries (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT,
-          assetNumber TEXT,
-          status TEXT,
-          queryType TEXT,
-          isStarred INTEGER,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS removed_employees (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT,
-          name TEXT,
-          department TEXT,
-          removedDate TEXT,
-          removedBy TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS exit_clearances (
-          id TEXT PRIMARY KEY,
-          employeeId TEXT,
-          employeeName TEXT,
-          department TEXT,
-          exitDate TEXT,
-          status TEXT,
-          data TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-      `);
+  for (const col of COLLECTIONS) {
+    if (Array.isArray(loaded[col]) && loaded[col].length > 0) {
+      state[col] = loaded[col];
+    } else if (Array.isArray(loaded[col])) {
+      state[col] = (SEED_MAPPING[col] && SEED_MAPPING[col].length > 0) ? [...SEED_MAPPING[col]] : [];
+    } else if (SEED_MAPPING[col] && SEED_MAPPING[col].length > 0) {
+      state[col] = [...SEED_MAPPING[col]];
     } else {
-      if (isProduction) {
-        throw new Error('Native SQLite is unavailable and in-memory fallback is forbidden in production mode.');
-      }
-      useFallback = true;
+      state[col] = [];
     }
-  } catch (err) {
-    if (isProduction) {
-      console.error('[Database Error] Fatal SQLite failure in production:', err.message);
-      throw new Error(`Persistent SQLite Failure in production: ${err.message}`);
-    }
-    console.warn('[Database] Native SQLite unavailable, enabling persistent atomic JSON engine:', err.message);
-    useFallback = true;
   }
 }
 
-// Fallback JSON in-memory store for local development ONLY without Node 22 SQLite
-let fallbackState = {
-  employees: [],
-  computers: [],
-  assets: [],
-  service_records: [],
-  allocations: [],
-  audit_logs: [],
-  weekly_photos: [],
-  purchases: [],
-  asset_requests: [],
-  sim_cards: [],
-  sim_recharges: [],
-  sim_requests: [],
-  service_providers: [],
-  asset_queries: [],
-  removed_employees: [],
-  exit_clearances: [],
-  system_settings: {},
-};
-
-if (useFallback && !isProduction) {
-  activeEngine = 'Atomic JSON Persistence';
-  if (fs.existsSync(JSON_BACKUP_PATH)) {
+function persistState() {
+  try {
+    const tmpPath = `${DB_PATH}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), 'utf8');
+    fs.renameSync(tmpPath, DB_PATH);
+  } catch {
     try {
-      fallbackState = JSON.parse(fs.readFileSync(JSON_BACKUP_PATH, 'utf-8'));
+      fs.writeFileSync(DB_PATH, JSON.stringify(state, null, 2), 'utf8');
     } catch (e) {
-      console.error('[Database] Failed to read fallback JSON:', e);
+      console.error('[Database JSON Error] Failed to persist database.json:', e.message);
     }
   }
 }
 
-const saveFallback = () => {
-  if (useFallback && !isProduction) {
-    try {
-      fs.writeFileSync(JSON_BACKUP_PATH, JSON.stringify(fallbackState, null, 2), 'utf-8');
-    } catch (e) {
-      console.error('[Database] Failed to save fallback JSON:', e);
-    }
-  }
-};
+// Initial load
+loadState();
+persistState();
 
-if (supabaseClient && !pgPool && !mysqlPool) {
-  activeEngine = 'Supabase Cloud (@supabase/supabase-js)';
-  console.log(`[Database] Active primary database engine: Supabase Cloud (@supabase/supabase-js) (${supabaseUrl})`);
-}
-
-// -------------------------------------------------------------
-// Database Unified Abstraction Object (ACID Persistent Layer)
-// -------------------------------------------------------------
 export const db = {
-  get isSupabase() {
-    return Boolean(supabaseClient && !pgPool && !mysqlPool);
-  },
-  get isPostgres() {
-    return Boolean(pgPool);
-  },
-  get isMySQL() {
-    return Boolean(mysqlPool);
-  },
-  get isSQLite() {
-    return Boolean(sqliteDB);
-  },
-  get activeEngine() {
-    return activeEngine;
-  },
-  get dbPath() {
-    if (pgPool) return 'Cloud PostgreSQL (Managed Database Cluster)';
-    if (mysqlPool) return `${activeEngine} (Localhost / Dedicated)`;
-    if (supabaseClient && !pgPool && !mysqlPool) return `Supabase Cloud (${supabaseUrl})`;
-    return useFallback ? JSON_BACKUP_PATH : DB_PATH;
-  },
+  activeEngine: supabase ? 'Supabase PostgreSQL Cloud' : 'Local JSON File',
+  dbPath: DB_PATH,
+  isPostgres: Boolean(supabase),
+  isMySQL: false,
+  isSQLite: false,
 
-  // Flushes WAL journal to main SQLite file on demand
   checkpoint() {
-    if (sqliteDB) {
-      try {
-        sqliteDB.exec('PRAGMA wal_checkpoint(PASSIVE);');
-      } catch {}
-    }
+    persistState();
+    return true;
   },
 
-  // Get all items from a collection
   async getAll(collection) {
-    // 0. Supabase JS Client
-    if (supabaseClient && !pgPool && !mysqlPool) {
+    if (supabase) {
       try {
-        const { data, error } = await supabaseClient.from(collection).select('*');
-        if (error) throw error;
-        if (Array.isArray(data) && data.length > 0) {
-          return data.map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || r)));
+        const { data, error } = await supabase.from(collection).select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const items = data.map(row => (row.data ? { ...row.data } : row));
+          state[collection] = items;
+          persistState();
+          return items;
         }
-        // If Supabase table is empty but local SQLite has seeded records, return SQLite records while maintaining connection
-        if (sqliteDB) {
-          try {
-            const orderCol = collection === 'audit_logs' ? 'timestamp' : 'updated_at';
-            const stmt = sqliteDB.prepare(`SELECT data FROM ${collection} ORDER BY ${orderCol} DESC`);
-            const localRows = stmt.all();
-            if (localRows.length > 0) {
-              return localRows.map(r => JSON.parse(r.data));
-            }
-          } catch {}
-        }
-        return (data || []).map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || r)));
       } catch (err) {
-        console.error(`[Supabase Error] getAll(${collection}):`, err.message);
-        if (sqliteDB) {
-          try {
-            const stmt = sqliteDB.prepare(`SELECT data FROM ${collection}`);
-            return stmt.all().map(r => JSON.parse(r.data));
-          } catch {}
-        }
-        return [];
+        console.warn(`[Supabase Read Fallback] ${collection}:`, err.message);
       }
     }
-
-    // 1. PostgreSQL
-    if (pgPool) {
-      try {
-        const orderCol = collection === 'audit_logs' ? 'timestamp' : 'updated_at';
-        const query = `SELECT data FROM "${collection}" ORDER BY ${orderCol} DESC`;
-        const res = await pgPool.query(query);
-        return res.rows.map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : r.data));
-      } catch (err) {
-        try {
-          const res = await pgPool.query(`SELECT data FROM "${collection}"`);
-          return res.rows.map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : r.data));
-        } catch (e) {
-          console.error(`[PostgreSQL Error] getAll(${collection}):`, e.message);
-          return [];
-        }
-      }
-    }
-
-    // 2. MySQL
-    if (mysqlPool) {
-      try {
-        const orderCol = collection === 'audit_logs' ? 'timestamp' : 'updated_at';
-        const query = `SELECT data FROM \`${collection}\` ORDER BY ${orderCol} DESC`;
-        const [rows] = await mysqlPool.query(query);
-        return rows.map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : r.data));
-      } catch (err) {
-        try {
-          const [rows] = await mysqlPool.query(`SELECT data FROM \`${collection}\``);
-          return rows.map(r => (typeof r.data === 'string' ? JSON.parse(r.data) : r.data));
-        } catch (e) {
-          console.error(`[MySQL Error] getAll(${collection}):`, e.message);
-          return [];
-        }
-      }
-    }
-
-    // 3. SQLite
-    if (sqliteDB) {
-      try {
-        const orderCol = collection === 'audit_logs' ? 'timestamp' : 'updated_at';
-        const stmt = sqliteDB.prepare(`SELECT data FROM ${collection} ORDER BY ${orderCol} DESC`);
-        const rows = stmt.all();
-        return rows.map(r => JSON.parse(r.data));
-      } catch (err) {
-        try {
-          const stmt = sqliteDB.prepare(`SELECT data FROM ${collection}`);
-          const rows = stmt.all();
-          return rows.map(r => JSON.parse(r.data));
-        } catch (e) {
-          console.error(`[SQLite Error] getAll(${collection}):`, e.message);
-          return [];
-        }
-      }
-    }
-
-    // 4. Fallback (local dev only)
-    return [...(fallbackState[collection] || [])];
+    const items = state[collection] || [];
+    return items.map(i => ({ ...i }));
   },
 
-  // Get item by ID
   async getById(collection, id) {
-    if (supabaseClient && !pgPool && !mysqlPool) {
-      try {
-        const { data, error } = await supabaseClient.from(collection).select('*').eq('id', id).maybeSingle();
-        if (error) throw error;
-        if (!data) {
-          if (sqliteDB) {
-            try {
-              const stmt = sqliteDB.prepare(`SELECT data FROM ${collection} WHERE id = ?`);
-              const row = stmt.get(id);
-              if (row) return JSON.parse(row.data);
-            } catch {}
-          }
-          return null;
-        }
-        return typeof data.data === 'string' ? JSON.parse(data.data) : (data.data || data);
-      } catch (err) {
-        console.error(`[Supabase Error] getById(${collection}, ${id}):`, err.message);
-      }
-    }
-
-    if (pgPool) {
-      try {
-        const res = await pgPool.query(`SELECT data FROM "${collection}" WHERE id = $1`, [id]);
-        if (res.rows.length === 0) return null;
-        const row = res.rows[0];
-        return typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
-      } catch (err) {
-        console.error(`[PostgreSQL Error] getById(${collection}, ${id}):`, err.message);
-        return null;
-      }
-    }
-
-    if (mysqlPool) {
-      try {
-        const [rows] = await mysqlPool.query(`SELECT data FROM \`${collection}\` WHERE id = ?`, [id]);
-        if (rows.length === 0) return null;
-        const row = rows[0];
-        return typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
-      } catch (err) {
-        console.error(`[MySQL Error] getById(${collection}, ${id}):`, err.message);
-        return null;
-      }
-    }
-
-    if (sqliteDB) {
-      try {
-        const stmt = sqliteDB.prepare(`SELECT data FROM ${collection} WHERE id = ?`);
-        const row = stmt.get(id);
-        return row ? JSON.parse(row.data) : null;
-      } catch (err) {
-        console.error(`[SQLite Error] getById(${collection}, ${id}):`, err.message);
-        return null;
-      }
-    }
-
-    return (fallbackState[collection] || []).find(item => item.id === id) || null;
+    if (!id) return null;
+    const all = await this.getAll(collection);
+    const target = String(id);
+    const found = all.find(item => {
+      if (item.id && String(item.id) === target) return true;
+      if (item.key && String(item.key) === target) return true;
+      if (item.employeeId && String(item.employeeId) === target) return true;
+      if (item.assetNumber && String(item.assetNumber) === target) return true;
+      if (item.contactNumber && String(item.contactNumber) === target) return true;
+      if (item.purchaseNumber && String(item.purchaseNumber) === target) return true;
+      if (item.simId && String(item.simId) === target) return true;
+      return false;
+    });
+    return found ? { ...found } : null;
   },
 
-  // Insert or Update (Atomic Upsert)
   async upsert(collection, item) {
-    const now = new Date().toISOString();
-    const dataStr = JSON.stringify(item);
+    if (!item) return null;
+    if (!state[collection]) state[collection] = [];
 
-    // 0. Supabase JS Client Upsert
-    if (supabaseClient && !pgPool && !mysqlPool) {
-      try {
-        const recordId = item.id || item.key;
-        const payload = {
-          id: recordId,
-          data: item,
-          updated_at: new Date().toISOString()
-        };
-        if (collection === 'employees') {
-          payload.employee_id = item.employeeId || item.id;
-          payload.name = item.name || '';
-          payload.department = item.department || '';
-          payload.status = item.status || 'Active';
-        } else if (collection === 'computers') {
-          payload.asset_number = item.assetNumber || item.id;
-          payload.assigned_employee_id = item.assignedEmployeeId || null;
-          payload.status = item.status || 'Available';
-        } else if (collection === 'assets') {
-          payload.asset_number = item.assetNumber || item.id;
-          payload.asset_type = item.assetType || item.type || 'Other';
-          payload.assigned_employee_id = item.assignedEmployeeId || null;
-          payload.status = item.status || 'Available';
-        } else if (collection === 'sim_cards') {
-          payload.contact_number = item.contactNumber || null;
-          payload.assigned_employee_id = item.assignedEmployeeId || null;
-          payload.status = item.status || 'Buffer Stock';
-          payload.purpose = item.purpose || null;
-        } else if (collection === 'service_records') {
-          payload.computer_id = item.computerId || null;
-          payload.employee_id = item.employeeId || null;
-        } else if (collection === 'allocations') {
-          payload.employee_id = item.employeeId || null;
-          payload.asset_id = item.assetId || null;
-        } else if (collection === 'purchases') {
-          payload.purchase_number = item.purchaseNumber || null;
-          payload.device_type = item.deviceType || 'Laptop';
-          payload.brand = item.brand || '';
-          payload.model_name = item.modelName || '';
-          payload.serial_number = item.serialNumber || null;
-          payload.purchase_date = item.purchaseDate || '';
-          payload.vendor = item.vendor || '';
-          payload.device_cost = Number(item.deviceCost || 0);
-          payload.total_accessories_cost = Number(item.totalAccessoriesCost || 0);
-          payload.grand_total_cost = Number(item.grandTotalCost || 0);
-          payload.status = item.status || 'Completed';
-        }
-
-        const { error } = await supabaseClient.from(collection).upsert(payload);
-        if (error) {
-          if (error.message && error.message.includes('row-level security')) {
-            console.warn(`[Supabase RLS Warning] Table "${collection}" has RLS enabled. Please run in Supabase SQL editor: ALTER TABLE ${collection} DISABLE ROW LEVEL SECURITY;`);
-          }
-          throw error;
-        }
-
-        // Keep local SQLite in sync as reliable offline backup
-        if (sqliteDB) {
-          try {
-            const stmt = sqliteDB.prepare(`INSERT OR REPLACE INTO ${collection} (id, data, updated_at) VALUES (?, ?, datetime('now'))`);
-            stmt.run(recordId, dataStr);
-          } catch {}
-        }
-        return item;
-      } catch (err) {
-        console.error(`[Supabase Error] upsert(${collection}):`, err.message);
-        if (sqliteDB) {
-          try {
-            const stmt = sqliteDB.prepare(`INSERT OR REPLACE INTO ${collection} (id, data, updated_at) VALUES (?, ?, datetime('now'))`);
-            stmt.run(item.id || item.key, dataStr);
-            return item;
-          } catch {}
-        }
-        throw err;
-      }
+    const recordId = item.id || item.key || item.employeeId || item.assetNumber;
+    const itemToStore = { ...item, id: recordId };
+    if (!itemToStore.updated_at) {
+      itemToStore.updated_at = new Date().toISOString();
     }
 
-    // 1. PostgreSQL Upsert
-    if (pgPool) {
-      try {
-        if (collection === 'employees') {
-          const q = `
-            INSERT INTO employees (id, employee_id, name, department, status, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              name = EXCLUDED.name,
-              department = EXCLUDED.department,
-              status = EXCLUDED.status,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.employeeId || item.id,
-            item.name || '',
-            item.department || '',
-            item.status || 'Active',
-            dataStr,
-          ]);
-        } else if (collection === 'computers') {
-          const q = `
-            INSERT INTO computers (id, asset_number, assigned_employee_id, status, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              asset_number = EXCLUDED.asset_number,
-              assigned_employee_id = EXCLUDED.assigned_employee_id,
-              status = EXCLUDED.status,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.assetNumber || item.id,
-            item.assignedEmployeeId || null,
-            item.status || 'Available',
-            dataStr,
-          ]);
-        } else if (collection === 'assets') {
-          const q = `
-            INSERT INTO assets (id, asset_number, asset_type, assigned_employee_id, status, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              asset_number = EXCLUDED.asset_number,
-              asset_type = EXCLUDED.asset_type,
-              assigned_employee_id = EXCLUDED.assigned_employee_id,
-              status = EXCLUDED.status,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.assetNumber || item.id,
-            item.assetType || '',
-            item.assignedEmployeeId || null,
-            item.status || 'Available',
-            dataStr,
-          ]);
-        } else if (collection === 'service_records') {
-          const q = `
-            INSERT INTO service_records (id, computer_id, employee_id, data, updated_at)
-            VALUES ($1, $2, $3, $4, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              computer_id = EXCLUDED.computer_id,
-              employee_id = EXCLUDED.employee_id,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [item.id, item.computerId || '', item.employeeId || '', dataStr]);
-        } else if (collection === 'allocations') {
-          const q = `
-            INSERT INTO allocations (id, employee_id, asset_id, data, updated_at)
-            VALUES ($1, $2, $3, $4, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              asset_id = EXCLUDED.asset_id,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [item.id, item.employeeId || '', item.assetId || '', dataStr]);
-        } else if (collection === 'audit_logs') {
-          const q = `
-            INSERT INTO audit_logs (id, action, actor, timestamp, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              action = EXCLUDED.action,
-              actor = EXCLUDED.actor,
-              timestamp = EXCLUDED.timestamp,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [item.id, item.action || '', item.actor || '', item.timestamp || now, dataStr]);
-        } else if (collection === 'weekly_photos') {
-          const q = `
-            INSERT INTO weekly_photos (id, employee_id, week_start_date, data, updated_at)
-            VALUES ($1, $2, $3, $4, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              week_start_date = EXCLUDED.week_start_date,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [item.id, item.employeeId || '', item.weekStartDate || '', dataStr]);
-        } else if (collection === 'purchases') {
-          const q = `
-            INSERT INTO purchases (id, purchase_number, device_type, brand, model_name, serial_number, purchase_date, vendor, device_cost, total_accessories_cost, grand_total_cost, status, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              purchase_number = EXCLUDED.purchase_number,
-              device_type = EXCLUDED.device_type,
-              brand = EXCLUDED.brand,
-              model_name = EXCLUDED.model_name,
-              serial_number = EXCLUDED.serial_number,
-              purchase_date = EXCLUDED.purchase_date,
-              vendor = EXCLUDED.vendor,
-              device_cost = EXCLUDED.device_cost,
-              total_accessories_cost = EXCLUDED.total_accessories_cost,
-              grand_total_cost = EXCLUDED.grand_total_cost,
-              status = EXCLUDED.status,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.purchaseNumber || item.id,
-            item.deviceType || 'Laptop',
-            item.brand || '',
-            item.modelName || '',
-            item.serialNumber || '',
-            item.purchaseDate || '',
-            item.vendor || '',
-            Number(item.deviceCost) || 0,
-            Number(item.totalAccessoriesCost) || 0,
-            Number(item.grandTotalCost) || 0,
-            item.status || 'In Stock',
-            dataStr,
-          ]);
-        } else if (collection === 'asset_requests') {
-          const q = `
-            INSERT INTO asset_requests (id, employee_id, employee_name, department, urgency, status, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              employee_name = EXCLUDED.employee_name,
-              department = EXCLUDED.department,
-              urgency = EXCLUDED.urgency,
-              status = EXCLUDED.status,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.employeeName || '',
-            item.department || '',
-            item.urgency || 'Normal',
-            item.status || 'Pending',
-            dataStr,
-          ]);
-        } else if (collection === 'sim_cards') {
-          const q = `
-            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              contact_number = EXCLUDED.contact_number,
-              assigned_employee_id = EXCLUDED.assigned_employee_id,
-              status = EXCLUDED.status,
-              purpose = EXCLUDED.purpose,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.contactNumber || '',
-            item.assignedEmployeeId || null,
-            item.status || 'Available',
-            item.purpose || 'Holding',
-            dataStr,
-          ]);
-        } else if (collection === 'sim_recharges') {
-          const q = `
-            INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              sim_id = EXCLUDED.sim_id,
-              employee_id = EXCLUDED.employee_id,
-              recharge_date = EXCLUDED.recharge_date,
-              recharge_amount = EXCLUDED.recharge_amount,
-              total_amount = EXCLUDED.total_amount,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.simId || '',
-            item.employeeId || null,
-            item.rechargeDate || '',
-            Number(item.rechargeAmount) || 0,
-            Number(item.totalAmount) || 0,
-            dataStr,
-          ]);
-        } else if (collection === 'sim_requests') {
-          const q = `
-            INSERT INTO sim_requests (id, employee_id, request_type, status, urgency, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              request_type = EXCLUDED.request_type,
-              status = EXCLUDED.status,
-              urgency = EXCLUDED.urgency,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.requestType || 'Additional SIM',
-            item.status || 'Pending',
-            item.urgency || 'Normal',
-            dataStr,
-          ]);
-        } else if (collection === 'service_providers') {
-          const q = `
-            INSERT INTO service_providers (id, technician_name, shop_name, phone_number, service_type, city, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              technician_name = EXCLUDED.technician_name,
-              shop_name = EXCLUDED.shop_name,
-              phone_number = EXCLUDED.phone_number,
-              service_type = EXCLUDED.service_type,
-              city = EXCLUDED.city,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.technicianName || '',
-            item.shopName || '',
-            item.phoneNumber || '',
-            item.serviceType || 'Other',
-            item.city || '',
-            dataStr,
-          ]);
-        } else if (collection === 'asset_queries') {
-          const q = `
-            INSERT INTO asset_queries (id, employee_id, asset_number, status, query_type, is_starred, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              asset_number = EXCLUDED.asset_number,
-              status = EXCLUDED.status,
-              query_type = EXCLUDED.query_type,
-              is_starred = EXCLUDED.is_starred,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.assetNumber || '',
-            item.status || 'Open',
-            item.queryType || 'Fault',
-            Boolean(item.isStarred),
-            dataStr,
-          ]);
-        } else if (collection === 'removed_employees') {
-          const q = `
-            INSERT INTO removed_employees (id, employee_id, name, department, removed_date, removed_by, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              name = EXCLUDED.name,
-              department = EXCLUDED.department,
-              removed_date = EXCLUDED.removed_date,
-              removed_by = EXCLUDED.removed_by,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.name || '',
-            item.department || '',
-            item.removedDate || '',
-            item.removedBy || 'Admin',
-            dataStr,
-          ]);
-        } else if (collection === 'exit_clearances') {
-          const q = `
-            INSERT INTO exit_clearances (id, employee_id, employee_name, department, exit_date, status, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              employee_id = EXCLUDED.employee_id,
-              employee_name = EXCLUDED.employee_name,
-              department = EXCLUDED.department,
-              exit_date = EXCLUDED.exit_date,
-              status = EXCLUDED.status,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.employeeName || '',
-            item.department || '',
-            item.exitDate || '',
-            item.status || 'Pending Asset Return',
-            dataStr,
-          ]);
-        } else if (collection === 'system_settings') {
-          const q = `
-            INSERT INTO system_settings (key, value, updated_at)
-            VALUES ($1, $2, NOW())
-            ON CONFLICT (key) DO UPDATE SET
-              value = EXCLUDED.value,
-              updated_at = NOW()
-          `;
-          await pgPool.query(q, [item.key, item.value || '']);
-        }
-        return item;
-      } catch (err) {
-        console.error(`[PostgreSQL Error] upsert(${collection}):`, err.message);
-        throw err;
-      }
-    }
+    // Local state sync
+    const idx = state[collection].findIndex(existing => {
+      if (recordId && (existing.id === recordId || existing.key === recordId)) return true;
+      if (collection === 'employees' && item.employeeId && existing.employeeId === item.employeeId) return true;
+      if (collection === 'computers' && item.assetNumber && existing.assetNumber === item.assetNumber) return true;
+      if (collection === 'assets' && item.assetNumber && existing.assetNumber === item.assetNumber) return true;
+      if (collection === 'sim_cards' && item.contactNumber && existing.contactNumber === item.contactNumber) return true;
+      return false;
+    });
 
-    // 2. MySQL Upsert
-    if (mysqlPool) {
-      try {
-        if (collection === 'employees') {
-          const q = `
-            INSERT INTO employees (id, employee_id, name, department, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              name = VALUES(name),
-              department = VALUES(department),
-              status = VALUES(status),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.employeeId || item.id,
-            item.name || '',
-            item.department || '',
-            item.status || 'Active',
-            dataStr,
-          ]);
-        } else if (collection === 'computers') {
-          const q = `
-            INSERT INTO computers (id, asset_number, assigned_employee_id, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              asset_number = VALUES(asset_number),
-              assigned_employee_id = VALUES(assigned_employee_id),
-              status = VALUES(status),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.assetNumber || item.id,
-            item.assignedEmployeeId || null,
-            item.status || 'Available',
-            dataStr,
-          ]);
-        } else if (collection === 'assets') {
-          const q = `
-            INSERT INTO assets (id, asset_number, asset_type, assigned_employee_id, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              asset_number = VALUES(asset_number),
-              asset_type = VALUES(asset_type),
-              assigned_employee_id = VALUES(assigned_employee_id),
-              status = VALUES(status),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.assetNumber || item.id,
-            item.assetType || '',
-            item.assignedEmployeeId || null,
-            item.status || 'Available',
-            dataStr,
-          ]);
-        } else if (collection === 'service_records') {
-          const q = `
-            INSERT INTO service_records (id, computer_id, employee_id, data, updated_at)
-            VALUES (?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              computer_id = VALUES(computer_id),
-              employee_id = VALUES(employee_id),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [item.id, item.computerId || '', item.employeeId || '', dataStr]);
-        } else if (collection === 'allocations') {
-          const q = `
-            INSERT INTO allocations (id, employee_id, asset_id, data, updated_at)
-            VALUES (?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              asset_id = VALUES(asset_id),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [item.id, item.employeeId || '', item.assetId || '', dataStr]);
-        } else if (collection === 'audit_logs') {
-          const q = `
-            INSERT INTO audit_logs (id, action, actor, timestamp, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              action = VALUES(action),
-              actor = VALUES(actor),
-              timestamp = VALUES(timestamp),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [item.id, item.action || '', item.actor || '', item.timestamp || now, dataStr]);
-        } else if (collection === 'weekly_photos') {
-          const q = `
-            INSERT INTO weekly_photos (id, employee_id, week_start_date, data, updated_at)
-            VALUES (?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              week_start_date = VALUES(week_start_date),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [item.id, item.employeeId || '', item.weekStartDate || '', dataStr]);
-        } else if (collection === 'purchases') {
-          const q = `
-            INSERT INTO purchases (id, purchase_number, device_type, brand, model_name, serial_number, purchase_date, vendor, device_cost, total_accessories_cost, grand_total_cost, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              purchase_number = VALUES(purchase_number),
-              device_type = VALUES(device_type),
-              brand = VALUES(brand),
-              model_name = VALUES(model_name),
-              serial_number = VALUES(serial_number),
-              purchase_date = VALUES(purchase_date),
-              vendor = VALUES(vendor),
-              device_cost = VALUES(device_cost),
-              total_accessories_cost = VALUES(total_accessories_cost),
-              grand_total_cost = VALUES(grand_total_cost),
-              status = VALUES(status),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.purchaseNumber || item.id,
-            item.deviceType || 'Laptop',
-            item.brand || '',
-            item.modelName || '',
-            item.serialNumber || '',
-            item.purchaseDate || '',
-            item.vendor || '',
-            Number(item.deviceCost) || 0,
-            Number(item.totalAccessoriesCost) || 0,
-            Number(item.grandTotalCost) || 0,
-            item.status || 'In Stock',
-            dataStr,
-          ]);
-        } else if (collection === 'asset_requests') {
-          const q = `
-            INSERT INTO asset_requests (id, employee_id, employee_name, department, urgency, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              employee_name = VALUES(employee_name),
-              department = VALUES(department),
-              urgency = VALUES(urgency),
-              status = VALUES(status),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.employeeName || '',
-            item.department || '',
-            item.urgency || 'Normal',
-            item.status || 'Pending',
-            dataStr,
-          ]);
-        } else if (collection === 'sim_cards') {
-          const q = `
-            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              contact_number = VALUES(contact_number),
-              assigned_employee_id = VALUES(assigned_employee_id),
-              status = VALUES(status),
-              purpose = VALUES(purpose),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.contactNumber || '',
-            item.assignedEmployeeId || null,
-            item.status || 'Available',
-            item.purpose || 'Holding',
-            dataStr,
-          ]);
-        } else if (collection === 'sim_recharges') {
-          const q = `
-            INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              sim_id = VALUES(sim_id),
-              employee_id = VALUES(employee_id),
-              recharge_date = VALUES(recharge_date),
-              recharge_amount = VALUES(recharge_amount),
-              total_amount = VALUES(total_amount),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.simId || '',
-            item.employeeId || null,
-            item.rechargeDate || '',
-            Number(item.rechargeAmount) || 0,
-            Number(item.totalAmount) || 0,
-            dataStr,
-          ]);
-        } else if (collection === 'sim_requests') {
-          const q = `
-            INSERT INTO sim_requests (id, employee_id, request_type, status, urgency, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              request_type = VALUES(request_type),
-              status = VALUES(status),
-              urgency = VALUES(urgency),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.requestType || 'Additional SIM',
-            item.status || 'Pending',
-            item.urgency || 'Normal',
-            dataStr,
-          ]);
-        } else if (collection === 'service_providers') {
-          const q = `
-            INSERT INTO service_providers (id, technician_name, shop_name, phone_number, service_type, city, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              technician_name = VALUES(technician_name),
-              shop_name = VALUES(shop_name),
-              phone_number = VALUES(phone_number),
-              service_type = VALUES(service_type),
-              city = VALUES(city),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.technicianName || '',
-            item.shopName || '',
-            item.phoneNumber || '',
-            item.serviceType || 'Other',
-            item.city || '',
-            dataStr,
-          ]);
-        } else if (collection === 'asset_queries') {
-          const q = `
-            INSERT INTO asset_queries (id, employee_id, asset_number, status, query_type, is_starred, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              asset_number = VALUES(asset_number),
-              status = VALUES(status),
-              query_type = VALUES(query_type),
-              is_starred = VALUES(is_starred),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.assetNumber || '',
-            item.status || 'Open',
-            item.queryType || 'Fault',
-            Boolean(item.isStarred),
-            dataStr,
-          ]);
-        } else if (collection === 'removed_employees') {
-          const q = `
-            INSERT INTO removed_employees (id, employee_id, name, department, removed_date, removed_by, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              name = VALUES(name),
-              department = VALUES(department),
-              removed_date = VALUES(removed_date),
-              removed_by = VALUES(removed_by),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.name || '',
-            item.department || '',
-            item.removedDate || '',
-            item.removedBy || 'Admin',
-            dataStr,
-          ]);
-        } else if (collection === 'exit_clearances') {
-          const q = `
-            INSERT INTO exit_clearances (id, employee_id, employee_name, department, exit_date, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              employee_id = VALUES(employee_id),
-              employee_name = VALUES(employee_name),
-              department = VALUES(department),
-              exit_date = VALUES(exit_date),
-              status = VALUES(status),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [
-            item.id,
-            item.employeeId || '',
-            item.employeeName || '',
-            item.department || '',
-            item.exitDate || '',
-            item.status || 'Pending Asset Return',
-            dataStr,
-          ]);
-        } else if (collection === 'system_settings') {
-          const q = `
-            INSERT INTO system_settings (\`key\`, \`value\`, updated_at)
-            VALUES (?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              \`value\` = VALUES(\`value\`),
-              updated_at = NOW()
-          `;
-          await mysqlPool.query(q, [item.key, item.value || '']);
-        }
-        return item;
-      } catch (err) {
-        console.error(`[MySQL Error] upsert(${collection}):`, err.message);
-        throw err;
-      }
-    }
-
-    // 3. SQLite Upsert
-    if (sqliteDB) {
-      try {
-        if (collection === 'employees') {
-          try {
-            const stmt = sqliteDB.prepare(`
-              INSERT INTO employees (id, employeeId, name, department, status, data, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET
-                employeeId = excluded.employeeId,
-                name = excluded.name,
-                department = excluded.department,
-                status = excluded.status,
-                data = excluded.data,
-                updated_at = excluded.updated_at
-            `);
-            stmt.run(item.id, item.employeeId || item.id, item.name || '', item.department || '', item.status || 'Active', dataStr, now);
-          } catch {
-            const delStmt = sqliteDB.prepare('DELETE FROM employees WHERE id = ? OR employeeId = ?');
-            delStmt.run(item.id, item.employeeId || item.id);
-            const stmt2 = sqliteDB.prepare(`
-              INSERT INTO employees (id, employeeId, name, department, status, data, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `);
-            stmt2.run(item.id, item.employeeId || item.id, item.name || '', item.department || '', item.status || 'Active', dataStr, now);
-          }
-        } else if (collection === 'computers') {
-          try {
-            const stmt = sqliteDB.prepare(`
-              INSERT INTO computers (id, assetNumber, assignedEmployeeId, status, data, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET
-                assetNumber = excluded.assetNumber,
-                assignedEmployeeId = excluded.assignedEmployeeId,
-                status = excluded.status,
-                data = excluded.data,
-                updated_at = excluded.updated_at
-            `);
-            stmt.run(item.id, item.assetNumber || item.id, item.assignedEmployeeId || null, item.status || 'Assigned', dataStr, now);
-          } catch {
-            const delStmt = sqliteDB.prepare('DELETE FROM computers WHERE id = ? OR assetNumber = ?');
-            delStmt.run(item.id, item.assetNumber || item.id);
-            const stmt2 = sqliteDB.prepare(`
-              INSERT INTO computers (id, assetNumber, assignedEmployeeId, status, data, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?)
-            `);
-            stmt2.run(item.id, item.assetNumber || item.id, item.assignedEmployeeId || null, item.status || 'Assigned', dataStr, now);
-          }
-        } else if (collection === 'assets') {
-          try {
-            const stmt = sqliteDB.prepare(`
-              INSERT INTO assets (id, assetNumber, assetType, assignedEmployeeId, status, data, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET
-                assetNumber = excluded.assetNumber,
-                assetType = excluded.assetType,
-                assignedEmployeeId = excluded.assignedEmployeeId,
-                status = excluded.status,
-                data = excluded.data,
-                updated_at = excluded.updated_at
-            `);
-            stmt.run(item.id, item.assetNumber || item.id, item.assetType || 'Other', item.assignedEmployeeId || null, item.status || 'In Stock', dataStr, now);
-          } catch {
-            const delStmt = sqliteDB.prepare('DELETE FROM assets WHERE id = ? OR assetNumber = ?');
-            delStmt.run(item.id, item.assetNumber || item.id);
-            const stmt2 = sqliteDB.prepare(`
-              INSERT INTO assets (id, assetNumber, assetType, assignedEmployeeId, status, data, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `);
-            stmt2.run(item.id, item.assetNumber || item.id, item.assetType || 'Other', item.assignedEmployeeId || null, item.status || 'In Stock', dataStr, now);
-          }
-        } else if (collection === 'service_records') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO service_records (id, computerId, employeeId, data, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              computerId = excluded.computerId,
-              employeeId = excluded.employeeId,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(item.id, item.computerId || '', item.employeeId || '', dataStr, now);
-        } else if (collection === 'allocations') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO allocations (id, employeeId, assetId, data, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              assetId = excluded.assetId,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(item.id, item.employeeId || '', item.assetId || '', dataStr, now);
-        } else if (collection === 'audit_logs') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO audit_logs (id, action, actor, timestamp, data)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              action = excluded.action,
-              actor = excluded.actor,
-              timestamp = excluded.timestamp,
-              data = excluded.data
-          `);
-          stmt.run(item.id, item.action || '', item.actor || '', item.timestamp || now, dataStr);
-        } else if (collection === 'weekly_photos') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO weekly_photos (id, employeeId, weekStartDate, data, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              weekStartDate = excluded.weekStartDate,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(item.id, item.employeeId || '', item.weekStartDate || '', dataStr, now);
-        } else if (collection === 'purchases') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO purchases (id, purchaseNumber, deviceType, brand, modelName, serialNumber, purchaseDate, vendor, deviceCost, totalAccessoriesCost, grandTotalCost, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              purchaseNumber = excluded.purchaseNumber,
-              deviceType = excluded.deviceType,
-              brand = excluded.brand,
-              modelName = excluded.modelName,
-              serialNumber = excluded.serialNumber,
-              purchaseDate = excluded.purchaseDate,
-              vendor = excluded.vendor,
-              deviceCost = excluded.deviceCost,
-              totalAccessoriesCost = excluded.totalAccessoriesCost,
-              grandTotalCost = excluded.grandTotalCost,
-              status = excluded.status,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.purchaseNumber || item.id,
-            item.deviceType || 'Laptop',
-            item.brand || '',
-            item.modelName || '',
-            item.serialNumber || '',
-            item.purchaseDate || '',
-            item.vendor || '',
-            Number(item.deviceCost) || 0,
-            Number(item.totalAccessoriesCost) || 0,
-            Number(item.grandTotalCost) || 0,
-            item.status || 'In Stock',
-            dataStr,
-            now
-          );
-        } else if (collection === 'asset_requests') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO asset_requests (id, employeeId, employeeName, department, urgency, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              employeeName = excluded.employeeName,
-              department = excluded.department,
-              urgency = excluded.urgency,
-              status = excluded.status,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.employeeId || '',
-            item.employeeName || '',
-            item.department || '',
-            item.urgency || 'Normal',
-            item.status || 'Pending',
-            dataStr,
-            now
-          );
-        } else if (collection === 'sim_cards') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO sim_cards (id, contactNumber, assignedEmployeeId, status, purpose, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              contactNumber = excluded.contactNumber,
-              assignedEmployeeId = excluded.assignedEmployeeId,
-              status = excluded.status,
-              purpose = excluded.purpose,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.contactNumber || '',
-            item.assignedEmployeeId || null,
-            item.status || 'Available',
-            item.purpose || 'Holding',
-            dataStr,
-            now
-          );
-        } else if (collection === 'sim_recharges') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO sim_recharges (id, simId, employeeId, rechargeDate, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              simId = excluded.simId,
-              employeeId = excluded.employeeId,
-              rechargeDate = excluded.rechargeDate,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.simId || '',
-            item.employeeId || null,
-            item.rechargeDate || '',
-            dataStr,
-            now
-          );
-        } else if (collection === 'sim_requests') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO sim_requests (id, employeeId, requestType, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              requestType = excluded.requestType,
-              status = excluded.status,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.employeeId || '',
-            item.requestType || 'Additional SIM',
-            item.status || 'Pending',
-            dataStr,
-            now
-          );
-        } else if (collection === 'service_providers') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO service_providers (id, technicianName, shopName, phoneNumber, serviceType, city, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              technicianName = excluded.technicianName,
-              shopName = excluded.shopName,
-              phoneNumber = excluded.phoneNumber,
-              serviceType = excluded.serviceType,
-              city = excluded.city,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.technicianName || '',
-            item.shopName || '',
-            item.phoneNumber || '',
-            item.serviceType || 'Other',
-            item.city || '',
-            dataStr,
-            now
-          );
-        } else if (collection === 'asset_queries') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO asset_queries (id, employeeId, assetNumber, status, queryType, isStarred, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              assetNumber = excluded.assetNumber,
-              status = excluded.status,
-              queryType = excluded.queryType,
-              isStarred = excluded.isStarred,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.employeeId || '',
-            item.assetNumber || '',
-            item.status || 'Open',
-            item.queryType || 'Fault',
-            item.isStarred ? 1 : 0,
-            dataStr,
-            now
-          );
-        } else if (collection === 'removed_employees') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO removed_employees (id, employeeId, name, department, removedDate, removedBy, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              name = excluded.name,
-              department = excluded.department,
-              removedDate = excluded.removedDate,
-              removedBy = excluded.removedBy,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.employeeId || '',
-            item.name || '',
-            item.department || '',
-            item.removedDate || '',
-            item.removedBy || 'Admin',
-            dataStr,
-            now
-          );
-        } else if (collection === 'exit_clearances') {
-          const stmt = sqliteDB.prepare(`
-            INSERT INTO exit_clearances (id, employeeId, employeeName, department, exitDate, status, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              employeeId = excluded.employeeId,
-              employeeName = excluded.employeeName,
-              department = excluded.department,
-              exitDate = excluded.exitDate,
-              status = excluded.status,
-              data = excluded.data,
-              updated_at = excluded.updated_at
-          `);
-          stmt.run(
-            item.id,
-            item.employeeId || '',
-            item.employeeName || '',
-            item.department || '',
-            item.exitDate || '',
-            item.status || 'Pending Asset Return',
-            dataStr,
-            now
-          );
-        }
-        return item;
-      } catch (err) {
-        console.error(`[SQLite Error] upsert(${collection}):`, err.message);
-        throw err;
-      }
-    }
-
-    // 4. Fallback (local dev only)
-    if (!fallbackState[collection]) fallbackState[collection] = [];
-    const idx = fallbackState[collection].findIndex(i => i.id === item.id);
     if (idx >= 0) {
-      fallbackState[collection][idx] = item;
+      state[collection][idx] = { ...state[collection][idx], ...itemToStore };
     } else {
-      fallbackState[collection].push(item);
+      state[collection].push(itemToStore);
     }
-    saveFallback();
-    return item;
+    persistState();
+
+    // Supabase Cloud Async Upsert
+    if (supabase) {
+      try {
+        const payload = mapItemForSupabase(collection, itemToStore);
+        const { error } = await supabase.from(collection).upsert(payload, { onConflict: 'id' });
+        if (error) {
+          console.warn(`[Supabase Upsert Warning] ${collection}:`, error.message);
+        }
+      } catch (err) {
+        console.warn(`[Supabase Upsert Exception] ${collection}:`, err.message);
+      }
+    }
+
+    return { ...itemToStore };
   },
 
-  // Delete an item permanently
-  async delete(collection, id) {
-    if (supabaseClient && !pgPool && !mysqlPool) {
-      try {
-        const { error } = await supabaseClient.from(collection).delete().eq('id', id);
-        if (error) throw error;
-        if (sqliteDB) {
-          try {
-            const stmt = sqliteDB.prepare(`DELETE FROM ${collection} WHERE id = ?`);
-            stmt.run(id);
-          } catch {}
-        }
-        return true;
-      } catch (err) {
-        console.error(`[Supabase Error] delete(${collection}, ${id}):`, err.message);
-        if (sqliteDB) {
-          try {
-            const stmt = sqliteDB.prepare(`DELETE FROM ${collection} WHERE id = ?`);
-            stmt.run(id);
-            return true;
-          } catch {}
-        }
-        return false;
-      }
-    }
-
-    if (pgPool) {
-      try {
-        const res = await pgPool.query(`DELETE FROM "${collection}" WHERE id = $1`, [id]);
-        return (res.rowCount || 0) > 0;
-      } catch (err) {
-        console.error(`[PostgreSQL Error] delete(${collection}, ${id}):`, err.message);
-        return false;
-      }
-    }
-
-    if (mysqlPool) {
-      try {
-        const [res] = await mysqlPool.query(`DELETE FROM \`${collection}\` WHERE id = ?`, [id]);
-        return (res.affectedRows || 0) > 0;
-      } catch (err) {
-        console.error(`[MySQL Error] delete(${collection}, ${id}):`, err.message);
-        return false;
-      }
-    }
-
-    if (sqliteDB) {
-      try {
-        const stmt = sqliteDB.prepare(`DELETE FROM ${collection} WHERE id = ?`);
-        stmt.run(id);
-        return true;
-      } catch (err) {
-        console.error(`[SQLite Error] delete(${collection}, ${id}):`, err.message);
-        return false;
-      }
-    }
-
-    if (fallbackState[collection]) {
-      fallbackState[collection] = fallbackState[collection].filter(i => i.id !== id);
-      saveFallback();
-    }
-    return true;
-  },
-
-  // Delete all items (Admin initiated purge / reset)
-  async clear(collection) {
-    if (supabaseClient && !pgPool && !mysqlPool) {
-      try {
-        const { error } = await supabaseClient.from(collection).delete().neq('id', '___empty___');
-        if (error) throw error;
-        if (sqliteDB) {
-          try {
-            sqliteDB.prepare(`DELETE FROM ${collection}`).run();
-          } catch {}
-        }
-        return true;
-      } catch (err) {
-        console.error(`[Supabase Error] clear(${collection}):`, err.message);
-        if (sqliteDB) {
-          try {
-            sqliteDB.prepare(`DELETE FROM ${collection}`).run();
-            return true;
-          } catch {}
-        }
-        return false;
-      }
-    }
-
-    if (pgPool) {
-      try {
-        await pgPool.query(`TRUNCATE TABLE "${collection}"`);
-        return true;
-      } catch (err) {
-        console.error(`[PostgreSQL Error] clear(${collection}):`, err.message);
-        return false;
-      }
-    }
-
-    if (mysqlPool) {
-      try {
-        await mysqlPool.query(`TRUNCATE TABLE \`${collection}\``);
-        return true;
-      } catch (err) {
-        console.error(`[MySQL Error] clear(${collection}):`, err.message);
-        return false;
-      }
-    }
-
-    if (sqliteDB) {
-      try {
-        sqliteDB.exec(`DELETE FROM ${collection}`);
-        return true;
-      } catch (err) {
-        console.error(`[SQLite Error] clear(${collection}):`, err.message);
-        return false;
-      }
-    }
-
-    fallbackState[collection] = [];
-    saveFallback();
-    return true;
-  },
-
-  // Batch insert/upsert
   async batchUpsert(collection, items) {
-    if (!Array.isArray(items)) return;
+    if (!Array.isArray(items)) return [];
     for (const item of items) {
       await this.upsert(collection, item);
     }
+    return items;
   },
 
-  // Transactional execution for SIM Recharge + SIM Card update with Read-Back verification
+  async delete(collection, id) {
+    if (!id || !state[collection]) return false;
+    const target = String(id);
+    const beforeLen = state[collection].length;
+    state[collection] = state[collection].filter(item => {
+      if (item.id && String(item.id) === target) return false;
+      if (item.key && String(item.key) === target) return false;
+      return true;
+    });
+    const deleted = state[collection].length < beforeLen;
+    if (deleted) {
+      persistState();
+    }
+
+    if (supabase) {
+      try {
+        await supabase.from(collection).delete().eq('id', target);
+      } catch (err) {
+        console.warn(`[Supabase Delete Warning] ${collection}:`, err.message);
+      }
+    }
+
+    return deleted;
+  },
+
+  async clear(collection) {
+    if (state[collection]) {
+      state[collection] = [];
+      persistState();
+    }
+    if (supabase) {
+      try {
+        await supabase.from(collection).delete().neq('id', '___non_existent___');
+      } catch {}
+    }
+    return true;
+  },
+
   async saveSimRechargeTransaction(rechargeRecord, updatedSimRecord = null) {
-    const rechargeDataStr = JSON.stringify(rechargeRecord);
-
-    // 1. PostgreSQL Transaction
-    if (pgPool) {
-      const client = await pgPool.connect();
-      try {
-        await client.query('BEGIN');
-
-        const qRecharge = `
-          INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-          ON CONFLICT (id) DO UPDATE SET
-            sim_id = EXCLUDED.sim_id,
-            employee_id = EXCLUDED.employee_id,
-            recharge_date = EXCLUDED.recharge_date,
-            recharge_amount = EXCLUDED.recharge_amount,
-            total_amount = EXCLUDED.total_amount,
-            data = EXCLUDED.data,
-            updated_at = NOW()
-        `;
-        await client.query(qRecharge, [
-          rechargeRecord.id,
-          rechargeRecord.simId || '',
-          rechargeRecord.employeeId || null,
-          rechargeRecord.rechargeDate || '',
-          Number(rechargeRecord.rechargeAmount) || 0,
-          Number(rechargeRecord.totalAmount) || 0,
-          rechargeDataStr,
-        ]);
-
-        if (updatedSimRecord) {
-          const simDataStr = JSON.stringify(updatedSimRecord);
-          const qSim = `
-            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              contact_number = EXCLUDED.contact_number,
-              assigned_employee_id = EXCLUDED.assigned_employee_id,
-              status = EXCLUDED.status,
-              purpose = EXCLUDED.purpose,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await client.query(qSim, [
-            updatedSimRecord.id,
-            updatedSimRecord.contactNumber || '',
-            updatedSimRecord.assignedEmployeeId || null,
-            updatedSimRecord.status || 'Available',
-            updatedSimRecord.purpose || 'Holding',
-            simDataStr,
-          ]);
-        }
-
-        await client.query('COMMIT');
-      } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('[PostgreSQL Error] Transaction saveSimRecharge failed:', err.message);
-        throw err;
-      } finally {
-        client.release();
-      }
-
-      // READ-BACK VERIFICATION TEST
-      const verify = await this.getById('sim_recharges', rechargeRecord.id);
-      if (!verify) {
-        throw new Error(`Read-back verification failed: Record ${rechargeRecord.id} was not committed to Cloud PostgreSQL.`);
-      }
-      return verify;
-    }
-
-    // 2. MySQL Transaction
-    if (mysqlPool) {
-      const connection = await mysqlPool.getConnection();
-      try {
-        await connection.beginTransaction();
-
-        const qRecharge = `
-          INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-          ON DUPLICATE KEY UPDATE
-            sim_id = VALUES(sim_id),
-            employee_id = VALUES(employee_id),
-            recharge_date = VALUES(recharge_date),
-            recharge_amount = VALUES(recharge_amount),
-            total_amount = VALUES(total_amount),
-            data = VALUES(data),
-            updated_at = NOW()
-        `;
-        await connection.query(qRecharge, [
-          rechargeRecord.id,
-          rechargeRecord.simId || '',
-          rechargeRecord.employeeId || null,
-          rechargeRecord.rechargeDate || '',
-          Number(rechargeRecord.rechargeAmount) || 0,
-          Number(rechargeRecord.totalAmount) || 0,
-          rechargeDataStr,
-        ]);
-
-        if (updatedSimRecord) {
-          const simDataStr = JSON.stringify(updatedSimRecord);
-          const qSim = `
-            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              contact_number = VALUES(contact_number),
-              assigned_employee_id = VALUES(assigned_employee_id),
-              status = VALUES(status),
-              purpose = VALUES(purpose),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await connection.query(qSim, [
-            updatedSimRecord.id,
-            updatedSimRecord.contactNumber || '',
-            updatedSimRecord.assignedEmployeeId || null,
-            updatedSimRecord.status || 'Available',
-            updatedSimRecord.purpose || 'Holding',
-            simDataStr,
-          ]);
-        }
-
-        await connection.commit();
-      } catch (err) {
-        await connection.rollback();
-        console.error('[MySQL Error] Transaction saveSimRecharge failed:', err.message);
-        throw err;
-      } finally {
-        connection.release();
-      }
-
-      // READ-BACK VERIFICATION TEST
-      const verify = await this.getById('sim_recharges', rechargeRecord.id);
-      if (!verify) {
-        throw new Error(`Read-back verification failed: Record ${rechargeRecord.id} was not committed to Cloud MySQL.`);
-      }
-      return verify;
-    }
-
-    // 3. SQLite / Fallback
     await this.upsert('sim_recharges', rechargeRecord);
     if (updatedSimRecord) {
       await this.upsert('sim_cards', updatedSimRecord);
     }
-    const verify = await this.getById('sim_recharges', rechargeRecord.id);
-    if (!verify) {
-      throw new Error(`Read-back verification failed for SQLite record ${rechargeRecord.id}`);
-    }
-    return verify;
+    persistState();
+    return rechargeRecord;
   },
 
-  // Batch Transactional execution for multiple SIM recharges
   async saveBatchSimRechargeTransaction(rechargesList, updatedSimsList = []) {
-    if (!Array.isArray(rechargesList) || rechargesList.length === 0) return [];
-
-    if (pgPool) {
-      const client = await pgPool.connect();
-      try {
-        await client.query('BEGIN');
-        for (const r of rechargesList) {
-          const dataStr = JSON.stringify(r);
-          const q = `
-            INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              sim_id = EXCLUDED.sim_id,
-              employee_id = EXCLUDED.employee_id,
-              recharge_date = EXCLUDED.recharge_date,
-              recharge_amount = EXCLUDED.recharge_amount,
-              total_amount = EXCLUDED.total_amount,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await client.query(q, [r.id, r.simId || '', r.employeeId || null, r.rechargeDate || '', Number(r.rechargeAmount) || 0, Number(r.totalAmount) || 0, dataStr]);
-        }
-        for (const s of updatedSimsList) {
-          const simDataStr = JSON.stringify(s);
-          const qSim = `
-            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              contact_number = EXCLUDED.contact_number,
-              assigned_employee_id = EXCLUDED.assigned_employee_id,
-              status = EXCLUDED.status,
-              purpose = EXCLUDED.purpose,
-              data = EXCLUDED.data,
-              updated_at = NOW()
-          `;
-          await client.query(qSim, [s.id, s.contactNumber || '', s.assignedEmployeeId || null, s.status || 'Available', s.purpose || 'Holding', simDataStr]);
-        }
-        await client.query('COMMIT');
-      } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('[PostgreSQL Error] Batch transaction failed:', err.message);
-        throw err;
-      } finally {
-        client.release();
-      }
-
-      // READ-BACK VERIFICATION FOR ALL RECORDS
+    if (Array.isArray(rechargesList)) {
       for (const r of rechargesList) {
-        const check = await this.getById('sim_recharges', r.id);
-        if (!check) throw new Error(`Read-back verification failed for batch record ${r.id} on Cloud PostgreSQL.`);
+        await this.upsert('sim_recharges', r);
       }
-      return rechargesList;
     }
-
-    if (mysqlPool) {
-      const connection = await mysqlPool.getConnection();
-      try {
-        await connection.beginTransaction();
-        for (const r of rechargesList) {
-          const dataStr = JSON.stringify(r);
-          const q = `
-            INSERT INTO sim_recharges (id, sim_id, employee_id, recharge_date, recharge_amount, total_amount, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              sim_id = VALUES(sim_id),
-              employee_id = VALUES(employee_id),
-              recharge_date = VALUES(recharge_date),
-              recharge_amount = VALUES(recharge_amount),
-              total_amount = VALUES(total_amount),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await connection.query(q, [r.id, r.simId || '', r.employeeId || null, r.rechargeDate || '', Number(r.rechargeAmount) || 0, Number(r.totalAmount) || 0, dataStr]);
-        }
-        for (const s of updatedSimsList) {
-          const simDataStr = JSON.stringify(s);
-          const qSim = `
-            INSERT INTO sim_cards (id, contact_number, assigned_employee_id, status, purpose, data, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ON DUPLICATE KEY UPDATE
-              contact_number = VALUES(contact_number),
-              assigned_employee_id = VALUES(assigned_employee_id),
-              status = VALUES(status),
-              purpose = VALUES(purpose),
-              data = VALUES(data),
-              updated_at = NOW()
-          `;
-          await connection.query(qSim, [s.id, s.contactNumber || '', s.assignedEmployeeId || null, s.status || 'Available', s.purpose || 'Holding', simDataStr]);
-        }
-        await connection.commit();
-      } catch (err) {
-        await connection.rollback();
-        console.error('[MySQL Error] Batch transaction failed:', err.message);
-        throw err;
-      } finally {
-        connection.release();
+    if (Array.isArray(updatedSimsList)) {
+      for (const s of updatedSimsList) {
+        await this.upsert('sim_cards', s);
       }
-
-      for (const r of rechargesList) {
-        const check = await this.getById('sim_recharges', r.id);
-        if (!check) throw new Error(`Read-back verification failed for batch record ${r.id} on Cloud MySQL.`);
-      }
-      return rechargesList;
     }
-
-    for (const r of rechargesList) {
-      await this.upsert('sim_recharges', r);
-    }
-    for (const s of updatedSimsList) {
-      await this.upsert('sim_cards', s);
-    }
+    persistState();
     return rechargesList;
   },
 
-  // System stats & telemetry
   async getStats() {
-    const collections = [
-      'employees',
-      'computers',
-      'assets',
-      'service_records',
-      'allocations',
-      'audit_logs',
-      'weekly_photos',
-      'purchases',
-      'asset_requests',
-      'sim_cards',
-      'sim_recharges',
-      'sim_requests',
-      'service_providers',
-      'asset_queries',
-      'removed_employees',
-      'exit_clearances',
-    ];
+    let supabaseOnline = false;
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('employees').select('id', { count: 'exact', head: true });
+        supabaseOnline = !error;
+      } catch {
+        supabaseOnline = false;
+      }
+    }
+
     const counts = {};
     let total = 0;
-
-    if (supabaseClient && !pgPool && !mysqlPool) {
-      try {
-        for (const c of collections) {
-          const { count, error } = await supabaseClient.from(c).select('*', { count: 'exact', head: true });
-          const cnt = (!error && typeof count === 'number') ? count : 0;
-          counts[c] = cnt;
-          total += cnt;
-        }
-
-        return {
-          connected: true,
-          engine: 'Supabase Cloud (@supabase/supabase-js)',
-          dbPath: `Supabase Cloud (${supabaseUrl})`,
-          totalRecords: total,
-          counts,
-          lastChecked: new Date().toISOString(),
-        };
-      } catch (err) {
-        console.error('[Supabase Error] getStats():', err.message);
-      }
+    for (const c of COLLECTIONS) {
+      const cnt = Array.isArray(state[c]) ? state[c].length : 0;
+      counts[c] = cnt;
+      total += cnt;
     }
-
-    if (pgPool) {
-      try {
-        for (const c of collections) {
-          const res = await pgPool.query(`SELECT COUNT(*) as count FROM "${c}"`);
-          const count = parseInt(res.rows[0].count, 10) || 0;
-          counts[c] = count;
-          total += count;
-        }
-
-        return {
-          connected: true,
-          engine: 'Cloud PostgreSQL (Production)',
-          dbPath: 'Remote PostgreSQL Managed Cluster',
-          totalRecords: total,
-          counts,
-          lastChecked: new Date().toISOString(),
-        };
-      } catch (err) {
-        console.error('[PostgreSQL Error] getStats():', err.message);
-        return {
-          connected: false,
-          engine: 'Cloud PostgreSQL (Error)',
-          dbPath: 'PostgreSQL Error: ' + err.message,
-          totalRecords: 0,
-          counts: {},
-          lastChecked: new Date().toISOString(),
-        };
-      }
-    }
-
-    if (mysqlPool) {
-      try {
-        for (const c of collections) {
-          const [rows] = await mysqlPool.query(`SELECT COUNT(*) as count FROM \`${c}\``);
-          const count = parseInt(rows[0].count, 10) || 0;
-          counts[c] = count;
-          total += count;
-        }
-
-        return {
-          connected: true,
-          engine: 'Cloud MySQL / MariaDB (Production)',
-          dbPath: 'Remote MySQL Managed Cluster',
-          totalRecords: total,
-          counts,
-          lastChecked: new Date().toISOString(),
-        };
-      } catch (err) {
-        console.error('[MySQL Error] getStats():', err.message);
-        return {
-          connected: false,
-          engine: 'Cloud MySQL (Error)',
-          dbPath: 'MySQL Error: ' + err.message,
-          totalRecords: 0,
-          counts: {},
-          lastChecked: new Date().toISOString(),
-        };
-      }
-    }
-
-    for (const c of collections) {
-      const items = await this.getAll(c);
-      counts[c] = items.length;
-      total += items.length;
-    }
-
-    let fileSize = 0;
-    try {
-      if (fs.existsSync(this.dbPath)) {
-        fileSize = fs.statSync(this.dbPath).size;
-      }
-    } catch {}
 
     return {
-      connected: true,
-      engine: this.isSQLite ? 'Native SQLite (WAL Mode)' : 'Atomic JSON Persistence',
-      dbPath: this.dbPath,
-      fileSizeBytes: fileSize,
+      connected: supabaseOnline || true,
+      supabaseOnline,
+      engine: supabaseOnline ? 'Supabase PostgreSQL Cloud' : 'Local JSON File (Zero Database)',
+      dbPath: DB_PATH,
       totalRecords: total,
       counts,
       lastChecked: new Date().toISOString(),
     };
-  }
+  },
 };

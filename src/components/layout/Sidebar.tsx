@@ -617,18 +617,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Database Live Telemetry Box in Footer */}
+        {/* In-Memory Storage Telemetry Box in Footer */}
         {!isCollapsed && (
           <div className="p-3 border-t border-slate-200/70 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 text-[10px] text-slate-500 space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-300">
                 <span className={`w-1.5 h-1.5 rounded-full ${isDbConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                <span>IndexedDB v1</span>
+                <span>In-Memory Mode</span>
               </div>
               <span className="font-mono text-[9px] text-slate-400">{dbStats?.totalRecords ?? 0} records</span>
             </div>
             <p className="leading-tight text-slate-400 dark:text-slate-500 text-[9px]">
-              Offline-ready local database with zero external tracking.
+              Pure in-memory application with zero internal database.
             </p>
           </div>
         )}
