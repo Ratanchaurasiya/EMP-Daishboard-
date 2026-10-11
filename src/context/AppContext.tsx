@@ -437,6 +437,38 @@ const EMPLOYEE_ALLOWED_TABS = [
   'exit-clearance',
 ];
 
+const ZERO_RESET_VERSION = 'v4_clean_slate_zero';
+if (typeof window !== 'undefined') {
+  try {
+    if (localStorage.getItem(`${STORAGE_KEY}_ZERO_VERSION`) !== ZERO_RESET_VERSION) {
+      const keysToClear = [
+        `${STORAGE_KEY}_EMPLOYEES`,
+        `${STORAGE_KEY}_COMPUTERS`,
+        `${STORAGE_KEY}_ASSETS`,
+        `${STORAGE_KEY}_COMPANY_ASSETS`,
+        `${STORAGE_KEY}_ALLOCATIONS`,
+        `${STORAGE_KEY}_SERVICES`,
+        `${STORAGE_KEY}_LOGS`,
+        `${STORAGE_KEY}_WEEKLY_PHOTO_DOCS`,
+        `${STORAGE_KEY}_PURCHASES`,
+        `${STORAGE_KEY}_ASSET_REQUESTS`,
+        `${STORAGE_KEY}_SIM_CARDS`,
+        `${STORAGE_KEY}_SIM_RECHARGES`,
+        `${STORAGE_KEY}_SIM_REQUESTS`,
+        `${STORAGE_KEY}_SERVICE_PROVIDERS`,
+        `${STORAGE_KEY}_ASSET_QUERIES`,
+        `${STORAGE_KEY}_REMOVED_EMPLOYEES`,
+        `${STORAGE_KEY}_EXIT_CLEARANCES`,
+      ];
+      for (const k of keysToClear) {
+        localStorage.removeItem(k);
+      }
+      localStorage.setItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`, 'true');
+      localStorage.setItem(`${STORAGE_KEY}_ZERO_VERSION`, ZERO_RESET_VERSION);
+    }
+  } catch {}
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Clean empty state defaults (0 employees, 0 computers, 0 phones, 0 peripherals)
   const [employees, setEmployees] = useState<Employee[]>(() => {
@@ -524,48 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [assetRequests, setAssetRequests] = useState<AssetRequest[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_ASSET_REQUESTS`);
-      return saved ? JSON.parse(saved) : [
-        {
-          id: 'REQ-2026-101',
-          employeeId: 'EMP001',
-          companyEmployeeNumber: 'CORP-8820',
-          employeeName: 'Ratan Chaurasiya',
-          employeeEmail: 'ratanchaurasiya61@gmail.com',
-          employeePhone: '+91 63900-12345',
-          department: 'Engineering',
-          designation: 'Senior Full Stack Engineer',
-          requestDate: '2026-03-12',
-          urgency: 'High',
-          status: 'Pending',
-          items: [
-            { id: 'item-101-1', assetType: 'Mouse', quantity: 1, specifications: 'Ergonomic wireless optical mouse' },
-            { id: 'item-101-2', assetType: 'Keyboard', quantity: 1, specifications: 'Mechanical low-profile keyboard' },
-            { id: 'item-101-3', assetType: 'Monitor', quantity: 1, specifications: '27-inch 4K IPS display with Type-C' },
-          ],
-          reason: 'Setting up dedicated multi-screen engineering workstation for heavy UI and distributed systems development.',
-          createdAt: '2026-03-12T10:30:00.000Z',
-        },
-        {
-          id: 'REQ-2026-102',
-          employeeId: 'EMP002',
-          companyEmployeeNumber: 'CORP-7711',
-          employeeName: 'Priya Sharma',
-          employeeEmail: 'priya.sharma@company.com',
-          employeePhone: '+91 98765-43210',
-          department: 'Product Management',
-          designation: 'Lead Product Manager',
-          requestDate: '2026-03-14',
-          urgency: 'Normal',
-          status: 'Approved',
-          items: [
-            { id: 'item-102-1', assetType: 'Headset', quantity: 1, specifications: 'Noise-cancelling with boom microphone' },
-            { id: 'item-102-2', assetType: 'Webcam', quantity: 1, specifications: '1080p 60fps streaming webcam' },
-          ],
-          reason: 'Daily cross-timezone stakeholder syncs and enterprise client demos require high-clarity AV peripherals.',
-          adminNotes: 'Approved by IT Lead. Ready for pickup at IT Desk.',
-          createdAt: '2026-03-14T09:15:00.000Z',
-        },
-      ];
+      return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
@@ -573,10 +564,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [assetQueries, setAssetQueries] = useState<AssetQuery[]>(() => {
     try {
-      const isCleanSlate = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
-      if (isCleanSlate) return [];
       const saved = localStorage.getItem(`${STORAGE_KEY}_ASSET_QUERIES`);
-      return saved !== null ? JSON.parse(saved) : INITIAL_ASSET_QUERIES;
+      return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
@@ -611,36 +600,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [simCards, setSimCards] = useState<SimCard[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_SIM_CARDS`);
-      return saved ? JSON.parse(saved) : INITIAL_SIM_CARDS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_SIM_CARDS;
+      return [];
     }
   });
 
   const [simRecharges, setSimRecharges] = useState<SimRecharge[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_SIM_RECHARGES`);
-      return saved ? JSON.parse(saved) : INITIAL_SIM_RECHARGES;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_SIM_RECHARGES;
+      return [];
     }
   });
 
   const [simRequests, setSimRequests] = useState<SimRequest[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_SIM_REQUESTS`);
-      return saved ? JSON.parse(saved) : INITIAL_SIM_REQUESTS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_SIM_REQUESTS;
+      return [];
     }
   });
 
   const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_SERVICE_PROVIDERS`);
-      return saved ? JSON.parse(saved) : INITIAL_SERVICE_PROVIDERS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_SERVICE_PROVIDERS;
+      return [];
     }
   });
 
@@ -1056,23 +1045,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let effectiveExitClearances: ExitClearanceRecord[] = [];
 
         const isBackendValid = Boolean(bootstrap?.success && bootstrap?.data);
-        const hasBackendData = isBackendValid && (
-          (bootstrap!.data.employees && bootstrap!.data.employees.length > 0) ||
-          (bootstrap!.data.computers && bootstrap!.data.computers.length > 0) ||
-          (bootstrap!.data.assets && bootstrap!.data.assets.length > 0) ||
-          (bootstrap!.data.purchases && bootstrap!.data.purchases.length > 0) ||
-          (bootstrap!.data.assetRequests && bootstrap!.data.assetRequests.length > 0) ||
-          (bootstrap!.data.simCards && bootstrap!.data.simCards.length > 0) ||
-          (bootstrap!.data.simRecharges && bootstrap!.data.simRecharges.length > 0) ||
-          (bootstrap!.data.serviceProviders && bootstrap!.data.serviceProviders.length > 0) ||
-          (bootstrap!.data.assetQueries && bootstrap!.data.assetQueries.length > 0) ||
-          (bootstrap!.data.removedEmployees && bootstrap!.data.removedEmployees.length > 0) ||
-          (bootstrap!.data.exitClearances && bootstrap!.data.exitClearances.length > 0)
-        );
 
-        const isCleanSlateReset = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
-
-        if (isBackendValid && bootstrap && bootstrap.data && (hasBackendData || isCleanSlateReset)) {
+        if (isBackendValid && bootstrap && bootstrap.data) {
           console.log(`[Database] Hydrated directly from ${bootstrap.engine || 'Central Database'}`);
           effectiveEmployees = bootstrap.data.employees || [];
           effectiveComputers = bootstrap.data.computers || [];
@@ -1098,63 +1072,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assetCoreDB.putAll('allocationRecords', effectiveAllocations).catch(() => {});
           assetCoreDB.putAll('serviceRecords', effectiveServices).catch(() => {});
           assetCoreDB.putAll('auditLogs', effectiveLogs).catch(() => {});
-          if (effectiveWeeklyPhotos.length > 0) {
-            assetCoreDB.putAll('weeklyAssetPhotos', effectiveWeeklyPhotos).catch(() => {});
-          }
-          if (effectivePurchases.length > 0) {
-            assetCoreDB.putAll('purchases', effectivePurchases).catch(() => {});
-          }
-          if (effectiveRequests.length > 0) {
-            assetCoreDB.putAll('assetRequests', effectiveRequests).catch(() => {});
-          }
-          if (effectiveSimCards.length > 0) {
-            assetCoreDB.putAll('simCards', effectiveSimCards).catch(() => {});
-          }
-          if (effectiveSimRecharges.length > 0) {
-            assetCoreDB.putAll('simRecharges', effectiveSimRecharges).catch(() => {});
-          }
-          if (effectiveSimRequests.length > 0) {
-            assetCoreDB.putAll('simRequests', effectiveSimRequests).catch(() => {});
-          }
-          if (effectiveServiceProviders.length > 0) {
-            assetCoreDB.putAll('serviceProviders', effectiveServiceProviders).catch(() => {});
-          }
-          if (effectiveAssetQueries.length > 0) {
-            assetCoreDB.putAll('assetQueries', effectiveAssetQueries).catch(() => {});
-          }
-          if (effectiveRemovedEmployees.length > 0) {
-            assetCoreDB.putAll('removedEmployees', effectiveRemovedEmployees).catch(() => {});
-          }
-          if (effectiveExitClearances.length > 0) {
-            assetCoreDB.putAll('exitClearances', effectiveExitClearances).catch(() => {});
-          }
+          assetCoreDB.putAll('weeklyAssetPhotos', effectiveWeeklyPhotos).catch(() => {});
+          assetCoreDB.putAll('purchases', effectivePurchases).catch(() => {});
+          assetCoreDB.putAll('assetRequests', effectiveRequests).catch(() => {});
+          assetCoreDB.putAll('simCards', effectiveSimCards).catch(() => {});
+          assetCoreDB.putAll('simRecharges', effectiveSimRecharges).catch(() => {});
+          assetCoreDB.putAll('simRequests', effectiveSimRequests).catch(() => {});
+          assetCoreDB.putAll('serviceProviders', effectiveServiceProviders).catch(() => {});
+          assetCoreDB.putAll('assetQueries', effectiveAssetQueries).catch(() => {});
+          assetCoreDB.putAll('removedEmployees', effectiveRemovedEmployees).catch(() => {});
+          assetCoreDB.putAll('exitClearances', effectiveExitClearances).catch(() => {});
         } else {
-          // Fallback or Initial SQLite Seed from local cache
-          effectiveEmployees = migrated.employees;
-          effectiveComputers = migrated.computers;
-          effectiveAssets = migrated.assets;
-          effectiveAllocations = migrated.allocationRecords;
-          effectiveServices = migrated.serviceRecords;
-          effectiveLogs = migrated.auditLogs;
+          // Fallback when backend is unreachable
+          effectiveEmployees = migrated.employees || [];
+          effectiveComputers = migrated.computers || [];
+          effectiveAssets = migrated.assets || [];
+          effectiveAllocations = migrated.allocationRecords || [];
+          effectiveServices = migrated.serviceRecords || [];
+          effectiveLogs = migrated.auditLogs || [];
           effectiveWeeklyPhotos = migrated.weeklyPhotoRecords || [];
           effectivePurchases = migrated.purchases || [];
           effectiveRequests = migrated.assetRequests || [];
+          effectiveSimCards = migrated.simCards || [];
+          effectiveSimRecharges = migrated.simRecharges || [];
+          effectiveSimRequests = migrated.simRequests || [];
+          effectiveServiceProviders = migrated.serviceProviders || [];
+          effectiveAssetQueries = migrated.assetQueries || [];
+          effectiveRemovedEmployees = [];
+          effectiveExitClearances = [];
+
           const isCleanSlate = localStorage.getItem(`${STORAGE_KEY}_CLEAN_SLATE_RESET`) === 'true';
-          effectiveSimCards = migrated.simCards?.length
-            ? migrated.simCards
-            : (isCleanSlate ? [] : INITIAL_SIM_CARDS);
-          effectiveSimRecharges = migrated.simRecharges?.length
-            ? migrated.simRecharges
-            : (isCleanSlate ? [] : INITIAL_SIM_RECHARGES);
-          effectiveSimRequests = migrated.simRequests?.length
-            ? migrated.simRequests
-            : (isCleanSlate ? [] : INITIAL_SIM_REQUESTS);
-          effectiveServiceProviders = migrated.serviceProviders?.length
-            ? migrated.serviceProviders
-            : (isCleanSlate ? [] : INITIAL_SERVICE_PROVIDERS);
-          effectiveAssetQueries = migrated.assetQueries?.length
-            ? migrated.assetQueries
-            : (isCleanSlate ? [] : INITIAL_ASSET_QUERIES);
 
           try {
             const cachedEmpStr = localStorage.getItem(`${STORAGE_KEY}_EMPLOYEES`);
@@ -1311,17 +1258,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setWeeklyPhotoRecords(effectiveWeeklyPhotos);
         setPurchases(effectivePurchases);
         setAssetRequests(effectiveRequests);
-        setSimCards(effectiveSimCards.length > 0 ? effectiveSimCards : INITIAL_SIM_CARDS);
-        setSimRecharges(effectiveSimRecharges.length > 0 ? effectiveSimRecharges : INITIAL_SIM_RECHARGES);
-        setSimRequests(effectiveSimRequests.length > 0 ? effectiveSimRequests : INITIAL_SIM_REQUESTS);
-        setServiceProviders(effectiveServiceProviders.length > 0 ? effectiveServiceProviders : INITIAL_SERVICE_PROVIDERS);
+        setSimCards(effectiveSimCards);
+        setSimRecharges(effectiveSimRecharges);
+        setSimRequests(effectiveSimRequests);
+        setServiceProviders(effectiveServiceProviders);
         setAssetQueries(effectiveAssetQueries);
-        if (effectiveRemovedEmployees.length > 0) {
-          setRemovedEmployees(effectiveRemovedEmployees);
-        }
-        if (effectiveExitClearances.length > 0) {
-          setExitClearances(effectiveExitClearances);
-        }
+        setRemovedEmployees(effectiveRemovedEmployees);
+        setExitClearances(effectiveExitClearances);
 
         const stats = await assetCoreDB.getStats();
         if (bootstrap?.stats) {

@@ -154,12 +154,8 @@ function loadState() {
   }
 
   for (const col of COLLECTIONS) {
-    if (Array.isArray(loaded[col]) && loaded[col].length > 0) {
+    if (Array.isArray(loaded[col])) {
       state[col] = loaded[col];
-    } else if (Array.isArray(loaded[col])) {
-      state[col] = (SEED_MAPPING[col] && SEED_MAPPING[col].length > 0) ? [...SEED_MAPPING[col]] : [];
-    } else if (SEED_MAPPING[col] && SEED_MAPPING[col].length > 0) {
-      state[col] = [...SEED_MAPPING[col]];
     } else {
       state[col] = [];
     }

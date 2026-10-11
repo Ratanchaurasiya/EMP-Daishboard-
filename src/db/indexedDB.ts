@@ -18,14 +18,6 @@ import {
   ServiceProvider,
   AssetQuery,
 } from '../types';
-import {
-  INITIAL_EMPLOYEES,
-  INITIAL_COMPUTERS,
-  INITIAL_COMPANY_ASSETS,
-  INITIAL_SERVICE_RECORDS,
-  INITIAL_ALLOCATION_RECORDS,
-  INITIAL_AUDIT_LOGS,
-} from '../data/initialSeedData';
 
 const DB_NAME = 'AssetCore_Enterprise_DB';
 
@@ -161,12 +153,12 @@ class InMemoryStorageManager {
     assetQueries: AssetQuery[];
   }> {
     return {
-      employees: (await this.getAll<Employee>('employees')) || INITIAL_EMPLOYEES,
-      computers: (await this.getAll<Computer>('computers')) || INITIAL_COMPUTERS,
-      assets: (await this.getAll<CompanyAsset>('assets')) || INITIAL_COMPANY_ASSETS,
-      serviceRecords: (await this.getAll<ServiceRecord>('serviceRecords')) || INITIAL_SERVICE_RECORDS,
-      allocationRecords: (await this.getAll<AssetAllocationRecord>('allocationRecords')) || INITIAL_ALLOCATION_RECORDS,
-      auditLogs: (await this.getAll<AuditLog>('auditLogs')) || INITIAL_AUDIT_LOGS,
+      employees: (await this.getAll<Employee>('employees')) || [],
+      computers: (await this.getAll<Computer>('computers')) || [],
+      assets: (await this.getAll<CompanyAsset>('assets')) || [],
+      serviceRecords: (await this.getAll<ServiceRecord>('serviceRecords')) || [],
+      allocationRecords: (await this.getAll<AssetAllocationRecord>('allocationRecords')) || [],
+      auditLogs: (await this.getAll<AuditLog>('auditLogs')) || [],
       weeklyPhotoRecords: (await this.getAll<WeeklyAssetPhotoRecord>('weeklyAssetPhotos')) || [],
       purchases: (await this.getAll<PurchaseRecord>('purchases')) || [],
       assetRequests: (await this.getAll<AssetRequest>('assetRequests')) || [],
