@@ -69,19 +69,9 @@ async function directSupabaseDelete(table: string, id: string) {
 }
 
 export const api = {
-  // Bootstrap: Hydrate entire dataset in 1 roundtrip (Express API or Direct Supabase Cloud)
+  // Bootstrap: Hydrate entire dataset in 1 roundtrip (Direct Supabase Cloud or Express API)
   async getBootstrap(): Promise<BootstrapResponse | null> {
-    try {
-      const res = await fetch(`${API_BASE}/bootstrap`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.success && json?.data) return json;
-      }
-    } catch (err) {
-      console.warn('[API] Bootstrap fetch failed, attempting direct Supabase Cloud query:', err);
-    }
-
-    // Direct Supabase Cloud Fallback (ideal for Vercel & static deployments)
+    // 1. Direct Supabase Cloud Primary Fetch (ideal for Vercel, static frontend & low latency)
     try {
       const [
         empRes, compRes, assetRes, allocRes, srvRes, logRes, photoRes,
@@ -124,11 +114,6 @@ export const api = {
       const removedEmployees = mapRows(remRes.data);
       const exitClearances = mapRows(exitRes.data);
 
-      const totalCount = employees.length + computers.length + assets.length + simCards.length;
-      if (totalCount > 0) {
-        console.log(`[API] Successfully hydrated ${totalCount} records directly from Supabase Cloud!`);
-      }
-
       return {
         success: true,
         databaseConnected: true,
@@ -153,9 +138,21 @@ export const api = {
         },
       };
     } catch (sbErr) {
-      console.warn('[API] Direct Supabase fallback error:', sbErr);
-      return null;
+      console.warn('[API] Direct Supabase fetch failed, attempting API fallback:', sbErr);
     }
+
+    // 2. Express API Fallback
+    try {
+      const res = await fetch(`${API_BASE}/bootstrap`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.success && json?.data) return json;
+      }
+    } catch (err) {
+      console.warn('[API] Bootstrap fetch failed:', err);
+    }
+
+    return null;
   },
 
   // Health check

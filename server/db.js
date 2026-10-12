@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
-import * as seedData from './data/initialSeedData.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,17 +23,19 @@ if (fs.existsSync(rootEnvPath)) {
   } catch {}
 }
 
-// Data directory & file path for local persistence fallback
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+// Data directory & file path for local persistence fallback (safe for Vercel/serverless /tmp)
+const DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? path.join('/tmp', 'data') : path.join(__dirname, 'data'));
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch {}
 
 const DB_PATH = process.env.JSON_DB_PATH || path.join(DATA_DIR, 'database.json');
 
 // Supabase Cloud Configuration with Safe Fallbacks for Vercel
 const supabaseUrl = process.env.SUPABASE_URL || (process.env.SUPABASE_PROJECT_ID ? `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co` : null) || 'https://sjsgnooheqiuzwkfzhsi.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || null;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_mTKcwVIETZNpLhPSoHE--g_GOOR_K0s';
 
 let supabase = null;
 if (supabaseUrl && supabaseKey) {
@@ -67,22 +68,6 @@ const COLLECTIONS = [
   'removed_employees',
   'exit_clearances',
 ];
-
-const SEED_MAPPING = {
-  employees: seedData.INITIAL_EMPLOYEES || [],
-  computers: seedData.INITIAL_COMPUTERS || [],
-  assets: seedData.INITIAL_COMPANY_ASSETS || [],
-  allocations: seedData.INITIAL_ALLOCATION_RECORDS || [],
-  service_records: seedData.INITIAL_SERVICE_RECORDS || [],
-  audit_logs: seedData.INITIAL_AUDIT_LOGS || [],
-  weekly_photos: seedData.INITIAL_WEEKLY_PHOTO_RECORDS || [],
-  purchases: seedData.INITIAL_PURCHASES || [],
-  sim_cards: seedData.INITIAL_SIM_CARDS || [],
-  sim_recharges: seedData.INITIAL_SIM_RECHARGES || [],
-  sim_requests: seedData.INITIAL_SIM_REQUESTS || [],
-  service_providers: seedData.INITIAL_SERVICE_PROVIDERS || [],
-  asset_queries: seedData.INITIAL_ASSET_QUERIES || [],
-};
 
 // In-memory application state
 const state = {};
